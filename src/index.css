@@ -1,0 +1,210 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Code Pro";
+  src: url("/fonts/code-pro.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  font-family: "Code Pro", "SF Mono", "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+
+  /* 浅色主题（与 yuimusic 同款） */
+  --bg-base: #e8eaef;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-elevated: rgba(255, 255, 255, 0.88);
+  --border: rgba(0, 0, 0, 0.06);
+  --text-primary: rgba(0, 0, 0, 0.86);
+  --text-secondary: rgba(0, 0, 0, 0.48);
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.14);
+  --accent-strong: rgba(10, 132, 255, 0.28);
+
+  /* 模式色 */
+  --mode-standard: #ff66aa;
+  --mode-taiko: #ff9100;
+  --mode-catch: #66cc44;
+  --mode-mania: #9966ff;
+}
+
+html.dark {
+  --bg-base: #09090c;
+  --surface: rgba(255, 255, 255, 0.05);
+  --surface-elevated: rgba(255, 255, 255, 0.1);
+  --border: rgba(255, 255, 255, 0.07);
+  --text-primary: rgba(255, 255, 255, 0.88);
+  --text-secondary: rgba(255, 255, 255, 0.48);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  overflow-x: hidden;
+  /* 防止双击缩放 */
+  touch-action: manipulation;
+}
+
+/* 页面外壳留出顶部导航空间 */
+.page-shell {
+  min-height: 100%;
+  padding: 72px 16px calc(32px + env(safe-area-inset-bottom, 0px)) 16px;
+}
+
+@media (min-width: 768px) {
+  .page-shell {
+    padding: 88px 24px calc(40px + env(safe-area-inset-bottom, 0px)) 24px;
+  }
+}
+
+/* 入场动画 */
+@keyframes stagger-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-enter {
+  animation: stagger-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-enter-1 { animation-delay: 0.04s; }
+.animate-enter-2 { animation-delay: 0.1s; }
+.animate-enter-3 { animation-delay: 0.18s; }
+.animate-enter-4 { animation-delay: 0.26s; }
+.animate-enter-5 { animation-delay: 0.34s; }
+
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-transition {
+  animation: page-fade-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 隐藏所有滚动条 */
+*::-webkit-scrollbar {
+  display: none;
+}
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* 卡片样式（与 yuimusic 一致） */
+.solid-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+html.dark .solid-card {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* 鼠标边缘高光 */
+.glow-card {
+  --mouse-x: 50%;
+  --mouse-y: 50%;
+  position: relative;
+  overflow: hidden;
+}
+
+.glow-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  padding: 1.5px;
+  background: radial-gradient(
+    420px circle at var(--mouse-x) var(--mouse-y),
+    rgba(255, 255, 255, 0.55),
+    rgba(255, 255, 255, 0.18) 40%,
+    transparent 70%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+html.dark .glow-card::before {
+  background: radial-gradient(
+    420px circle at var(--mouse-x) var(--mouse-y),
+    rgba(255, 255, 255, 0.4),
+    rgba(255, 255, 255, 0.12) 40%,
+    transparent 70%
+  );
+}
+
+.glow-card.glow-active::before {
+  opacity: 1;
+}
+
+/* 游戏页面：横屏全屏 Canvas */
+.game-shell {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.game-shell canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+
+
+/* 按钮：渐变发光 */
+.btn-glow {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease;
+}
+
+.btn-glow:active {
+  transform: scale(0.96);
+}
+
+.btn-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent 60%);
+  pointer-events: none;
+}
