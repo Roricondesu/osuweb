@@ -105,6 +105,7 @@ export abstract class GameEngine {
 
   protected hitSoundVolume = 0.6;
   protected hitSoundAudios: Map<string, HTMLAudioElement> = new Map();
+  protected hitSoundUrlCache: Map<string, string | null> = new Map();
 
   protected backgroundImage: HTMLImageElement | null = null;
   protected backgroundLoaded = false;
@@ -285,7 +286,11 @@ export abstract class GameEngine {
     if (this.status !== "idle") return;
     this.status = "playing";
     this.audio.volume = 1;
-    this.audio.currentTime = 0;
+    try {
+      this.audio.currentTime = 0;
+    } catch {
+      // 音频未加载完成时设置 currentTime 可能抛错
+    }
     this.audio.play().catch(() => {
       // 自动播放可能被阻拦，等用户首次交互
     });
@@ -316,7 +321,11 @@ export abstract class GameEngine {
   restart(): void {
     this.score = createInitialScore();
     this.resetState();
-    this.audio.currentTime = 0;
+    try {
+      this.audio.currentTime = 0;
+    } catch {
+      // 忽略音频未就绪时的设置异常
+    }
     this.status = "playing";
     this.audio.play().catch(() => {});
     this.lastFrameAt = 0;
@@ -432,6 +441,39 @@ export abstract class GameEngine {
     return { set, index };
   }
 
+  /** 解析按键音 URL（带缓存，避免每次遍历 assetUrls） */
+  private resolveHitSoundUrl(setName: string, sound: string, indexSuffix: string): string | undefined {
+    const baseName = `${setName}-hit${sound}${indexSuffix}`;
+    const cached = this.hitSoundUrlCache.get(baseName);
+    if (cached !== undefined) return cached || undefined;
+
+    const exts = [".wav", ".mp3", ".ogg"];
+    let url: string | undefined;
+    for (const ext of exts) {
+      const key = baseName + ext;
+      if (this.assetUrls[key]) {
+        url = this.assetUrls[key];
+        break;
+      }
+    }
+    if (!url) {
+      const lowerBase = baseName.toLowerCase();
+      for (const [k, v] of Object.entries(this.assetUrls)) {
+        const base = k.split("/").pop()?.toLowerCase() || "";
+        if (base === lowerBase + ".wav" || base === lowerBase + ".mp3" || base === lowerBase + ".ogg") {
+          url = v;
+          break;
+        }
+      }
+    }
+    if (!url && indexSuffix) {
+      // 自定义 index 不存在时回退到默认
+      url = this.resolveHitSoundUrl(setName, sound, "");
+    }
+    this.hitSoundUrlCache.set(baseName, url || null);
+    return url;
+  }
+
   /** 播放物件的按键音（谱面自带音效） */
   protected playHitSound(obj: HitObject): void {
     if (this.hitSoundVolume <= 0) return;
@@ -446,46 +488,47 @@ export abstract class GameEngine {
     if (flags & 8) sounds.push("clap");
     if (sounds.length === 0) sounds.push("normal");
 
-    const exts = [".wav", ".mp3", ".ogg"];
     for (const sound of sounds) {
-      const baseName = `${setName}-hit${sound}${indexSuffix}`;
-      let url: string | undefined;
-      // 先精确匹配（含大小写），再 basename 匹配
-      for (const ext of exts) {
-        const key = baseName + ext;
-        if (this.assetUrls[key]) {
-          url = this.assetUrls[key];
-          break;
+      const url = this.resolveHitSoundUrl(setName, sound, indexSuffix);
+      if (!url) continue;
+
+      let audio = this.hitSoundAudios.get(url);
+      if (!audio) {
+        try {
+          audio = new Audio(url);
+        } catch {
+          continue;
         }
+        audio.preload = "auto";
+        this.hitSoundAudios.set(url, audio);
       }
-      if (!url) {
-        const lowerBase = baseName.toLowerCase();
-        for (const [k, v] of Object.entries(this.assetUrls)) {
-          const base = k.split("/").pop()?.toLowerCase() || "";
-          if (base === lowerBase + ".wav" || base === lowerBase + ".mp3" || base === lowerBase + ".ogg") {
-            url = v;
-            break;
-          }
+      audio.volume = this.hitSoundVolume;
+
+      const play = () => {
+        try {
+          audio.currentTime = 0;
+        } catch {
+          // 忽略未加载完成时的设置异常
         }
-      }
-      if (!url && index > 0) {
-        // 自定义 index 不存在时回退到默认
-        const fallback = `${setName}-hit${sound}`;
-        for (const ext of exts) {
-          if (this.assetUrls[fallback + ext]) {
-            url = this.assetUrls[fallback + ext];
-            break;
-          }
-        }
-      }
-      if (url) {
-        const audio = this.hitSoundAudios.get(url) || new Audio(url);
-        if (!this.hitSoundAudios.has(url)) this.hitSoundAudios.set(url, audio);
-        audio.volume = this.hitSoundVolume;
-        audio.currentTime = 0;
         audio.play().catch(() => {
           // 忽略自动播放限制等错误
         });
+      };
+
+      if (audio.readyState >= 2) {
+        play();
+      } else {
+        const onCanPlay = () => {
+          audio.removeEventListener("canplaythrough", onCanPlay);
+          audio.removeEventListener("error", onError);
+          play();
+        };
+        const onError = () => {
+          audio.removeEventListener("canplaythrough", onCanPlay);
+          audio.removeEventListener("error", onError);
+        };
+        audio.addEventListener("canplaythrough", onCanPlay);
+        audio.addEventListener("error", onError);
       }
     }
   }

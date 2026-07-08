@@ -85,6 +85,10 @@ export default function Game() {
       audio.src = set.audioUrl;
       audio.volume = volume;
       audio.preload = "auto";
+      audio.onerror = () => {
+        // 主音频加载失败时允许继续进入准备状态，避免页面卡住
+        console.warn("主音频加载失败", set.audioUrl);
+      };
 
       const engine = createEngine(gameMode, {
         canvas,
