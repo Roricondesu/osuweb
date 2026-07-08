@@ -4,9 +4,9 @@
  *  - 竖屏：音符垂直下落判定圈
  *  - 性能：活动物件指针
  */
-import type { HitObject, ParsedBeatmap } from "@/types";
+import type { HitObject } from "@/types";
 import { GameEngine, type EngineOptions } from "../GameEngine";
-import { drawCircle, drawRect, drawRing, drawText, clamp, GAME_FONT } from "../renderer/Canvas2D";
+import { drawRect, drawText, clamp, GAME_FONT } from "../renderer/Canvas2D";
 
 const NOTE_R = 36;
 const APPROACH_TIME = 1500;

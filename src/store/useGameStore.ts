@@ -19,7 +19,7 @@ import {
 } from "@/api/osuDirect";
 import { extractOsz } from "@/utils/oszLoader";
 import { saveDownload, loadAllDownloads, deleteDownload, clearAllDownloads } from "@/utils/indexedDb";
-import { fetchNeteaseLyrics } from "@/utils/neteaseLyrics";
+import { fetchLyrics } from "@/utils/lyricsProvider";
 
 const EMPTY_RUNTIME: GameRuntime = {
   setId: 0,
@@ -177,7 +177,7 @@ export const useGameStore = create<GameState>()(
           const artist = set_.artist_unicode || set_.artist;
 
           // 歌词与谱面下载并行进行
-          const lyricsPromise = fetchNeteaseLyrics(title, artist).catch(() => []);
+          const lyricsPromise = fetchLyrics(title, artist, get().settings.lyricsSource).catch(() => []);
 
           const buf = await apiDownloadOsz(set_.id, full, (r) => set({ downloadProgress: r }));
           const loaded = await extractOsz(buf, {

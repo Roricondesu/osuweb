@@ -2,7 +2,7 @@
 // 公共镜像，无需 API key。yuimusic 中已验证 CORS 与可用性。
 
 import type { BeatmapSet, Beatmap, GameMode } from "@/types";
-import { MODE_TO_ID, MODE_FROM_ID } from "@/types";
+import { MODE_TO_ID } from "@/types";
 
 const OSU_DIRECT_HOST = "https://osu.direct/api/v2";
 const SAYOBOT_MINI = "https://dl.sayobot.cn/beatmaps/download/mini";

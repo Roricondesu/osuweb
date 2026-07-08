@@ -5,7 +5,7 @@
  *  - 支持 4/7 键
  *  - 性能：活动物件指针、预计算列
  */
-import type { HitObject, ParsedBeatmap, Judgement } from "@/types";
+import type { HitObject, ParsedBeatmap } from "@/types";
 import { GameEngine } from "../GameEngine";
 import { drawRect, drawText, clamp, hexToRgba, GAME_FONT } from "../renderer/Canvas2D";
 
@@ -170,7 +170,7 @@ export class ManiaEngine extends GameEngine {
   }
 
   private drawStage(): void {
-    const { ctx, width } = this.ctx;
+    const { ctx } = this.ctx;
     for (let c = 0; c < this.cols; c++) {
       const x = this.startX + c * this.colWidth;
       const bg = c % 2 === 0 ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.07)";
@@ -250,7 +250,7 @@ export class ManiaEngine extends GameEngine {
     }
   }
 
-  public onPointerDown(x: number, _y: number): void {
+  public onPointerDown(x: number): void {
     if (this.status !== "playing") return;
     const col = Math.floor((x - this.startX) / this.colWidth);
     if (col < 0 || col >= this.cols) return;
@@ -258,7 +258,7 @@ export class ManiaEngine extends GameEngine {
     this.tryHit(col);
   }
   public onPointerMove = (): void => {};
-  public onPointerUp = (x: number, _y: number): void => {
+  public onPointerUp = (x: number): void => {
     const col = Math.floor((x - this.startX) / this.colWidth);
     if (col < 0 || col >= this.cols) return;
     this.releaseCol(col, this.currentTime);

@@ -371,12 +371,6 @@ export const parseStoryboardEvents = (text: string): StoryboardSprite[] => {
   let current: StoryboardSprite | null = null;
   let stack: { sprite: StoryboardSprite | null; loop?: StoryboardCommand }[] = [];
 
-  const pushCommands = (target: StoryboardSprite, ...cmds: (StoryboardCommand | null)[]) => {
-    for (const cmd of cmds) {
-      if (cmd) target.commands.push(cmd);
-    }
-  };
-
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
     const line = raw.trim();
@@ -450,14 +444,6 @@ export const parseStoryboardEvents = (text: string): StoryboardSprite[] => {
     if (!cmd) continue;
 
     // 如果有循环栈，加到最内层 loop 的 commands
-    let target = current;
-    for (const s of stack) {
-      if (s.loop) {
-        if (s.loop.type === "L" || s.loop.type === "T") {
-          target = null as any; // 占位，实际会放到最内层 loop
-        }
-      }
-    }
     if (stack.length > 0) {
       const topLoop = stack[stack.length - 1].loop;
       if (topLoop && (topLoop.type === "L" || topLoop.type === "T")) {
@@ -487,7 +473,7 @@ export const parseEventsSection = (
 ): { backgroundFilename?: string; storyboard: StoryboardSprite[] } => {
   const lines = text.split(/\r?\n/);
   let inEvents = false;
-  let eventLines: string[] = [];
+  const eventLines: string[] = [];
   let backgroundFilename: string | undefined;
 
   for (const rawLine of lines) {

@@ -1,7 +1,9 @@
 import React from "react";
 import type { BeatmapSet } from "@/types";
-import { DifficultyBadge, ModeBadge } from "@/components/common";
-import { Music2, Film } from "lucide-react";
+import { DifficultyBadge } from "./DifficultyBadge";
+import { ModeBadge } from "./ModeBadge";
+import { BeatmapCover } from "./BeatmapCover";
+import { StoryboardBadge } from "./StoryboardBadge";
 import { useNavigate } from "react-router-dom";
 
 interface BeatmapCardProps {
@@ -9,7 +11,7 @@ interface BeatmapCardProps {
   index?: number;
 }
 
-export const BeatmapCard: React.FC<BeatmapCardProps> = ({ set, index = 0 }) => {
+export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index = 0 }) => {
   const navigate = useNavigate();
   const cover = set.covers?.["cover@2x"] || set.covers?.cover || "";
   const minStars = set.beatmaps.length
@@ -39,28 +41,13 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = ({ set, index = 0 }) => {
       onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0)")}
     >
       <div style={{ position: "relative", aspectRatio: "3/2", overflow: "hidden" }}>
-        {cover ? (
-          <img
-            src={cover}
-            alt={set.title}
-            loading="lazy"
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
-        ) : (
-          <div
-            style={{
-              width: "100%",
-              height: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "var(--surface-elevated)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            <Music2 size={32} />
-          </div>
-        )}
+        <BeatmapCover
+          src={cover}
+          alt={set.title}
+          placeholderSize={48}
+          style={{ position: "absolute", inset: 0 }}
+          imgStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
         <div
           style={{
             position: "absolute",
@@ -83,23 +70,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = ({ set, index = 0 }) => {
           {modeList.map((m) => (
             <ModeBadge key={m} mode={modeNames[m]} />
           ))}
-          {set.hasStoryboard && (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 2,
-                padding: "2px 6px",
-                borderRadius: 6,
-                background: "rgba(0,0,0,0.5)",
-                color: "#fff",
-                fontSize: 10,
-                fontWeight: 600,
-              }}
-            >
-              <Film size={10} /> Storyboard
-            </span>
-          )}
+          {set.hasStoryboard && <StoryboardBadge />}
         </div>
         <div
           style={{
@@ -158,4 +129,5 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = ({ set, index = 0 }) => {
       </div>
     </div>
   );
-};
+});
+BeatmapCard.displayName = "BeatmapCard";

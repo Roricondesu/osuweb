@@ -2,9 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "@/store/useGameStore";
 import { GlassButton } from "@/components/glass/GlassButton";
-import { DifficultyBadge, ModeBadge } from "@/components/common";
-import { ArrowLeft, Download, Play, Loader2, Music2, CheckCircle2 } from "lucide-react";
-import type { GameMode, Beatmap, BeatmapSet } from "@/types";
+import { DifficultyBadge, ModeBadge, BeatmapCover, StoryboardBadge } from "@/components/common";
+import { ArrowLeft, Download, Play, Loader2, CheckCircle2 } from "lucide-react";
+import type { GameMode, Beatmap } from "@/types";
 import { MODE_LABEL, MODE_COLOR } from "@/types";
 import { formatTime } from "@/utils/formatTime";
 
@@ -33,6 +33,7 @@ export default function BeatmapSetDetail() {
 
   useEffect(() => {
     if (setId) loadDetail(Number(setId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setId]);
 
   const loaded = setId ? downloaded.get(Number(setId)) : undefined;
@@ -77,30 +78,15 @@ export default function BeatmapSetDetail() {
         <div className="solid-card overflow-hidden">
           {/* 头部封面区 */}
           <div style={{ position: "relative", aspectRatio: "16/9", maxHeight: 320, overflow: "hidden" }}>
-            {cover ? (
-              <img
-                src={cover}
-                alt={detailSet?.title}
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "var(--surface-elevated)",
-                }}
-              >
-                {isLoading ? (
-                  <Loader2 size={40} className="animate-spin" style={{ color: "var(--text-secondary)" }} />
-                ) : (
-                  <Music2 size={40} style={{ color: "var(--text-secondary)" }} />
-                )}
-              </div>
-            )}
+            <BeatmapCover
+              src={cover}
+              alt={detailSet?.title}
+              placeholderSize={72}
+              loading={isLoading}
+              loadingIndicator={<Loader2 size={40} className="animate-spin" style={{ color: "var(--text-secondary)" }} />}
+              style={{ position: "absolute", inset: 0 }}
+              imgStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
             <div
               style={{
                 position: "absolute",
@@ -141,6 +127,11 @@ export default function BeatmapSetDetail() {
                 right: 16,
               }}
             >
+              {detailSet?.hasStoryboard && (
+                <div className="mb-2">
+                  <StoryboardBadge size="md" />
+                </div>
+              )}
               <h1 className="text-xl font-bold md:text-2xl" style={{ color: "#fff", letterSpacing: "-0.02em" }}>
                 {detailSet?.title_unicode || detailSet?.title || "加载中…"}
               </h1>

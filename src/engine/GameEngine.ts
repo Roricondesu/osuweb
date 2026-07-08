@@ -16,7 +16,7 @@ import {
   type JudgementWindows,
 } from "./Judger";
 import type { CanvasContext } from "./renderer/Canvas2D";
-import { setupCanvas, clear, drawText, GAME_FONT, clamp, lerp } from "./renderer/Canvas2D";
+import { setupCanvas, clear, GAME_FONT, clamp } from "./renderer/Canvas2D";
 import { getCurrentLyric } from "@/utils/neteaseLyrics";
 
 interface HitEffect {
@@ -121,6 +121,8 @@ export abstract class GameEngine {
   protected showLyrics = true;
   protected lyrics: LyricLine[] = [];
   private lastFrameAt = 0;
+  // Storyboard 颜色着色用离屏 canvas（避免透明像素被背景/其他物件染色）
+  private storyboardColorCanvas: HTMLCanvasElement | null = null;
 
   protected activeIndex = 0;
   protected hitEffects: HitEffect[] = [];
@@ -420,7 +422,7 @@ export abstract class GameEngine {
     const base = current || lastUninherited;
     if (!base) return { set: 1, index: 0 };
     let set = base.sampleSet || 0;
-    let index = base.sampleIndex || 0;
+    const index = base.sampleIndex || 0;
     if (!base.uninherited && set === 0 && lastUninherited) {
       set = lastUninherited.sampleSet || 1;
     }
@@ -944,6 +946,13 @@ export abstract class GameEngine {
   public setCursorPos(x: number, y: number): void {
     this.cursorX = x;
     this.cursorY = y;
+    // 非 Auto 模式下让光标目标与输入位置保持一致，避免弹簧把光标拉回旧目标导致反弹
+    if (!this.auto) {
+      this.cursorTargetX = x;
+      this.cursorTargetY = y;
+      this.cursorVelocityX = 0;
+      this.cursorVelocityY = 0;
+    }
   }
 
   /** 输入：按下（子类必须实现） */
@@ -960,10 +969,10 @@ export abstract class GameEngine {
   };
 
   /** 输入：按键（子类可选实现） */
-  public onKeyDown(key: string): void {}
+  public onKeyDown(_key: string): void {}
 
   /** 输入：抬键（子类可选实现） */
-  public onKeyUp = (key: string): void => {};
+  public onKeyUp = (_key: string): void => {};
 
   // ===== Storyboard 渲染 =====
 
@@ -990,7 +999,7 @@ export abstract class GameEngine {
       }
     }
     if (ans < 0) return null;
-    return list[ans] as any;
+    return list[ans] as Extract<StoryboardCommand, { type: T }> & { startTime: number; endTime: number };
   }
 
   private ease(t: number, easing: number): number {
@@ -1043,7 +1052,7 @@ export abstract class GameEngine {
 
     const lastCmd = <T extends StoryboardCommand["type"]>(type: T): Extract<StoryboardCommand, { type: T }> | null => {
       const list = byType[type] as (StoryboardCommand & { startTime: number; endTime: number })[] | undefined;
-      return this.lastCommandBefore(list, time) as any;
+      return this.lastCommandBefore(list, time);
     };
 
     const firstCmdStart = (type: StoryboardCommand["type"]): number => {
@@ -1178,6 +1187,21 @@ export abstract class GameEngine {
     }
   }
 
+  private getStoryboardColorCanvas(w: number, h: number): HTMLCanvasElement {
+    if (!this.storyboardColorCanvas) {
+      this.storyboardColorCanvas = document.createElement("canvas");
+    }
+    const c = this.storyboardColorCanvas;
+    const cw = Math.ceil(w);
+    const ch = Math.ceil(h);
+    // 只扩容不缩容，避免每帧重新分配 canvas 内存
+    if (c.width < cw || c.height < ch) {
+      c.width = Math.max(c.width, cw);
+      c.height = Math.max(c.height, ch);
+    }
+    return c;
+  }
+
   private findAssetUrl(name: string): string | undefined {
     const norm = name.replace(/\\/g, "/");
     const base = norm.split("/").pop() || norm;
@@ -1251,13 +1275,26 @@ export abstract class GameEngine {
       ctx.translate(x + w / 2, y + h / 2);
       ctx.rotate((state.rotation * Math.PI) / 180);
       ctx.scale(state.flipH ? -1 : 1, state.flipV ? -1 : 1);
-      ctx.drawImage(img, -w / 2, -h / 2, w, h);
-      // 颜色着色：用 source-atop 覆盖一层命令颜色
+      // 颜色着色：在离屏 canvas 上先画原图，再用 source-atop 叠色，
+      // 这样透明像素不会被背景/其他物件染色
       const hasColor = state.colorR !== 255 || state.colorG !== 255 || state.colorB !== 255;
       if (hasColor) {
-        ctx.globalCompositeOperation = "source-atop";
-        ctx.fillStyle = `rgb(${state.colorR},${state.colorG},${state.colorB})`;
-        ctx.fillRect(-w / 2, -h / 2, w, h);
+        const c = this.getStoryboardColorCanvas(w, h);
+        const cctx = c.getContext("2d");
+        if (cctx) {
+          // 只清理实际使用区域，canvas 可能因复用而比当前需要的大
+          cctx.clearRect(0, 0, w, h);
+          cctx.drawImage(img, 0, 0, w, h);
+          cctx.globalCompositeOperation = "source-atop";
+          cctx.fillStyle = `rgb(${state.colorR},${state.colorG},${state.colorB})`;
+          cctx.fillRect(0, 0, w, h);
+          cctx.globalCompositeOperation = "source-over";
+          ctx.drawImage(c, -w / 2, -h / 2, w, h);
+        } else {
+          ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        }
+      } else {
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
       }
       ctx.restore();
     }
@@ -1298,7 +1335,7 @@ export abstract class GameEngine {
 
   /** 绘制 HUD（兼容旧子类） */
   protected drawHUD(opts: { comboColor: string; modeLabel: string; modeColor: string }): void {
-    const { ctx, width } = this.ctx;
+    const { ctx } = this.ctx;
     const top = 16;
     const left = 16;
 

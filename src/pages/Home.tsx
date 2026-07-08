@@ -5,7 +5,6 @@ import { useNavigate } from "react-router-dom";
 import { TrendingUp, Search as SearchIcon } from "lucide-react";
 import { GlassButton } from "@/components/glass/GlassButton";
 import type { GameMode } from "@/types";
-import { MODE_LABEL } from "@/types";
 
 const MODE_TABS: { key: GameMode | null; label: string }[] = [
   { key: null, label: "全部" },
@@ -27,6 +26,7 @@ export default function Home() {
     if (searchResults.length === 0 && !loading) {
       loadFeatured(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

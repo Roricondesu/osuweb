@@ -4,7 +4,7 @@
  *  - 转盘：纯色圆环 + 旋转指针
  *  - 性能：预计算 combo、活动物件指针
  */
-import type { HitObject, ParsedBeatmap } from "@/types";
+import type { HitObject } from "@/types";
 import { GameEngine, type EngineOptions } from "../GameEngine";
 import { drawCircle, drawRing, drawText, drawRect, drawGlassCircle, clamp, GAME_FONT, hexToRgba } from "../renderer/Canvas2D";
 

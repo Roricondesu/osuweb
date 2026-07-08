@@ -7,7 +7,8 @@ import { RotateCcw, ArrowLeft, Pause, Play, Menu, X } from "lucide-react";
 import type { GameMode } from "@/types";
 import { MODE_LABEL } from "@/types";
 import { useOrientation } from "@/hooks/useOrientation";
-import { fetchNeteaseLyrics, type LyricLine } from "@/utils/neteaseLyrics";
+import type { LyricLine } from "@/utils/neteaseLyrics";
+import { fetchLyrics } from "@/utils/lyricsProvider";
 
 type Phase = "loading" | "ready" | "playing" | "paused" | "finished";
 
@@ -33,6 +34,7 @@ export default function Game() {
   const showCursorPress = useGameStore((s) => s.settings.showCursorPress);
   const autoCursorSpeed = useGameStore((s) => s.settings.autoCursorSpeed);
   const hitSoundVolume = useGameStore((s) => s.settings.hitSoundVolume);
+  const lyricsSource = useGameStore((s) => s.settings.lyricsSource);
   const updateRuntime = useGameStore((s) => s.updateRuntime);
   const endGame = useGameStore((s) => s.endGame);
 
@@ -54,11 +56,11 @@ export default function Game() {
       return;
     }
     let cancelled = false;
-    fetchNeteaseLyrics(set.title, set.artist).then((lines) => {
+    fetchLyrics(set.title, set.artist, lyricsSource).then((lines) => {
       if (!cancelled) setLyrics(lines);
     });
     return () => { cancelled = true; };
-  }, [set, showLyrics]);
+  }, [set, showLyrics, lyricsSource]);
 
   // 加载谱面 + 创建引擎
   useEffect(() => {
@@ -130,6 +132,8 @@ export default function Game() {
       engineRef.current?.destroy();
       engineRef.current = null;
     };
+    // 引擎创建依赖较多，避免音量/offset 等运行时可调设置导致整引擎重建
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, hitSoundVolume]);
 
   // 同步音量
@@ -179,12 +183,10 @@ export default function Game() {
     };
 
     let activePointerId: number | null = null;
-    let pointerDown = false;
 
     const onDown = (e: PointerEvent) => {
       e.preventDefault();
       if (activePointerId === null) activePointerId = e.pointerId;
-      pointerDown = true;
       const p = getPos(e);
       engine.setCursorPos(p.x, p.y);
       engine.onPointerDown(p.x, p.y);
@@ -193,11 +195,10 @@ export default function Game() {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
       const p = getPos(e);
       engine.setCursorPos(p.x, p.y);
-      if (pointerDown) engine.onPointerMove?.(p.x, p.y);
+      engine.onPointerMove?.(p.x, p.y);
     };
     const onUp = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
-      pointerDown = false;
       activePointerId = null;
       const p = getPos(e);
       engine.setCursorPos(p.x, p.y);

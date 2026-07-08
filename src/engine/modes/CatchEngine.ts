@@ -6,9 +6,9 @@
  *  - 竖屏：上下落，盘子左右移动
  *  - 性能：活动物件指针
  */
-import type { HitObject, ParsedBeatmap, Judgement } from "@/types";
+import type { HitObject, ParsedBeatmap } from "@/types";
 import { GameEngine } from "../GameEngine";
-import { drawCircle, drawRect, drawText, clamp, GAME_FONT } from "../renderer/Canvas2D";
+import { drawCircle, drawRect, clamp } from "../renderer/Canvas2D";
 
 const APPROACH_TIME = 1500;
 const FRUIT_R = 22;

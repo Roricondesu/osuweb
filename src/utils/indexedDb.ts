@@ -53,7 +53,7 @@ export async function saveDownload(set: LoadedBeatmapSet): Promise<void> {
   const assetBlobs: Record<string, Blob> = {};
   if (set.assetUrls) {
     const entries = Object.entries(set.assetUrls);
-    const blobs = await Promise.all(entries.map(([_, url]) => blobFromUrl(url)));
+    const blobs = await Promise.all(entries.map(([, url]) => blobFromUrl(url)));
     entries.forEach(([name], i) => {
       const b = blobs[i];
       if (b) assetBlobs[name] = b;

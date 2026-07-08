@@ -374,17 +374,41 @@ export default function Settings() {
       </Section>
 
       <Section icon={<Music size={18} />} title="歌词" delay={8}>
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示网易云歌词</div>
-            <div className="text-xs" style={{ color: "var(--text-secondary)" }}>游戏内底部显示匹配歌词</div>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示歌词</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>游戏内底部显示匹配歌词</div>
+            </div>
+            <GlassSwitch
+              checked={settings.showLyrics}
+              onCheckedChange={(c) => updateSetting("showLyrics", c)}
+              scheme={scheme}
+              ariaLabel="显示歌词"
+            />
           </div>
-          <GlassSwitch
-            checked={settings.showLyrics}
-            onCheckedChange={(c) => updateSetting("showLyrics", c)}
-            scheme={scheme}
-            ariaLabel="显示网易云歌词"
-          />
+
+          <div>
+            <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>歌词源</div>
+            <div className="mt-2 flex gap-2">
+              {(["auto", "netease", "lrclib"] as const).map((src) => (
+                <button
+                  key={src}
+                  onClick={() => updateSetting("lyricsSource", src)}
+                  className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95"
+                  style={{
+                    border: "1px solid",
+                    borderColor: settings.lyricsSource === src ? "var(--accent)" : "var(--border)",
+                    color: settings.lyricsSource === src ? "var(--accent)" : "var(--text-primary)",
+                    background: settings.lyricsSource === src ? "var(--accent-soft)" : "transparent",
+                    cursor: "pointer",
+                  }}
+                >
+                  {src === "auto" ? "自动" : src === "netease" ? "网易云" : "LRCLIB"}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </Section>
 

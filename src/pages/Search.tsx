@@ -39,6 +39,7 @@ export default function Search() {
     if (results.length === 0 && !loading) {
       search("", searchMode);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSubmit = useCallback(() => {
