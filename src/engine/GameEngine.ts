@@ -79,6 +79,11 @@ export abstract class GameEngine {
   protected cursorY = -100;
   protected cursorTargetX = -100;
   protected cursorTargetY = -100;
+  protected cursorVelocityX = 0;
+  protected cursorVelocityY = 0;
+  protected cursorTrail: { x: number; y: number; time: number }[] = [];
+  protected cursorPressed = false;
+  protected cursorPressTime = 0;
 
   protected backgroundImage: HTMLImageElement | null = null;
   protected backgroundLoaded = false;
@@ -258,6 +263,7 @@ export abstract class GameEngine {
     });
     this.startTime = performance.now();
     this.audioStartedAt = 0;
+    this.initCursorPosition();
     this.loop();
   }
 
@@ -286,6 +292,7 @@ export abstract class GameEngine {
     this.status = "playing";
     this.audio.play().catch(() => {});
     this.lastFrameAt = 0;
+    this.initCursorPosition();
     this.loop();
   }
 
@@ -315,7 +322,8 @@ export abstract class GameEngine {
     this.render();
     this.drawStoryboardForeground(time);
     this.drawLyrics(time);
-    this.drawCursor();
+    this.updateCursorTrail(time);
+    this.drawCursor(time);
     this.callbacks.onScoreUpdate?.(this.score);
 
     // 检查是否结束（所有 hitObjects 已处理 + 音频结束）
@@ -552,28 +560,157 @@ export abstract class GameEngine {
     ctx.restore();
   }
 
+  /** 更新光标拖尾历史 */
+  protected updateCursorTrail(time: number): void {
+    if (!this.auto && !this.showCursor) return;
+    this.cursorTrail.push({ x: this.cursorX, y: this.cursorY, time });
+    // 保留最近 120ms 的历史
+    while (this.cursorTrail.length > 0 && time - this.cursorTrail[0].time > 120) {
+      this.cursorTrail.shift();
+    }
+    // 限制最大点数
+    if (this.cursorTrail.length > 12) {
+      this.cursorTrail.shift();
+    }
+  }
+
+  /** 触发光标按下反馈 */
+  public pressCursor(time: number): void {
+    this.cursorPressed = true;
+    this.cursorPressTime = time;
+  }
+
   /** 绘制光标（auto 模式下） */
-  protected drawCursor(): void {
-    if (!this.showCursor) return;
+  protected drawCursor(time: number): void {
+    if (!this.auto && !this.showCursor) return;
     const { ctx } = this.ctx;
+    const x = this.cursorX;
+    const y = this.cursorY;
+
+    // 按下效果衰减
+    const pressElapsed = time - this.cursorPressTime;
+    const pressStrength = this.cursorPressed ? Math.max(0, 1 - pressElapsed / 180) : 0;
+    if (pressStrength <= 0) this.cursorPressed = false;
+
     ctx.save();
+
+    // 拖尾：用线段连接历史位置，越旧越透明、越细
+    if (this.cursorTrail.length >= 2) {
+      for (let i = 1; i < this.cursorTrail.length; i++) {
+        const prev = this.cursorTrail[i - 1];
+        const cur = this.cursorTrail[i];
+        const age = (time - cur.time) / 120;
+        const alpha = (1 - age) * 0.35;
+        const width = (1 - age) * 3 + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(prev.x, prev.y);
+        ctx.lineTo(cur.x, cur.y);
+        ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+        ctx.lineWidth = width;
+        ctx.lineCap = "round";
+        ctx.stroke();
+      }
+    }
+
+    const pulse = 1 + Math.sin(performance.now() / 150) * 0.12;
+    const pressScale = 1 + pressStrength * 0.5;
+
+    // 外圈脉冲环（按下时放大）
     ctx.beginPath();
-    ctx.arc(this.cursorX, this.cursorY, 6, 0, Math.PI * 2);
-    ctx.fillStyle = "#fff";
-    ctx.shadowColor = "rgba(255,255,255,0.8)";
-    ctx.shadowBlur = 8;
+    ctx.arc(x, y, 10 * pulse * pressScale, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,255,255,${0.45 + pressStrength * 0.35})`;
+    ctx.lineWidth = 1.5 + pressStrength * 1.5;
+    ctx.stroke();
+
+    // 按下时额外发光环
+    if (pressStrength > 0) {
+      ctx.beginPath();
+      ctx.arc(x, y, 16 * pressScale, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${pressStrength * 0.22})`;
+      ctx.fill();
+    }
+
+    // 中间半透明环
+    ctx.beginPath();
+    ctx.arc(x, y, 6 * pressScale, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${0.25 + pressStrength * 0.35})`;
     ctx.fill();
+
+    // 中心实心点
+    ctx.beginPath();
+    ctx.arc(x, y, 3 * pressScale, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.shadowColor = "rgba(255,255,255,0.9)";
+    ctx.shadowBlur = 10 + pressStrength * 14;
+    ctx.fill();
+
     ctx.restore();
   }
 
-  /** 光标平滑跟随 */
+  /** 光标平滑跟随：弹簧物理系统，auto 模式更柔和、有预判 */
   protected smoothCursor(dt: number): void {
     if (!this.auto && !this.showCursor) return;
-    const speed = 18; // 跟随速度
+    // 限制 dt 避免卡顿后瞬移
+    dt = Math.min(dt, 0.05);
+
     const dx = this.cursorTargetX - this.cursorX;
     const dy = this.cursorTargetY - this.cursorY;
-    this.cursorX += dx * Math.min(1, speed * dt);
-    this.cursorY += dy * Math.min(1, speed * dt);
+    const dist = Math.hypot(dx, dy);
+
+    // 柔和弹簧：低刚度 + 中等阻尼，让运动有明显的加速/减速过程
+    const k = this.auto ? 180 : 120;
+    const c = this.auto ? 16 : 12;
+
+    // 弹簧力 + 阻尼力
+    const ax = dx * k - this.cursorVelocityX * c;
+    const ay = dy * k - this.cursorVelocityY * c;
+
+    this.cursorVelocityX += ax * dt;
+    this.cursorVelocityY += ay * dt;
+
+    // 根据剩余距离限制最大速度，避免远距离瞬移
+    // 目标：用约 0.25s 走完当前距离，且不超过像素/秒上限
+    const desiredTime = 0.25;
+    const maxSpeedByDist = dist > 0 ? dist / desiredTime : 0;
+    const absoluteMax = this.auto ? 1400 : 900;
+    const maxSpeed = Math.min(maxSpeedByDist, absoluteMax);
+
+    const speed = Math.hypot(this.cursorVelocityX, this.cursorVelocityY);
+    if (speed > maxSpeed && speed > 0) {
+      const s = maxSpeed / speed;
+      this.cursorVelocityX *= s;
+      this.cursorVelocityY *= s;
+    }
+
+    this.cursorX += this.cursorVelocityX * dt;
+    this.cursorY += this.cursorVelocityY * dt;
+
+    // 接近目标时吸附并清零速度，避免微小抖动
+    if (dist < 2 && speed < 30) {
+      this.cursorX = this.cursorTargetX;
+      this.cursorY = this.cursorTargetY;
+      this.cursorVelocityX = 0;
+      this.cursorVelocityY = 0;
+    }
+  }
+
+  /** 默认坐标转换（子类可重写） */
+  protected toCanvas(x: number, y: number): { x: number; y: number } {
+    return { x, y };
+  }
+
+  /** 初始化光标位置到第一个目标，避免开场瞬移；子类可重写 */
+  protected initCursorPosition(): void {
+    const objs = this.beatmap.hitObjects;
+    for (const obj of objs) {
+      if (obj.type === "spinner") continue;
+      const p = this.toCanvas(obj.x, obj.y);
+      this.cursorX = p.x;
+      this.cursorY = p.y;
+      this.cursorTargetX = p.x;
+      this.cursorTargetY = p.y;
+      return;
+    }
   }
 
   /** 子类实现：每帧逻辑更新 */
@@ -591,6 +728,11 @@ export abstract class GameEngine {
     this.cursorY = -100;
     this.cursorTargetX = -100;
     this.cursorTargetY = -100;
+    this.cursorVelocityX = 0;
+    this.cursorVelocityY = 0;
+    this.cursorTrail = [];
+    this.cursorPressed = false;
+    this.cursorPressTime = 0;
   }
 
   /** 输入：设置光标位置（子类可重写） */

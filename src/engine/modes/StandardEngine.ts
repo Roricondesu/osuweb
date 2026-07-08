@@ -144,7 +144,7 @@ export class StandardEngine extends GameEngine {
     }
   }
 
-  private toCanvas(x: number, y: number): { x: number; y: number } {
+  protected toCanvas(x: number, y: number): { x: number; y: number } {
     if (this.isLandscape) return { x: this.offsetX + x * this.scale, y: this.offsetY + y * this.scale };
     return { x: this.offsetX + y * this.scale, y: this.offsetY + (OSU_W - x) * this.scale };
   }
@@ -184,42 +184,59 @@ export class StandardEngine extends GameEngine {
     const objs = this.beatmap.hitObjects;
     const len = objs.length;
     const win300 = this.windows["300"];
-    let targetX = this.cursorTargetX;
-    let targetY = this.cursorTargetY;
 
+    // 找到下一个未判定目标，光标始终提前朝它移动
+    let focus: HitObject | null = null;
+    let focusIndex = -1;
     for (let i = this.activeIndex; i < len; i++) {
       const obj = objs[i];
       if (obj.judged) continue;
-      const delta = time - obj.time;
-      if (delta < -win300 && obj.type !== "slider") break;
-
-      if (obj.type === "spinner") {
-        const cx = this.ctx.width / 2, cy = this.ctx.height / 2;
-        this.spinnerRotation += 0.6;
-        if (this.spinnerRotation > 10) {
-          this.judgeHit(obj, time);
-          this.spawnHitEffect(cx, cy, "300", time);
-          this.spinnerRotation = 0;
-        }
-        targetX = cx + Math.cos(time / 80) * 60;
-        targetY = cy + Math.sin(time / 80) * 60;
-        break;
-      }
-
-      const p = this.toCanvas(obj.x, obj.y);
-      targetX = p.x;
-      targetY = p.y;
-
       if (obj.type === "slider") {
-        const c = this.cached[i];
-        const pts = c.canvasPoints;
         const endTime = obj.endTime || obj.time;
-        const isActive = time >= obj.time && time <= endTime && pts.length >= 2;
-        if (isActive) {
-          // auto 跟随滑条球
+        // 已结束滑条跳过，等 update 标记 judged
+        if (time > endTime + this.windows["50"]) continue;
+      }
+      focus = obj;
+      focusIndex = i;
+      break;
+    }
+    if (!focus) return;
+
+    let targetX = this.cursorTargetX;
+    let targetY = this.cursorTargetY;
+
+    if (focus.type === "spinner") {
+      const cx = this.ctx.width / 2, cy = this.ctx.height / 2;
+      this.spinnerRotation += 0.6;
+      if (this.spinnerRotation > 10) {
+        this.judgeHit(focus, time);
+        this.spawnHitEffect(cx, cy, "300", time);
+        this.spinnerRotation = 0;
+      }
+      targetX = cx + Math.cos(time / 80) * 60;
+      targetY = cy + Math.sin(time / 80) * 60;
+    } else if (focus.type === "slider") {
+      const c = this.cached[focusIndex];
+      const pts = c.canvasPoints;
+      const endTime = focus.endTime || focus.time;
+      const head = this.toCanvas(focus.x, focus.y);
+      const tail = pts.length >= 2 ? this.sliderEndPosition(focus, focusIndex) : head;
+      const delta = time - focus.time;
+
+      if (time < focus.time) {
+        // 滑条未开始：光标提前停在头部等待
+        targetX = head.x;
+        targetY = head.y;
+      } else if (time > endTime) {
+        // 滑条刚结束：光标停在尾部，下一帧会切换到新目标
+        targetX = tail.x;
+        targetY = tail.y;
+      } else {
+        // 滑条进行中：跟随球
+        if (pts.length >= 2) {
           const sd = c.sliderDuration || 1;
-          const slides = obj.slides || 1;
-          const progressRaw = (time - obj.time) / sd;
+          const slides = focus.slides || 1;
+          const progressRaw = (time - focus.time) / sd;
           const slideIdx = Math.floor(progressRaw * slides);
           if (slideIdx < slides) {
             const localT = (progressRaw * slides) % 1;
@@ -229,29 +246,28 @@ export class StandardEngine extends GameEngine {
             targetY = pos.y;
           }
         }
-        if (!obj._sliderHit && delta >= -win300 && delta <= win300) {
-          obj._sliderHit = true;
-          obj.judged = false;
-          this.spawnHitEffect(p.x, p.y, "300", time);
-        }
-        // 滑条仍在进行（已击中且未结束）：光标跟随球，不再处理后续物件
-        if (obj._sliderHit && time <= endTime) {
-          break;
-        }
-        // 滑条未开始：光标停在头部等待
-        if (!obj._sliderHit && time < obj.time) {
-          break;
-        }
-        // 滑条已结束或刚要开始时（delta 在窗口内已处理）：继续处理下一个物件，避免光标跳回头部
-        continue;
       }
 
-      if (delta <= win300) {
-        this.judgeHit(obj, time);
-        this.spawnHitEffect(p.x, p.y, "300", time);
+      // 自动击中滑条头部（只在窗口内触发一次）
+      if (!focus._sliderHit && delta >= -win300 && delta <= win300) {
+        focus._sliderHit = true;
+        focus.judged = false;
+        this.spawnHitEffect(head.x, head.y, "300", time);
+        this.pressCursor(time);
       }
-      break;
+    } else {
+      // circle：光标始终朝目标移动，击中只在窗口内
+      const p = this.toCanvas(focus.x, focus.y);
+      targetX = p.x;
+      targetY = p.y;
+      const delta = time - focus.time;
+      if (delta <= win300 && delta >= -win300) {
+        this.judgeHit(focus, time);
+        this.spawnHitEffect(p.x, p.y, "300", time);
+        this.pressCursor(time);
+      }
     }
+
     this.cursorTargetX = targetX;
     this.cursorTargetY = targetY;
   }
@@ -585,6 +601,7 @@ export class StandardEngine extends GameEngine {
   public onPointerDown(x: number, y: number): void {
     if (this.status !== "playing") return;
     const time = this.currentTime;
+    this.pressCursor(time);
     let best: HitObject | null = null;
     let bestScore = Infinity;
     const len = this.beatmap.hitObjects.length;
