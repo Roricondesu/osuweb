@@ -1433,14 +1433,16 @@ export abstract class GameEngine {
 
     const { ctx } = this.ctx;
     const { width, height } = this.ctx;
-    // osu! Storyboard 使用 640x480 逻辑分辨率，拉伸铺满整个屏幕
+    // osu! Storyboard 使用 640x480 逻辑分辨率，等比缩放填充（cover）
     const SB_W = 640;
     const SB_H = 480;
-    const scaleX = width / SB_W;
-    const scaleY = height / SB_H;
+    const scale = Math.max(width / SB_W, height / SB_H);
+    const offsetX = (width - SB_W * scale) / 2;
+    const offsetY = (height - SB_H * scale) / 2;
 
     ctx.save();
-    ctx.scale(scaleX, scaleY);
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
 
     for (const sprite of sprites) {
       if (!layers.includes(sprite.layer)) continue;
