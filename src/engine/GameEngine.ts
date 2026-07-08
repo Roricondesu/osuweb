@@ -348,7 +348,6 @@ export abstract class GameEngine {
     this.smoothCursor(dt, time);
 
     this.render();
-    this.drawStoryboardForeground(time);
     this.drawLyrics(time);
     this.updateCursorTrail(time);
     this.drawCursor(time);
@@ -680,27 +679,12 @@ export abstract class GameEngine {
     }
   }
 
-  /** 绘制歌词；Break 期间显示在倒计时条下方 */
+  /** 绘制歌词，固定在屏幕底部 */
   protected drawLyrics(time: number): void {
     if (!this.showLyrics || this.lyrics.length === 0) return;
     const current = getCurrentLyric(this.lyrics, time);
     if (!current || !current.text) return;
     const { ctx, width, height } = this.ctx;
-
-    // 判断当前是否处于 Break 区间
-    let inBreak = false;
-    const objs = this.beatmap.hitObjects;
-    for (let i = 0; i < objs.length - 1; i++) {
-      const end = objs[i].endTime || objs[i].time;
-      const nextStart = objs[i + 1].time;
-      if (nextStart - end < 2000) continue;
-      const breakStart = end + 500;
-      const breakEnd = nextStart - 500;
-      if (time >= breakStart && time <= breakEnd) {
-        inBreak = true;
-        break;
-      }
-    }
 
     ctx.save();
     ctx.font = `600 18px ${GAME_FONT}`;
@@ -709,8 +693,7 @@ export abstract class GameEngine {
     ctx.fillStyle = "rgba(255,255,255,0.9)";
     ctx.shadowColor = "rgba(0,0,0,0.6)";
     ctx.shadowBlur = 6;
-    const y = inBreak ? height / 2 + 44 : height - 34;
-    ctx.fillText(current.text, width / 2, y);
+    ctx.fillText(current.text, width / 2, height - 34);
     ctx.restore();
   }
 
@@ -1463,15 +1446,11 @@ export abstract class GameEngine {
     ctx.restore();
   }
 
-  /** 绘制 Background / Fail / Pass 层（在游戏内容之前） */
-  protected drawStoryboardBackground(time: number): void {
+  /** 绘制 Storyboard 所有层，统一放在游戏内容下方 */
+  protected drawStoryboardAll(time: number): void {
     const isPass = this.score.health > 0;
     this.drawStoryboardLayer(time, ["Background"]);
     this.drawStoryboardLayer(time, isPass ? ["Pass"] : ["Fail"]);
-  }
-
-  /** 绘制 Foreground 层（在游戏内容之后） */
-  protected drawStoryboardForeground(time: number): void {
     this.drawStoryboardLayer(time, ["Foreground", "Overlay"]);
   }
 
@@ -1479,7 +1458,7 @@ export abstract class GameEngine {
   protected renderBackground(time: number): void {
     clear(this.ctx);
     this.drawBackground();
-    this.drawStoryboardBackground(time);
+    this.drawStoryboardAll(time);
   }
 
   /** 标准前景流程，子类 render() 末尾应调用此方法 */

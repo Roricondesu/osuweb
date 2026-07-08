@@ -243,7 +243,7 @@ export class CatchEngine extends GameEngine {
   }
 
   protected render(): void {
-    this.clearScreen();
+    this.renderBackground(this.currentTime);
     const time = this.currentTime;
     this.drawTrack();
 
