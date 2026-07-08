@@ -158,6 +158,50 @@ export default function Settings() {
               ariaLabel="显示光标"
             />
           </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>光标拖尾</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>Auto / 显示光标时绘制移动轨迹</div>
+            </div>
+            <GlassSwitch
+              checked={settings.showCursorTrail}
+              onCheckedChange={(c) => updateSetting("showCursorTrail", c)}
+              scheme={scheme}
+              ariaLabel="光标拖尾"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>光标按下反馈</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>点击 / Auto 击打时放大光圈</div>
+            </div>
+            <GlassSwitch
+              checked={settings.showCursorPress}
+              onCheckedChange={(c) => updateSetting("showCursorPress", c)}
+              scheme={scheme}
+              ariaLabel="光标按下反馈"
+            />
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <span style={{ color: "var(--text-primary)" }}>Auto 光标速度</span>
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                {settings.autoCursorSpeed.toFixed(1)}x
+              </span>
+            </div>
+            <GlassSlider
+              value={settings.autoCursorSpeed}
+              min={0.5}
+              max={2.0}
+              step={0.1}
+              onChange={(v) => updateSetting("autoCursorSpeed", v)}
+              scheme={scheme}
+              ariaLabel="Auto 光标速度"
+            />
+          </div>
         </div>
       </Section>
 

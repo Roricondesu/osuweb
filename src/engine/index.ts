@@ -1,6 +1,6 @@
 /** 引擎工厂：根据模式创建对应引擎实例 */
-import type { GameMode, ParsedBeatmap } from "@/types";
-import { GameEngine, type EngineCallbacks } from "./GameEngine";
+import type { GameMode } from "@/types";
+import { GameEngine, type EngineOptions, type EngineCallbacks } from "./GameEngine";
 import { StandardEngine } from "./modes/StandardEngine";
 import { TaikoEngine } from "./modes/TaikoEngine";
 import { CatchEngine } from "./modes/CatchEngine";
@@ -8,22 +8,7 @@ import { ManiaEngine } from "./modes/ManiaEngine";
 
 export const createEngine = (
   mode: GameMode,
-  opts: {
-    canvas: HTMLCanvasElement;
-    audio: HTMLAudioElement;
-    beatmap: ParsedBeatmap;
-    offset?: number;
-    isLandscape?: boolean;
-    callbacks?: EngineCallbacks;
-    backgroundUrl?: string;
-    assetUrls?: Record<string, string>;
-    auto?: boolean;
-    showCursor?: boolean;
-    showStoryboard?: boolean;
-    backgroundDim?: number;
-    showLyrics?: boolean;
-    lyrics?: import("@/utils/neteaseLyrics").LyricLine[];
-  },
+  opts: EngineOptions,
 ): GameEngine => {
   switch (mode) {
     case "taiko":

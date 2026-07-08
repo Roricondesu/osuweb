@@ -315,6 +315,11 @@ export interface Settings {
   showStoryboard: boolean;
   backgroundDim: number; // 0-1，背景变暗强度
   showLyrics: boolean; // 显示网易云歌词
+
+  // 光标 / Auto
+  showCursorTrail: boolean; // 显示光标拖尾
+  showCursorPress: boolean; // 显示光标按下反馈
+  autoCursorSpeed: number; // 0.5-2.0，auto 光标移动速度倍率
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -330,4 +335,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showStoryboard: true,
   backgroundDim: 0.68,
   showLyrics: true,
+  showCursorTrail: true,
+  showCursorPress: true,
+  autoCursorSpeed: 1,
 };

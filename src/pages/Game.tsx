@@ -29,6 +29,9 @@ export default function Game() {
   const showStoryboard = useGameStore((s) => s.settings.showStoryboard);
   const backgroundDim = useGameStore((s) => s.settings.backgroundDim);
   const showLyrics = useGameStore((s) => s.settings.showLyrics);
+  const showCursorTrail = useGameStore((s) => s.settings.showCursorTrail);
+  const showCursorPress = useGameStore((s) => s.settings.showCursorPress);
+  const autoCursorSpeed = useGameStore((s) => s.settings.autoCursorSpeed);
   const updateRuntime = useGameStore((s) => s.updateRuntime);
   const endGame = useGameStore((s) => s.endGame);
 
@@ -88,6 +91,9 @@ export default function Game() {
         backgroundDim,
         showLyrics,
         lyrics,
+        showCursorTrail,
+        showCursorPress,
+        autoCursorSpeed,
         callbacks: {
           onScoreUpdate: (s) => {
             setScore({ ...s });
@@ -118,7 +124,7 @@ export default function Game() {
       engineRef.current?.destroy();
       engineRef.current = null;
     };
-  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics]);
+  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed]);
 
   // 同步音量
   useEffect(() => {

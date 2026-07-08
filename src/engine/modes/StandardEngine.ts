@@ -42,6 +42,7 @@ export class StandardEngine extends GameEngine {
   private spinnerRotation = 0;
   private lastPointer: { x: number; y: number } | null = null;
   private cached: CachedObj[] = [];
+  private lastFocusIndex = -1;
 
   constructor(opts: EngineOptions) {
     super(opts);
@@ -55,6 +56,7 @@ export class StandardEngine extends GameEngine {
     super.resetState();
     this.spinnerRotation = 0;
     this.lastPointer = null;
+    this.lastFocusIndex = -1;
     this.precomputeObjects();
     this.onLayoutChange();
   }
@@ -266,6 +268,18 @@ export class StandardEngine extends GameEngine {
         this.spawnHitEffect(p.x, p.y, "300", time);
         this.pressCursor(time);
       }
+    }
+
+    // 目标切换时记录贝塞尔移动起点和持续时间
+    if (focusIndex !== this.lastFocusIndex) {
+      this.lastFocusIndex = focusIndex;
+      this.cursorMoveStartTime = time;
+      this.cursorMoveStartX = this.cursorX;
+      this.cursorMoveStartY = this.cursorY;
+      // 持续时间：到目标物件时间，最短 50ms 防止过短，最长 preempt 防止过长
+      // 受 autoCursorSpeed 倍率影响：speed > 1 更快，speed < 1 更慢
+      const baseDuration = focus ? Math.max(50, Math.min(this.preempt, focus.time - time)) : 200;
+      this.cursorMoveDuration = Math.max(30, baseDuration / this.autoCursorSpeed);
     }
 
     this.cursorTargetX = targetX;

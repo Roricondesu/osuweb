@@ -16,7 +16,7 @@ import {
   type JudgementWindows,
 } from "./Judger";
 import type { CanvasContext } from "./renderer/Canvas2D";
-import { setupCanvas, clear, drawText, GAME_FONT, clamp } from "./renderer/Canvas2D";
+import { setupCanvas, clear, drawText, GAME_FONT, clamp, lerp } from "./renderer/Canvas2D";
 import { getCurrentLyric } from "@/utils/neteaseLyrics";
 
 interface HitEffect {
@@ -55,6 +55,9 @@ export interface EngineOptions {
   backgroundDim?: number;
   showLyrics?: boolean;
   lyrics?: LyricLine[];
+  showCursorTrail?: boolean;
+  showCursorPress?: boolean;
+  autoCursorSpeed?: number;
 }
 
 export abstract class GameEngine {
@@ -84,6 +87,14 @@ export abstract class GameEngine {
   protected cursorTrail: { x: number; y: number; time: number }[] = [];
   protected cursorPressed = false;
   protected cursorPressTime = 0;
+  protected showCursorTrail = true;
+  protected showCursorPress = true;
+  protected autoCursorSpeed = 1;
+  // auto 光标贝塞尔移动参数
+  protected cursorMoveStartTime = 0;
+  protected cursorMoveDuration = 0;
+  protected cursorMoveStartX = -100;
+  protected cursorMoveStartY = -100;
 
   protected backgroundImage: HTMLImageElement | null = null;
   protected backgroundLoaded = false;
@@ -121,6 +132,9 @@ export abstract class GameEngine {
     this.showStoryboard = opts.showStoryboard ?? true;
     this.backgroundDim = opts.backgroundDim ?? 0.68;
     this.showLyrics = opts.showLyrics ?? true;
+    this.showCursorTrail = opts.showCursorTrail ?? true;
+    this.showCursorPress = opts.showCursorPress ?? true;
+    this.autoCursorSpeed = opts.autoCursorSpeed ?? 1;
     if (opts.lyrics) this.lyrics = opts.lyrics;
     if (opts.backgroundUrl) this.loadBackground(opts.backgroundUrl);
     if (opts.assetUrls) {
@@ -317,7 +331,7 @@ export abstract class GameEngine {
     this.lastFrameAt = now;
     const time = this.getCurrentTime();
     this.update(time);
-    this.smoothCursor(dt);
+    this.smoothCursor(dt, time);
 
     this.render();
     this.drawStoryboardForeground(time);
@@ -564,13 +578,18 @@ export abstract class GameEngine {
   protected updateCursorTrail(time: number): void {
     if (!this.auto && !this.showCursor) return;
     this.cursorTrail.push({ x: this.cursorX, y: this.cursorY, time });
-    // 保留最近 120ms 的历史
-    while (this.cursorTrail.length > 0 && time - this.cursorTrail[0].time > 120) {
-      this.cursorTrail.shift();
-    }
-    // 限制最大点数
-    if (this.cursorTrail.length > 12) {
-      this.cursorTrail.shift();
+    if (this.showCursorTrail) {
+      // 保留最近 120ms 的历史
+      while (this.cursorTrail.length > 0 && time - this.cursorTrail[0].time > 120) {
+        this.cursorTrail.shift();
+      }
+      // 限制最大点数
+      if (this.cursorTrail.length > 12) {
+        this.cursorTrail.shift();
+      }
+    } else {
+      // 不显示拖尾时只保留当前点
+      this.cursorTrail = [{ x: this.cursorX, y: this.cursorY, time }];
     }
   }
 
@@ -589,8 +608,9 @@ export abstract class GameEngine {
 
     // 按下效果衰减
     const pressElapsed = time - this.cursorPressTime;
-    const pressStrength = this.cursorPressed ? Math.max(0, 1 - pressElapsed / 180) : 0;
-    if (pressStrength <= 0) this.cursorPressed = false;
+    const rawPressStrength = this.cursorPressed ? Math.max(0, 1 - pressElapsed / 180) : 0;
+    const pressStrength = this.showCursorPress ? rawPressStrength : 0;
+    if (rawPressStrength <= 0) this.cursorPressed = false;
 
     ctx.save();
 
@@ -647,45 +667,54 @@ export abstract class GameEngine {
     ctx.restore();
   }
 
-  /** 光标平滑跟随：弹簧物理系统，auto 模式更柔和、有预判 */
-  protected smoothCursor(dt: number): void {
-    if (!this.auto && !this.showCursor) return;
-    // 限制 dt 避免卡顿后瞬移
-    dt = Math.min(dt, 0.05);
+  /** Cubic Bezier easing: (0,0), (x1,y1), (x2,y2), (1,1) */
+  private cubicBezier(t: number, x1: number, y1: number, x2: number, y2: number): number {
+    // 使用 Newton-Raphson 根据 x 反解 t，再求 y
+    let ct = t;
+    for (let i = 0; i < 6; i++) {
+      const x = 3 * x1 * (1 - ct) * (1 - ct) * ct + 3 * x2 * (1 - ct) * ct * ct + ct * ct * ct - t;
+      const dx = 3 * x1 * (1 - ct) * (1 - 3 * ct) + 3 * x2 * ct * (2 - 3 * ct) + 3 * ct * ct;
+      if (Math.abs(dx) < 1e-6) break;
+      ct -= x / dx;
+    }
+    return 3 * y1 * (1 - ct) * (1 - ct) * ct + 3 * y2 * (1 - ct) * ct * ct + ct * ct * ct;
+  }
 
+  /** 光标平滑跟随：auto 使用 Cubic Bezier 在时间轴上插值；手动模式使用柔和弹簧 */
+  protected smoothCursor(dt: number, time: number): void {
+    if (!this.auto && !this.showCursor) return;
+
+    if (this.auto && this.cursorMoveDuration > 0) {
+      // Auto 模式：按目标到达时间做贝塞尔插值，减少缓动、确保跟上节奏
+      const elapsed = time - this.cursorMoveStartTime;
+      const t = clamp(elapsed / this.cursorMoveDuration, 0, 1);
+      // ease-out 型贝塞尔，起步快、收尾柔，x1 较小即减少缓动
+      const eased = this.cubicBezier(t, 0.12, 0.9, 0.25, 1);
+      this.cursorX = lerp(this.cursorMoveStartX, this.cursorTargetX, eased);
+      this.cursorY = lerp(this.cursorMoveStartY, this.cursorTargetY, eased);
+      return;
+    }
+
+    // 手动模式：柔和弹簧
+    dt = Math.min(dt, 0.05);
     const dx = this.cursorTargetX - this.cursorX;
     const dy = this.cursorTargetY - this.cursorY;
     const dist = Math.hypot(dx, dy);
-
-    // 柔和弹簧：低刚度 + 中等阻尼，让运动有明显的加速/减速过程
-    const k = this.auto ? 180 : 120;
-    const c = this.auto ? 16 : 12;
-
-    // 弹簧力 + 阻尼力
+    const k = 120;
+    const c = 12;
     const ax = dx * k - this.cursorVelocityX * c;
     const ay = dy * k - this.cursorVelocityY * c;
-
     this.cursorVelocityX += ax * dt;
     this.cursorVelocityY += ay * dt;
-
-    // 根据剩余距离限制最大速度，避免远距离瞬移
-    // 目标：用约 0.25s 走完当前距离，且不超过像素/秒上限
-    const desiredTime = 0.25;
-    const maxSpeedByDist = dist > 0 ? dist / desiredTime : 0;
-    const absoluteMax = this.auto ? 1400 : 900;
-    const maxSpeed = Math.min(maxSpeedByDist, absoluteMax);
-
     const speed = Math.hypot(this.cursorVelocityX, this.cursorVelocityY);
+    const maxSpeed = 900;
     if (speed > maxSpeed && speed > 0) {
       const s = maxSpeed / speed;
       this.cursorVelocityX *= s;
       this.cursorVelocityY *= s;
     }
-
     this.cursorX += this.cursorVelocityX * dt;
     this.cursorY += this.cursorVelocityY * dt;
-
-    // 接近目标时吸附并清零速度，避免微小抖动
     if (dist < 2 && speed < 30) {
       this.cursorX = this.cursorTargetX;
       this.cursorY = this.cursorTargetY;
