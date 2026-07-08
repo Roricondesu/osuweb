@@ -712,9 +712,20 @@ export abstract class GameEngine {
       const p3y = this.cursorTargetY;
 
       // P1：延续当前速度，保证曲线切线连续
-      const durationThird = this.cursorMoveDuration / 3;
-      const p1x = p0x + this.cursorVelocityX * durationThird;
-      const p1y = p0y + this.cursorVelocityY * durationThird;
+      // cursorMoveDuration 是 ms，velocity 是 px/s，需要 /1000 统一成秒
+      const durationSec = this.cursorMoveDuration / 1000;
+      let p1x = p0x + this.cursorVelocityX * (durationSec / 3);
+      let p1y = p0y + this.cursorVelocityY * (durationSec / 3);
+
+      // 限制 P1 偏移不超过当前段长度的 60%，防止速度过大时光标飞出
+      const p1Dist = Math.hypot(p1x - p0x, p1y - p0y);
+      const targetDist = Math.hypot(p3x - p0x, p3y - p0y);
+      const maxP1Dist = Math.max(targetDist * 0.6, 20);
+      if (p1Dist > maxP1Dist) {
+        const s = maxP1Dist / p1Dist;
+        p1x = p0x + (p1x - p0x) * s;
+        p1y = p0y + (p1y - p0y) * s;
+      }
 
       // P2：朝向下一个目标的进入方向；没有 lookahead 时沿当前方向平滑进入
       let p2x: number, p2y: number;
@@ -725,7 +736,7 @@ export abstract class GameEngine {
       const nextDy = hasNext ? this.cursorNextTargetY - p3y : 0;
       const nextDist = Math.hypot(nextDx, nextDy);
       if (nextDist > 10) {
-        const incomingLen = Math.min(nextDist, Math.hypot(p3x - p0x, p3y - p0y)) * 0.35;
+        const incomingLen = Math.min(nextDist, targetDist) * 0.35;
         p2x = p3x + (nextDx / nextDist) * incomingLen;
         p2y = p3y + (nextDy / nextDist) * incomingLen;
       } else {
@@ -741,10 +752,20 @@ export abstract class GameEngine {
       this.cursorX = this.cubicBezierPoint(p0x, p1x, p2x, p3x, t);
       this.cursorY = this.cubicBezierPoint(p0y, p1y, p2y, p3y, t);
 
-      // 更新速度，使下一次切换保持切线连续
+      // 更新速度并平滑+限幅，防止数值爆炸
       if (dt > 0) {
-        this.cursorVelocityX = (this.cursorX - oldX) / dt;
-        this.cursorVelocityY = (this.cursorY - oldY) / dt;
+        const rawVx = (this.cursorX - oldX) / dt;
+        const rawVy = (this.cursorY - oldY) / dt;
+        const alpha = 0.25;
+        this.cursorVelocityX = this.cursorVelocityX * (1 - alpha) + rawVx * alpha;
+        this.cursorVelocityY = this.cursorVelocityY * (1 - alpha) + rawVy * alpha;
+        const maxVel = 2000;
+        const vMag = Math.hypot(this.cursorVelocityX, this.cursorVelocityY);
+        if (vMag > maxVel) {
+          const s = maxVel / vMag;
+          this.cursorVelocityX *= s;
+          this.cursorVelocityY *= s;
+        }
       }
 
       // 到达目标后仍保持轻微环绕，避免完全停顿
