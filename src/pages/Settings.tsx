@@ -366,6 +366,19 @@ export default function Settings() {
             />
           </div>
 
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>强制横屏</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>游戏内强制使用横屏布局</div>
+            </div>
+            <GlassSwitch
+              checked={settings.forceLandscape}
+              onCheckedChange={(c) => updateSetting("forceLandscape", c)}
+              scheme={scheme}
+              ariaLabel="强制横屏"
+            />
+          </div>
+
           <div>
             <div className="mb-1 flex items-center justify-between text-sm">
               <span style={{ color: "var(--text-primary)" }}>背景变暗</span>

@@ -680,20 +680,37 @@ export abstract class GameEngine {
     }
   }
 
-  /** 绘制歌词 */
+  /** 绘制歌词；Break 期间显示在倒计时条下方 */
   protected drawLyrics(time: number): void {
     if (!this.showLyrics || this.lyrics.length === 0) return;
     const current = getCurrentLyric(this.lyrics, time);
     if (!current || !current.text) return;
     const { ctx, width, height } = this.ctx;
+
+    // 判断当前是否处于 Break 区间
+    let inBreak = false;
+    const objs = this.beatmap.hitObjects;
+    for (let i = 0; i < objs.length - 1; i++) {
+      const end = objs[i].endTime || objs[i].time;
+      const nextStart = objs[i + 1].time;
+      if (nextStart - end < 2000) continue;
+      const breakStart = end + 500;
+      const breakEnd = nextStart - 500;
+      if (time >= breakStart && time <= breakEnd) {
+        inBreak = true;
+        break;
+      }
+    }
+
     ctx.save();
     ctx.font = `600 18px ${GAME_FONT}`;
     ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
+    ctx.textBaseline = "top";
     ctx.fillStyle = "rgba(255,255,255,0.9)";
     ctx.shadowColor = "rgba(0,0,0,0.6)";
     ctx.shadowBlur = 6;
-    ctx.fillText(current.text, width / 2, height - 24);
+    const y = inBreak ? height / 2 + 44 : height - 34;
+    ctx.fillText(current.text, width / 2, y);
     ctx.restore();
   }
 

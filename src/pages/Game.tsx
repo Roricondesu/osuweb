@@ -15,7 +15,8 @@ type Phase = "loading" | "ready" | "playing" | "paused" | "finished";
 export default function Game() {
   const { setId, mode, diff } = useParams<{ setId: string; mode: string; diff: string }>();
   const navigate = useNavigate();
-  const isLandscape = useOrientation();
+  const forceLandscape = useGameStore((s) => s.settings.forceLandscape);
+  const isLandscape = useOrientation(forceLandscape);
 
   const downloaded = useGameStore((s) => s.downloaded);
   const set = setId ? downloaded.get(Number(setId)) : undefined;

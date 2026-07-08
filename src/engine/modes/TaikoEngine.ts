@@ -1,12 +1,13 @@
-/** osu!taiko 引擎 - 扁平现代视觉
- *  - 红（Don）蓝（Katsu）纯色圆
- *  - 横屏：音符水平飞入判定圈
- *  - 竖屏：音符垂直下落判定圈
- *  - 性能：活动物件指针
+/** osu!taiko 引擎 - 重构后的扁平现代视觉
+ *  - 音符始终水平从右向左飞入判定圈
+ *  - 横屏：轨道居中；竖屏：轨道靠上
+ *  - 打击点改为空心圆环，不遮挡后方音符
+ *  - 底部绘制虚拟太鼓作为操作区
+ *  - 支持 Don（红/鼓面）与 Katsu（蓝/鼓边）
  */
 import type { HitObject } from "@/types";
 import { GameEngine, type EngineOptions } from "../GameEngine";
-import { drawRect, drawText, clamp, GAME_FONT } from "../renderer/Canvas2D";
+import { drawRect, drawText, drawRing, clamp, GAME_FONT } from "../renderer/Canvas2D";
 
 const NOTE_R = 36;
 const APPROACH_TIME = 1500;
@@ -19,7 +20,6 @@ const MODE_COLOR = "#ff9100";
 export class TaikoEngine extends GameEngine {
   private judgePos = 0;
   private crossPos = 0;
-  private isHorizontalFlow = true;
 
   constructor(opts: EngineOptions) {
     super(opts);
@@ -35,14 +35,9 @@ export class TaikoEngine extends GameEngine {
 
   private computeLayout(): void {
     const { width, height } = this.ctx;
-    this.isHorizontalFlow = this.isLandscape;
-    if (this.isHorizontalFlow) {
-      this.judgePos = width * 0.2;
-      this.crossPos = height / 2;
-    } else {
-      this.judgePos = height * 0.78;
-      this.crossPos = width / 2;
-    }
+    // 无论横竖屏，音符始终水平从右向左流动
+    this.judgePos = width * 0.18;
+    this.crossPos = this.isLandscape ? height / 2 : height * 0.28;
   }
 
   private isBlue(obj: HitObject): boolean {
@@ -58,13 +53,8 @@ export class TaikoEngine extends GameEngine {
 
   private noteFlow(obj: HitObject, time: number): number {
     const dt = obj.time - time;
-    if (this.isHorizontalFlow) {
-      const startX = this.ctx.width + NOTE_R;
-      return this.judgePos + (dt / APPROACH_TIME) * (startX - this.judgePos);
-    } else {
-      const startY = -NOTE_R;
-      return this.judgePos - (dt / APPROACH_TIME) * (this.judgePos - startY);
-    }
+    const startX = this.ctx.width + NOTE_R;
+    return this.judgePos + (dt / APPROACH_TIME) * (startX - this.judgePos);
   }
 
   protected update(time: number): void {
@@ -97,15 +87,12 @@ export class TaikoEngine extends GameEngine {
     if (best && Math.abs(time - best.time) <= win300) {
       const blue = this.isBlue(best);
       this.tryHit(blue);
-      // 大音符需要同色的双键同时击打才能出 300
       if (this.isBig(best)) {
         this.tryHit(blue);
       }
     }
-    const x = this.isHorizontalFlow ? this.judgePos : this.crossPos;
-    const y = this.isHorizontalFlow ? this.crossPos : this.judgePos;
-    this.cursorTargetX = x;
-    this.cursorTargetY = y;
+    this.cursorTargetX = this.judgePos;
+    this.cursorTargetY = this.crossPos;
   }
 
   protected render(): void {
@@ -120,124 +107,116 @@ export class TaikoEngine extends GameEngine {
       const dt = obj.time - time;
       if (dt > APPROACH_TIME) continue;
       if (dt < -350 && obj.judged) continue;
-      const pos = this.noteFlow(obj, time);
-      const x = this.isHorizontalFlow ? pos : this.crossPos;
-      const y = this.isHorizontalFlow ? this.crossPos : pos;
+      const x = this.noteFlow(obj, time);
+      const y = this.crossPos;
       this.drawNote(x, y, obj, time);
     }
 
     this.drawJudgeCircle();
-    this.drawTapZones();
+    this.drawVirtualDrum();
     this.drawHitEffects(time);
     this.drawJudgePopups(time);
     this.drawHUD({ comboColor: MODE_COLOR, modeLabel: "osu!taiko", modeColor: MODE_COLOR });
   }
 
-  /** 毛玻璃 Tap 区域 */
-  private drawTapZones(): void {
-    const { ctx, width, height } = this.ctx;
-    const drawGlass = (x: number, y: number, w: number, h: number, label: string, color: string) => {
-      // 半透明面板
-      drawRect(this.ctx, x, y, w, h, "rgba(255,255,255,0.08)", 18);
-      // 边框
-      ctx.strokeStyle = "rgba(255,255,255,0.16)";
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(x + 0.75, y + 0.75, w - 1.5, h - 1.5);
-      // 顶部高光
-      ctx.fillStyle = "rgba(255,255,255,0.06)";
-      ctx.beginPath();
-      ctx.roundRect(x + 4, y + 4, w - 8, h * 0.35, [12, 12, 8, 8]);
-      ctx.fill();
-      // 标签
-      drawText(this.ctx, label, x + w / 2, y + h / 2, {
-        font: `900 14px ${GAME_FONT}`,
-        fillStyle: color,
-      });
-    };
-
-    const margin = 12;
-    if (this.isHorizontalFlow) {
-      const w = width / 2 - margin * 1.5;
-      const h = NOTE_R * 2 + 36;
-      const y = this.crossPos - h / 2;
-      drawGlass(margin, y, w, h, "DON", COLOR_RED);
-      drawGlass(width / 2 + margin / 2, y, w, h, "KATSU", COLOR_BLUE);
-    } else {
-      const h = height / 2 - margin * 1.5;
-      const w = NOTE_R * 2 + 36;
-      const x = this.crossPos - w / 2;
-      drawGlass(x, margin, w, h, "DON", COLOR_RED);
-      drawGlass(x, height / 2 + margin / 2, w, h, "KATSU", COLOR_BLUE);
-    }
-  }
-
   private drawTrack(): void {
-    const { width, height } = this.ctx;
-    if (this.isHorizontalFlow) {
-      drawRect(this.ctx, 0, this.crossPos - NOTE_R - 10, width, (NOTE_R + 10) * 2, "rgba(255,255,255,0.04)", 0);
-      this.ctx.ctx.strokeStyle = "rgba(255,255,255,0.1)";
-      this.ctx.ctx.lineWidth = 1;
-      this.ctx.ctx.strokeRect(0, this.crossPos - NOTE_R - 10, width, (NOTE_R + 10) * 2);
-    } else {
-      drawRect(this.ctx, this.crossPos - NOTE_R - 10, 0, (NOTE_R + 10) * 2, height, "rgba(255,255,255,0.04)", 0);
-      this.ctx.ctx.strokeStyle = "rgba(255,255,255,0.1)";
-      this.ctx.ctx.lineWidth = 1;
-      this.ctx.ctx.strokeRect(this.crossPos - NOTE_R - 10, 0, (NOTE_R + 10) * 2, height);
-    }
+    const { width } = this.ctx;
+    const trackY = this.crossPos - NOTE_R - 10;
+    const trackH = (NOTE_R + 10) * 2;
+    drawRect(this.ctx, 0, trackY, width, trackH, "rgba(255,255,255,0.04)", 0);
+    this.ctx.ctx.strokeStyle = "rgba(255,255,255,0.1)";
+    this.ctx.ctx.lineWidth = 1;
+    this.ctx.ctx.strokeRect(0, trackY, width, trackH);
   }
 
+  /** 判定圈：空心圆环，可看到后方飞来的音符 */
   private drawJudgeCircle(): void {
-    const x = this.isHorizontalFlow ? this.judgePos : this.crossPos;
-    const y = this.isHorizontalFlow ? this.crossPos : this.judgePos;
     const { ctx } = this.ctx;
+    const x = this.judgePos;
+    const y = this.crossPos;
     const r = NOTE_R + 14;
 
-    // 鼓身木 rim
     ctx.save();
+    // 外环
+    drawRing(this.ctx, x, y, r, "rgba(255,255,255,0.55)", 3);
+    // 内部红蓝分区（细线）
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = "#5c3a21";
-    ctx.fill();
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = "#8b5a33";
-    ctx.stroke();
-
-    // 鼓面底色
-    ctx.beginPath();
-    ctx.arc(x, y, r - 6, 0, Math.PI * 2);
-    ctx.fillStyle = "#f5e6d3";
-    ctx.fill();
-
-    // 鼓面左右（或上下）分红蓝两区
-    if (this.isHorizontalFlow) {
-      ctx.beginPath();
-      ctx.arc(x, y, r - 6, -Math.PI / 2, Math.PI / 2);
-      ctx.fillStyle = "rgba(255,94,94,0.22)";
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(x, y, r - 6, Math.PI / 2, -Math.PI / 2);
-      ctx.fillStyle = "rgba(77,166,255,0.22)";
-      ctx.fill();
-    } else {
-      ctx.beginPath();
-      ctx.arc(x, y, r - 6, 0, Math.PI);
-      ctx.fillStyle = "rgba(255,94,94,0.22)";
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(x, y, r - 6, Math.PI, 0);
-      ctx.fillStyle = "rgba(77,166,255,0.22)";
-      ctx.fill();
-    }
-
-    // 中心环
-    ctx.beginPath();
-    ctx.arc(x, y, NOTE_R * 0.35, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(0,0,0,0.12)";
+    ctx.arc(x, y, r - 4, -Math.PI / 2, Math.PI / 2);
+    ctx.strokeStyle = "rgba(255,94,94,0.5)";
     ctx.lineWidth = 2;
     ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, r - 4, Math.PI / 2, -Math.PI / 2);
+    ctx.strokeStyle = "rgba(77,166,255,0.5)";
+    ctx.stroke();
+    // 中心小点
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.fill();
     ctx.restore();
   }
 
+  /** 底部虚拟太鼓 */
+  private drawVirtualDrum(): void {
+    const { ctx, width, height } = this.ctx;
+    const cx = width / 2;
+    const cy = this.isLandscape ? height - 90 : height - 120;
+    const r = this.isLandscape ? 62 : 56;
+
+    ctx.save();
+    // 鼓身阴影
+    ctx.beginPath();
+    ctx.arc(cx + 3, cy + 3, r, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.fill();
+
+    // 鼓身 rim
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#5c3a21";
+    ctx.fill();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#8b5a33";
+    ctx.stroke();
+
+    // 鼓面
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 7, 0, Math.PI * 2);
+    ctx.fillStyle = "#f5e6d3";
+    ctx.fill();
+
+    // 左红（Don）右蓝（Katsu）分区
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 7, Math.PI / 2, -Math.PI / 2);
+    ctx.fillStyle = "rgba(255,94,94,0.22)";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 7, -Math.PI / 2, Math.PI / 2);
+    ctx.fillStyle = "rgba(77,166,255,0.22)";
+    ctx.fill();
+
+    // 中心环
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.35, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(0,0,0,0.12)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 标签
+    drawText(this.ctx, "DON", cx - r * 0.55, cy, {
+      font: `900 12px ${GAME_FONT}`,
+      fillStyle: COLOR_RED,
+    });
+    drawText(this.ctx, "KAT", cx + r * 0.55, cy, {
+      font: `900 12px ${GAME_FONT}`,
+      fillStyle: COLOR_BLUE,
+    });
+
+    ctx.restore();
+  }
+
+  /** 音符：空心圆环，中心透明，避免遮挡 */
   private drawNote(x: number, y: number, obj: HitObject, time: number): void {
     const blue = this.isBlue(obj);
     const big = this.isBig(obj);
@@ -248,35 +227,33 @@ export class TaikoEngine extends GameEngine {
     const { ctx } = this.ctx;
     ctx.save();
     ctx.globalAlpha = alpha;
-    if (blue) {
-      // Katsu：蓝环（打击鼓边）
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(x, y, r * 0.32, 0, Math.PI * 2);
-      ctx.fillStyle = "#fff";
-      ctx.fill();
-    } else {
-      // Don：实心红圆（打击鼓面）
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(x, y, r * 0.3, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255,255,255,0.35)";
-      ctx.fill();
-    }
+
+    // 外圈
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = big ? 5 : 4;
+    ctx.stroke();
+
+    // 内圈装饰
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = alpha * 0.6;
+    ctx.stroke();
+
+    // 中心小圆点
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.18, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
     // 大音符金边
     if (big) {
       ctx.beginPath();
-      ctx.arc(x, y, r + 5, 0, Math.PI * 2);
+      ctx.arc(x, y, r + 8, 0, Math.PI * 2);
       ctx.strokeStyle = COLOR_GOLD;
       ctx.lineWidth = 3;
       ctx.stroke();
@@ -294,16 +271,16 @@ export class TaikoEngine extends GameEngine {
     );
     if (best) {
       const j = this.judgeHit(best, time);
-      const x = this.isHorizontalFlow ? this.judgePos : this.crossPos;
-      const y = this.isHorizontalFlow ? this.crossPos : this.judgePos;
-      this.spawnHitEffect(x, y, j, time);
+      this.spawnHitEffect(this.judgePos, this.crossPos, j, time);
     }
   }
 
-  public onPointerDown(x: number, y: number): void {
+  public onPointerDown(x: number, _y: number): void {
     if (this.status !== "playing") return;
-    if (this.isHorizontalFlow) this.tryHit(x > this.ctx.width / 2);
-    else this.tryHit(y > this.ctx.height / 2);
+    // 屏幕左半边 / 虚拟鼓左半边 = Don，右半边 = Katsu
+    this.tryHit(x > this.ctx.width / 2);
+    // 按下反馈位置
+    this.pressCursor(this.currentTime);
   }
 
   public onPointerMove = (): void => {};
