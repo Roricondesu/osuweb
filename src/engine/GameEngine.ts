@@ -97,6 +97,8 @@ export abstract class GameEngine {
   protected cursorMoveStartY = -100;
   protected cursorLastTargetX = -100;
   protected cursorLastTargetY = -100;
+  protected cursorNextTargetX = -100;
+  protected cursorNextTargetY = -100;
 
   protected backgroundImage: HTMLImageElement | null = null;
   protected backgroundLoaded = false;
@@ -688,7 +690,13 @@ export abstract class GameEngine {
     return m * m * a + 2 * m * t * c + t * t * b;
   }
 
-  /** 光标平滑跟随：auto 使用空间二次贝塞尔曲线 + 时间 Cubic Bezier；手动模式使用柔和弹簧 */
+  /** 计算三次贝塞尔曲线上的点：P0 -> P1 -> P2 -> P3 */
+  private cubicBezierPoint(p0: number, p1: number, p2: number, p3: number, t: number): number {
+    const m = 1 - t;
+    return m * m * m * p0 + 3 * m * m * t * p1 + 3 * m * t * t * p2 + t * t * t * p3;
+  }
+
+  /** 光标平滑跟随：auto 使用空间 Cubic Bezier + 时间 Cubic Bezier；手动模式使用柔和弹簧 */
   protected smoothCursor(dt: number, time: number): void {
     if (!this.auto && !this.showCursor) return;
 
@@ -698,30 +706,46 @@ export abstract class GameEngine {
       // 时间轴 ease-out：起步快、收尾柔
       const t = this.cubicBezier(rawT, 0.12, 0.9, 0.25, 1);
 
-      const ax = this.cursorMoveStartX;
-      const ay = this.cursorMoveStartY;
-      const bx = this.cursorTargetX;
-      const by = this.cursorTargetY;
+      const p0x = this.cursorMoveStartX;
+      const p0y = this.cursorMoveStartY;
+      const p3x = this.cursorTargetX;
+      const p3y = this.cursorTargetY;
 
-      // 控制点：中点沿垂直方向偏移，产生弧线轨迹
-      let cx = (ax + bx) / 2;
-      let cy = (ay + by) / 2;
-      const dx = bx - ax;
-      const dy = by - ay;
-      const len = Math.hypot(dx, dy);
-      if (len > 10) {
-        // 垂直单位向量 (-dy, dx) / len，偏移量为距离 * 0.18
-        const offset = len * 0.18;
-        const nx = -dy / len;
-        const ny = dx / len;
-        // 方向按起止交换做简单交替，避免总是同向弯曲
-        const side = ((Math.floor(time / 400) % 2) === 0) ? 1 : -1;
-        cx += nx * offset * side;
-        cy += ny * offset * side;
+      // P1：延续当前速度，保证曲线切线连续
+      const durationThird = this.cursorMoveDuration / 3;
+      const p1x = p0x + this.cursorVelocityX * durationThird;
+      const p1y = p0y + this.cursorVelocityY * durationThird;
+
+      // P2：朝向下一个目标的进入方向；没有 lookahead 时沿当前方向平滑进入
+      let p2x: number, p2y: number;
+      const hasNext =
+        (this.cursorNextTargetX !== -100 || this.cursorNextTargetY !== -100) &&
+        (this.cursorNextTargetX !== p3x || this.cursorNextTargetY !== p3y);
+      const nextDx = hasNext ? this.cursorNextTargetX - p3x : 0;
+      const nextDy = hasNext ? this.cursorNextTargetY - p3y : 0;
+      const nextDist = Math.hypot(nextDx, nextDy);
+      if (nextDist > 10) {
+        const incomingLen = Math.min(nextDist, Math.hypot(p3x - p0x, p3y - p0y)) * 0.35;
+        p2x = p3x + (nextDx / nextDist) * incomingLen;
+        p2y = p3y + (nextDy / nextDist) * incomingLen;
+      } else {
+        const dx = p3x - p0x;
+        const dy = p3y - p0y;
+        p2x = p3x - dx * 0.2;
+        p2y = p3y - dy * 0.2;
       }
 
-      this.cursorX = this.quadBezier(ax, cx, bx, t);
-      this.cursorY = this.quadBezier(ay, cy, by, t);
+      const oldX = this.cursorX;
+      const oldY = this.cursorY;
+
+      this.cursorX = this.cubicBezierPoint(p0x, p1x, p2x, p3x, t);
+      this.cursorY = this.cubicBezierPoint(p0y, p1y, p2y, p3y, t);
+
+      // 更新速度，使下一次切换保持切线连续
+      if (dt > 0) {
+        this.cursorVelocityX = (this.cursorX - oldX) / dt;
+        this.cursorVelocityY = (this.cursorY - oldY) / dt;
+      }
 
       // 到达目标后仍保持轻微环绕，避免完全停顿
       if (rawT >= 1) {
@@ -795,11 +819,19 @@ export abstract class GameEngine {
     this.cursorY = -100;
     this.cursorTargetX = -100;
     this.cursorTargetY = -100;
+    this.cursorNextTargetX = -100;
+    this.cursorNextTargetY = -100;
     this.cursorVelocityX = 0;
     this.cursorVelocityY = 0;
     this.cursorTrail = [];
     this.cursorPressed = false;
     this.cursorPressTime = 0;
+    this.cursorMoveStartTime = 0;
+    this.cursorMoveDuration = 0;
+    this.cursorMoveStartX = -100;
+    this.cursorMoveStartY = -100;
+    this.cursorLastTargetX = -100;
+    this.cursorLastTargetY = -100;
   }
 
   /** 输入：设置光标位置（子类可重写） */

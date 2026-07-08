@@ -187,20 +187,65 @@ export class StandardEngine extends GameEngine {
     const len = objs.length;
     const win300 = this.windows["300"];
 
-    // 找到下一个未判定目标，光标始终提前朝它移动
-    let focus: HitObject | null = null;
-    let focusIndex = -1;
+    // 先自动击打所有当前在窗口内的 circle / 滑条头部，与移动目标解耦
     for (let i = this.activeIndex; i < len; i++) {
       const obj = objs[i];
       if (obj.judged) continue;
+      if (obj.type === "spinner") continue;
       if (obj.type === "slider") {
-        const endTime = obj.endTime || obj.time;
-        // 滑条一结束就切换到下一个目标，避免光标在尾部停顿
-        if (time > endTime) continue;
+        const delta = time - obj.time;
+        if (!obj._sliderHit && delta >= -win300 && delta <= win300) {
+          obj._sliderHit = true;
+          obj.judged = false;
+          const head = this.toCanvas(obj.x, obj.y);
+          this.spawnHitEffect(head.x, head.y, "300", time);
+          this.pressCursor(time);
+        }
+        continue;
       }
-      focus = obj;
-      focusIndex = i;
-      break;
+      // circle
+      const delta = time - obj.time;
+      if (delta <= win300 && delta >= -win300) {
+        this.judgeHit(obj, time);
+        const p = this.toCanvas(obj.x, obj.y);
+        this.spawnHitEffect(p.x, p.y, "300", time);
+        this.pressCursor(time);
+      }
+      if (obj.time - time > this.windows["50"] + 100) break;
+    }
+
+    // 选择移动目标：circle 在击打窗口内时最优先，已按住头部的滑条权重最低
+    let focus: HitObject | null = null;
+    let focusIndex = -1;
+    let bestScore = Infinity;
+    for (let i = this.activeIndex; i < len; i++) {
+      const obj = objs[i];
+      if (obj.judged) continue;
+      if (obj.type === "slider" && time > (obj.endTime || obj.time)) continue;
+
+      const dt = obj.time - time;
+      let score = dt;
+
+      // circle 在窗口内时最优先，避免长按滑条时漏掉 circle 导致 combo 断
+      if (obj.type === "circle" && Math.abs(dt) <= win300) {
+        score -= 3000;
+      }
+      // 已经在按的滑条权重降低，让光标可以去点 circle
+      if (obj.type === "slider" && obj._sliderHit) {
+        score += 2000;
+      }
+      // 进行中的 spinner 保持中等优先
+      if (obj.type === "spinner" && time >= obj.time && time <= (obj.endTime || obj.time)) {
+        score -= 1000;
+      }
+
+      if (score < bestScore) {
+        bestScore = score;
+        focus = obj;
+        focusIndex = i;
+      }
+
+      if (dt > this.preempt) break;
     }
     if (!focus) return;
 
@@ -223,7 +268,6 @@ export class StandardEngine extends GameEngine {
       const endTime = focus.endTime || focus.time;
       const head = this.toCanvas(focus.x, focus.y);
       const tail = pts.length >= 2 ? this.sliderEndPosition(focus, focusIndex) : head;
-      const delta = time - focus.time;
 
       if (time < focus.time) {
         // 滑条未开始：光标提前停在头部等待
@@ -249,25 +293,33 @@ export class StandardEngine extends GameEngine {
           }
         }
       }
-
-      // 自动击中滑条头部（只在窗口内触发一次）
-      if (!focus._sliderHit && delta >= -win300 && delta <= win300) {
-        focus._sliderHit = true;
-        focus.judged = false;
-        this.spawnHitEffect(head.x, head.y, "300", time);
-        this.pressCursor(time);
-      }
     } else {
-      // circle：光标始终朝目标移动，击中只在窗口内
+      // circle：光标朝目标移动
       const p = this.toCanvas(focus.x, focus.y);
       targetX = p.x;
       targetY = p.y;
-      const delta = time - focus.time;
-      if (delta <= win300 && delta >= -win300) {
-        this.judgeHit(focus, time);
-        this.spawnHitEffect(p.x, p.y, "300", time);
-        this.pressCursor(time);
+    }
+
+    // 查找下一个目标，用于贝塞尔曲线 lookahead
+    let nextX = targetX;
+    let nextY = targetY;
+    for (let j = focusIndex + 1; j < len; j++) {
+      const next = objs[j];
+      if (next.judged) continue;
+      if (next.type === "slider" && time > (next.endTime || next.time)) continue;
+      if (next.type === "spinner") {
+        nextX = this.ctx.width / 2;
+        nextY = this.ctx.height / 2;
+      } else if (next.type === "slider") {
+        const np = this.toCanvas(next.x, next.y);
+        nextX = np.x;
+        nextY = np.y;
+      } else {
+        const np = this.toCanvas(next.x, next.y);
+        nextX = np.x;
+        nextY = np.y;
       }
+      break;
     }
 
     // 目标切换时记录贝塞尔移动起点、上一目标和持续时间
@@ -286,6 +338,8 @@ export class StandardEngine extends GameEngine {
 
     this.cursorTargetX = targetX;
     this.cursorTargetY = targetY;
+    this.cursorNextTargetX = nextX;
+    this.cursorNextTargetY = nextY;
   }
 
 
