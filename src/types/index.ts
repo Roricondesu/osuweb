@@ -225,6 +225,8 @@ export interface TimingPoint {
   time: number;
   beatLength: number; // ms per beat（负数表示继承点）
   meter: number;
+  sampleSet: number; // 0=auto, 1=normal, 2=soft, 3=drum
+  sampleIndex: number; // 0=default, 1=custom1...
   volume: number;
   uninherited: boolean; // true = BPM 控制点
   kiai: boolean;
@@ -320,6 +322,9 @@ export interface Settings {
   showCursorTrail: boolean; // 显示光标拖尾
   showCursorPress: boolean; // 显示光标按下反馈
   autoCursorSpeed: number; // 0.5-2.0，auto 光标移动速度倍率
+
+  // 音效
+  hitSoundVolume: number; // 0-1，谱面按键音音量
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -338,4 +343,5 @@ export const DEFAULT_SETTINGS: Settings = {
   showCursorTrail: true,
   showCursorPress: true,
   autoCursorSpeed: 1,
+  hitSoundVolume: 0.6,
 };

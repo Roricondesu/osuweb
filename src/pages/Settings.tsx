@@ -202,6 +202,27 @@ export default function Settings() {
               ariaLabel="Auto 光标速度"
             />
           </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <span style={{ color: "var(--text-primary)" }}>按键音音量</span>
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                {Math.round(settings.hitSoundVolume * 100)}%
+              </span>
+            </div>
+            <p className="mb-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+              使用谱面自带音效（normal / soft / drum）
+            </p>
+            <GlassSlider
+              value={settings.hitSoundVolume}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(v) => updateSetting("hitSoundVolume", v)}
+              scheme={scheme}
+              ariaLabel="按键音音量"
+            />
+          </div>
         </div>
       </Section>
 

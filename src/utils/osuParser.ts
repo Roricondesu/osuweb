@@ -85,6 +85,7 @@ const parseHitObjectLine = (line: string, mode: GameMode, cs: number): HitObject
     time,
     type,
     newCombo,
+    hitSound: Number(parts[4]) || 0,
     judged: false,
     judgement: null,
   };
@@ -122,6 +123,8 @@ const parseTimingPoint = (line: string): TimingPoint | null => {
   const beatLength = Number(parts[1]);
   if (Number.isNaN(time) || Number.isNaN(beatLength)) return null;
   const meter = Number(parts[2]) || 4;
+  const sampleSet = Number(parts[3]) || 0;
+  const sampleIndex = Number(parts[4]) || 0;
   const volume = Number(parts[5]) || 100;
   const uninherited = parts[6] !== "0";
   const effects = Number(parts[7]) || 0;
@@ -129,6 +132,8 @@ const parseTimingPoint = (line: string): TimingPoint | null => {
     time,
     beatLength,
     meter,
+    sampleSet,
+    sampleIndex,
     volume,
     uninherited,
     kiai: (effects & 1) !== 0,

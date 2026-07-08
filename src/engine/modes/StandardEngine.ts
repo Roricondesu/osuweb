@@ -200,6 +200,7 @@ export class StandardEngine extends GameEngine {
           const head = this.toCanvas(obj.x, obj.y);
           this.spawnHitEffect(head.x, head.y, "300", time);
           this.pressCursor(time);
+          this.playHitSound(obj);
         }
         continue;
       }
@@ -709,6 +710,7 @@ export class StandardEngine extends GameEngine {
     if (best) {
       if (best.type === "slider") {
         best._sliderHit = true;
+        this.playHitSound(best);
         // 不立即判定，滑条尾超时再判定
         return;
       }

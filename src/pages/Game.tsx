@@ -32,6 +32,7 @@ export default function Game() {
   const showCursorTrail = useGameStore((s) => s.settings.showCursorTrail);
   const showCursorPress = useGameStore((s) => s.settings.showCursorPress);
   const autoCursorSpeed = useGameStore((s) => s.settings.autoCursorSpeed);
+  const hitSoundVolume = useGameStore((s) => s.settings.hitSoundVolume);
   const updateRuntime = useGameStore((s) => s.updateRuntime);
   const endGame = useGameStore((s) => s.endGame);
 
@@ -94,6 +95,7 @@ export default function Game() {
         showCursorTrail,
         showCursorPress,
         autoCursorSpeed,
+        hitSoundVolume,
         callbacks: {
           onScoreUpdate: (s) => {
             setScore({ ...s });
@@ -124,7 +126,7 @@ export default function Game() {
       engineRef.current?.destroy();
       engineRef.current = null;
     };
-  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed]);
+  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, hitSoundVolume]);
 
   // 同步音量
   useEffect(() => {

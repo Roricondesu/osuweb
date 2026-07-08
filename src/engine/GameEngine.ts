@@ -58,6 +58,7 @@ export interface EngineOptions {
   showCursorTrail?: boolean;
   showCursorPress?: boolean;
   autoCursorSpeed?: number;
+  hitSoundVolume?: number;
 }
 
 export abstract class GameEngine {
@@ -100,6 +101,9 @@ export abstract class GameEngine {
   protected cursorNextTargetX = -100;
   protected cursorNextTargetY = -100;
 
+  protected hitSoundVolume = 0.6;
+  protected hitSoundAudios: Map<string, HTMLAudioElement> = new Map();
+
   protected backgroundImage: HTMLImageElement | null = null;
   protected backgroundLoaded = false;
   protected assetUrls: Record<string, string> = {};
@@ -139,6 +143,7 @@ export abstract class GameEngine {
     this.showCursorTrail = opts.showCursorTrail ?? true;
     this.showCursorPress = opts.showCursorPress ?? true;
     this.autoCursorSpeed = opts.autoCursorSpeed ?? 1;
+    this.hitSoundVolume = opts.hitSoundVolume ?? 0.6;
     if (opts.lyrics) this.lyrics = opts.lyrics;
     if (opts.backgroundUrl) this.loadBackground(opts.backgroundUrl);
     if (opts.assetUrls) {
@@ -398,7 +403,87 @@ export abstract class GameEngine {
     obj.judgement = j;
     this.submitJudgement(j);
     this.spawnJudgePopup(j, x, y, time);
+    if (j !== "miss") this.playHitSound(obj);
     return j;
+  }
+
+  /** 获取指定时间的 sampleSet / sampleIndex（继承点会向上查找） */
+  private getSampleAt(time: number): { set: number; index: number } {
+    const tps = this.beatmap.timingPoints;
+    let current: import("@/types").TimingPoint | null = null;
+    let lastUninherited: import("@/types").TimingPoint | null = null;
+    for (const tp of tps) {
+      if (tp.time > time) break;
+      if (tp.uninherited) lastUninherited = tp;
+      current = tp;
+    }
+    const base = current || lastUninherited;
+    if (!base) return { set: 1, index: 0 };
+    let set = base.sampleSet || 0;
+    let index = base.sampleIndex || 0;
+    if (!base.uninherited && set === 0 && lastUninherited) {
+      set = lastUninherited.sampleSet || 1;
+    }
+    if (set === 0) set = 1;
+    return { set, index };
+  }
+
+  /** 播放物件的按键音（谱面自带音效） */
+  protected playHitSound(obj: HitObject): void {
+    if (this.hitSoundVolume <= 0) return;
+    const { set, index } = this.getSampleAt(obj.time);
+    const setName = ["", "normal", "soft", "drum"][set] || "normal";
+    const indexSuffix = index > 0 ? `-${index}` : "";
+    const flags = obj.hitSound || 1; // 默认 normal
+    const sounds: string[] = [];
+    if (flags & 1) sounds.push("normal");
+    if (flags & 2) sounds.push("whistle");
+    if (flags & 4) sounds.push("finish");
+    if (flags & 8) sounds.push("clap");
+    if (sounds.length === 0) sounds.push("normal");
+
+    const exts = [".wav", ".mp3", ".ogg"];
+    for (const sound of sounds) {
+      const baseName = `${setName}-hit${sound}${indexSuffix}`;
+      let url: string | undefined;
+      // 先精确匹配（含大小写），再 basename 匹配
+      for (const ext of exts) {
+        const key = baseName + ext;
+        if (this.assetUrls[key]) {
+          url = this.assetUrls[key];
+          break;
+        }
+      }
+      if (!url) {
+        const lowerBase = baseName.toLowerCase();
+        for (const [k, v] of Object.entries(this.assetUrls)) {
+          const base = k.split("/").pop()?.toLowerCase() || "";
+          if (base === lowerBase + ".wav" || base === lowerBase + ".mp3" || base === lowerBase + ".ogg") {
+            url = v;
+            break;
+          }
+        }
+      }
+      if (!url && index > 0) {
+        // 自定义 index 不存在时回退到默认
+        const fallback = `${setName}-hit${sound}`;
+        for (const ext of exts) {
+          if (this.assetUrls[fallback + ext]) {
+            url = this.assetUrls[fallback + ext];
+            break;
+          }
+        }
+      }
+      if (url) {
+        const audio = this.hitSoundAudios.get(url) || new Audio(url);
+        if (!this.hitSoundAudios.has(url)) this.hitSoundAudios.set(url, audio);
+        audio.volume = this.hitSoundVolume;
+        audio.currentTime = 0;
+        audio.play().catch(() => {
+          // 忽略自动播放限制等错误
+        });
+      }
+    }
   }
 
   /** 通用：推进活动物件指针 */

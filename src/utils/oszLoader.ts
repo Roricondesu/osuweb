@@ -101,6 +101,22 @@ const extractBeatmapSet = async (
     }
   }
 
+  // 提取音效资源（按键音）
+  for (const name of audioFiles) {
+    const file = zip.files[name];
+    if (file.dir) continue;
+    try {
+      const blob = await file.async("blob");
+      assetUrls[name] = blobToUrl(blob);
+      const baseName = name.split("/").pop();
+      if (baseName && baseName !== name) {
+        assetUrls[baseName] = assetUrls[name];
+      }
+    } catch {
+      // 忽略损坏音频
+    }
+  }
+
   // 优先使用 Events 中指定的背景，否则取第一张图片
   let backgroundUrl: string | undefined;
   const firstParsed = parsed[0]?.parsed;
