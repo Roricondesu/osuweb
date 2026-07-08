@@ -32,6 +32,7 @@ export class CatchEngine extends GameEngine {
   private rightHeld = false;
   private lastTime = 0;
   private cached: CachedFruit[] = [];
+  private lastFocusIndex = -1;
 
   constructor(opts: {
     canvas: HTMLCanvasElement;
@@ -152,30 +153,93 @@ export class CatchEngine extends GameEngine {
   private autoPlay(time: number): void {
     const objs = this.beatmap.hitObjects;
     const len = objs.length;
-    let target: number | null = null;
-    let totalWeight = 0;
-    // 综合判断轴附近 300ms 内所有水果的位置，带距离权重，避免只追单个水果导致盘子抖动
+    const win300 = this.windows["300"];
+
+    // 选择 focus：优先接即将到达判断轴的水果，参考 standard 的 focus 选择逻辑
+    let focus: HitObject | null = null;
+    let focusIndex = -1;
+    let bestScore = Infinity;
+
     for (let i = this.activeIndex; i < len; i++) {
       const obj = objs[i];
       if (obj.judged) continue;
+
+      const dt = obj.time - time;
       const flow = this.fruitFlow(obj, time);
-      const distToJudge = this.isLandscape
-        ? this.judgeAxis + 200 - flow
-        : flow - (this.judgeAxis - 200);
-      if (distToJudge < -100) break;
-      const cross = this.fruitCross(obj);
-      // 权重：越接近判断轴的水果权重越高
-      const w = Math.max(0.1, 1 - Math.max(0, distToJudge) / 300);
-      target = (target ?? 0) + cross * w;
-      totalWeight += w;
+
+      // 已经飞过判断线太多的水果不再考虑
+      const passed = this.isLandscape
+        ? this.judgeAxis - flow
+        : flow - this.judgeAxis;
+      if (passed > FRUIT_R + PLATE_HALF) continue;
+
+      let score = Math.abs(dt);
+
+      // 越接近判断线优先级越高
+      const approachT = clamp(1 - dt / APPROACH_TIME, 0, 1);
+      score -= approachT * 1200;
+
+      // 已经进入判定窗口的 urgency 最高
+      if (Math.abs(dt) <= win300) {
+        const urgency = (win300 - Math.abs(dt)) / win300;
+        score -= 2000 + urgency * 3000;
+      }
+
+      if (score < bestScore) {
+        bestScore = score;
+        focus = obj;
+        focusIndex = i;
+      }
+
+      // 太远的水果先不看
+      if (dt > APPROACH_TIME) break;
     }
-    if (target !== null && totalWeight > 0) {
-      this.targetPos = target / totalWeight;
+
+    if (!focus) return;
+
+    const targetCross = this.fruitCross(focus);
+
+    // 预测未来路径方向：加权接下来几个未判定水果，用于光标进入角度
+    let nextCross = targetCross;
+    let futureDx = 0;
+    let futureWeight = 0;
+    for (let j = focusIndex + 1, w = 1; j < len && w > 0.1; j++) {
+      const next = objs[j];
+      if (next.judged) continue;
+      const nextDt = next.time - time;
+      if (nextDt > APPROACH_TIME) break;
+      const nc = this.fruitCross(next);
+      futureDx += (nc - targetCross) * w;
+      futureWeight += w;
+      w *= 0.55;
     }
-    const px = this.isLandscape ? this.judgeAxis : this.platePos;
-    const py = this.isLandscape ? this.platePos : this.judgeAxis;
-    this.cursorTargetX = px;
-    this.cursorTargetY = py;
+    if (futureWeight > 0) {
+      nextCross = targetCross + futureDx / futureWeight;
+    }
+
+    // 盘子目标位置：cross 轴移动，judge 轴固定
+    const targetX = this.isLandscape ? this.judgeAxis : targetCross;
+    const targetY = this.isLandscape ? targetCross : this.judgeAxis;
+    const nextX = this.isLandscape ? this.judgeAxis : nextCross;
+    const nextY = this.isLandscape ? nextCross : this.judgeAxis;
+
+    // focus 切换时记录贝塞尔移动参数，参考 standard 的 cursor 切换逻辑
+    if (focusIndex !== this.lastFocusIndex) {
+      this.lastFocusIndex = focusIndex;
+      this.cursorMoveStartTime = time;
+      this.cursorMoveStartX = this.cursorX;
+      this.cursorMoveStartY = this.cursorY;
+      this.cursorLastTargetX = this.cursorTargetX;
+      this.cursorLastTargetY = this.cursorTargetY;
+      const baseDuration = Math.max(50, Math.min(APPROACH_TIME, focus.time - time));
+      this.cursorMoveDuration = Math.max(30, baseDuration / this.autoCursorSpeed);
+    }
+
+    this.targetPos = targetCross;
+    this.cursorTargetX = targetX;
+    this.cursorTargetY = targetY;
+    this.cursorNextTargetX = nextX;
+    this.cursorNextTargetY = nextY;
   }
 
   protected render(): void {
@@ -306,6 +370,23 @@ export class CatchEngine extends GameEngine {
     this.leftHeld = false;
     this.rightHeld = false;
     this.lastTime = 0;
+    this.lastFocusIndex = -1;
     this.precomputeFruits();
+  }
+
+  /** 初始化光标/盘子位置到第一个水果，避免开场瞬移 */
+  protected initCursorPosition(): void {
+    const objs = this.beatmap.hitObjects;
+    for (const obj of objs) {
+      if (obj.type === "spinner") continue;
+      const cross = this.fruitCross(obj);
+      this.cursorX = this.isLandscape ? this.judgeAxis : cross;
+      this.cursorY = this.isLandscape ? cross : this.judgeAxis;
+      this.cursorTargetX = this.cursorX;
+      this.cursorTargetY = this.cursorY;
+      this.targetPos = cross;
+      this.platePos = cross;
+      return;
+    }
   }
 }
