@@ -1192,10 +1192,80 @@ export abstract class GameEngine {
   private ease(t: number, easing: number): number {
     const clamped = clamp(t, 0, 1);
     switch (easing) {
-      case 1: // easeOut
+      case 0: // linear
+        return clamped;
+      case 1: // easeOutQuad
         return 1 - Math.pow(1 - clamped, 2);
-      case 2: // easeIn
+      case 2: // easeInQuad
         return clamped * clamped;
+      case 3: // easeInOutQuad
+        return clamped < 0.5 ? 2 * clamped * clamped : 1 - Math.pow(-2 * clamped + 2, 2) / 2;
+      case 4: // easeOutCubic
+        return 1 - Math.pow(1 - clamped, 3);
+      case 5: // easeInCubic
+        return clamped * clamped * clamped;
+      case 6: // easeInOutCubic
+        return clamped < 0.5 ? 4 * clamped * clamped * clamped : 1 - Math.pow(-2 * clamped + 2, 3) / 2;
+      case 7: // easeOutQuart
+        return 1 - Math.pow(1 - clamped, 4);
+      case 8: // easeInQuart
+        return clamped * clamped * clamped * clamped;
+      case 9: // easeInOutQuart
+        return clamped < 0.5 ? 8 * clamped * clamped * clamped * clamped : 1 - Math.pow(-2 * clamped + 2, 4) / 2;
+      case 10: // easeOutQuint
+        return 1 - Math.pow(1 - clamped, 5);
+      case 11: // easeInQuint
+        return clamped * clamped * clamped * clamped * clamped;
+      case 12: // easeInOutQuint
+        return clamped < 0.5 ? 16 * Math.pow(clamped, 5) : 1 - Math.pow(-2 * clamped + 2, 5) / 2;
+      case 13: // easeOutSine
+        return Math.sin((clamped * Math.PI) / 2);
+      case 14: // easeInSine
+        return 1 - Math.cos((clamped * Math.PI) / 2);
+      case 15: // easeInOutSine
+        return -(Math.cos(Math.PI * clamped) - 1) / 2;
+      case 16: // easeOutExpo
+        return clamped === 1 ? 1 : 1 - Math.pow(2, -10 * clamped);
+      case 17: // easeInExpo
+        return clamped === 0 ? 0 : Math.pow(2, 10 * clamped - 10);
+      case 18: // easeInOutExpo
+        return clamped === 0 ? 0 : clamped === 1 ? 1 : clamped < 0.5 ? Math.pow(2, 20 * clamped - 10) / 2 : (2 - Math.pow(2, -20 * clamped + 10)) / 2;
+      case 19: // easeOutCirc
+        return Math.sqrt(1 - Math.pow(clamped - 1, 2));
+      case 20: // easeInCirc
+        return 1 - Math.sqrt(1 - Math.pow(clamped, 2));
+      case 21: // easeInOutCirc
+        return clamped < 0.5 ? (1 - Math.sqrt(1 - Math.pow(2 * clamped, 2))) / 2 : (Math.sqrt(1 - Math.pow(-2 * clamped + 2, 2)) + 1) / 2;
+      case 22: // easeOutElastic
+        return clamped === 0 ? 0 : clamped === 1 ? 1 : Math.pow(2, -10 * clamped) * Math.sin((clamped * 10 - 0.75) * (2 * Math.PI) / 3) + 1;
+      case 23: // easeInElastic
+        return clamped === 0 ? 0 : clamped === 1 ? 1 : -Math.pow(2, 10 * clamped - 10) * Math.sin((clamped * 10 - 10.75) * (2 * Math.PI) / 3);
+      case 24: // easeInOutElastic
+        return clamped === 0 ? 0 : clamped === 1 ? 1 : clamped < 0.5 ? -Math.pow(2, 20 * clamped - 10) * Math.sin((20 * clamped - 11.125) * (2 * Math.PI) / 4.5) / 2 : Math.pow(2, -20 * clamped + 10) * Math.sin((20 * clamped - 11.125) * (2 * Math.PI) / 4.5) / 2 + 1;
+      case 25: { // easeOutBack
+        const c1 = 1.70158, c3 = c1 + 1;
+        return 1 + c3 * Math.pow(clamped - 1, 3) + c1 * Math.pow(clamped - 1, 2);
+      }
+      case 26: { // easeInBack
+        const c1b = 1.70158, c3b = c1b + 1;
+        return c3b * clamped * clamped * clamped - c1b * clamped * clamped;
+      }
+      case 27: { // easeInOutBack
+        const c1c = 1.70158, c2c = c1c * 1.525;
+        return clamped < 0.5 ? (Math.pow(2 * clamped, 2) * ((c2c + 1) * 2 * clamped - c2c)) / 2 : (Math.pow(2 * clamped - 2, 2) * ((c2c + 1) * (clamped * 2 - 2) + c2c) + 2) / 2;
+      }
+      case 28: { // easeOutBounce
+        const n1 = 7.5625, d1 = 2.75;
+        let b = clamped;
+        if (b < 1 / d1) return n1 * b * b;
+        else if (b < 2 / d1) { b -= 1.5 / d1; return n1 * b * b + 0.75; }
+        else if (b < 2.5 / d1) { b -= 2.25 / d1; return n1 * b * b + 0.9375; }
+        else { b -= 2.625 / d1; return n1 * b * b + 0.984375; }
+      }
+      case 29: // easeInBounce
+        return 1 - this.ease(1 - clamped, 28);
+      case 30: // easeInOutBounce
+        return clamped < 0.5 ? (1 - this.ease(1 - 2 * clamped, 28)) / 2 : (1 + this.ease(2 * clamped - 1, 28)) / 2;
       default:
         return clamped;
     }
@@ -1247,17 +1317,8 @@ export abstract class GameEngine {
       return list && list.length > 0 ? list[0].startTime : Infinity;
     };
 
-    // 在第一个非 P 命令开始之前隐藏，避免物件提前出现
-    const firstActionTime = Math.min(
-      firstCmdStart("F"),
-      firstCmdStart("M"),
-      firstCmdStart("MX"),
-      firstCmdStart("MY"),
-      firstCmdStart("S"),
-      firstCmdStart("V"),
-      firstCmdStart("R"),
-      firstCmdStart("C"),
-    );
+    // 仅 Fade 命令决定可见性；没有 F 命令时默认可见（兼容简单谱面）
+    const firstFadeTime = firstCmdStart("F");
 
     const state = {
       x: sprite.x,
@@ -1265,7 +1326,7 @@ export abstract class GameEngine {
       scaleX: 1,
       scaleY: 1,
       rotation: 0,
-      alpha: firstActionTime === Infinity || time >= firstActionTime ? 1 : 0,
+      alpha: firstFadeTime === Infinity || time >= firstFadeTime ? 1 : 0,
       colorR: 255,
       colorG: 255,
       colorB: 255,
@@ -1466,17 +1527,20 @@ export abstract class GameEngine {
       // 这样透明像素不会被背景/其他物件染色
       const hasColor = state.colorR !== 255 || state.colorG !== 255 || state.colorB !== 255;
       if (hasColor) {
+        const cw = Math.ceil(w);
+        const ch = Math.ceil(h);
         const c = this.getStoryboardColorCanvas(w, h);
         const cctx = c.getContext("2d");
         if (cctx) {
-          // 只清理实际使用区域，canvas 可能因复用而比当前需要的大
-          cctx.clearRect(0, 0, w, h);
+          // 清理实际使用区域（canvas 可能因复用而比当前需要的大）
+          cctx.clearRect(0, 0, cw, ch);
           cctx.drawImage(img, 0, 0, w, h);
           cctx.globalCompositeOperation = "source-atop";
           cctx.fillStyle = `rgb(${state.colorR},${state.colorG},${state.colorB})`;
-          cctx.fillRect(0, 0, w, h);
+          cctx.fillRect(0, 0, cw, ch);
           cctx.globalCompositeOperation = "source-over";
-          ctx.drawImage(c, -w / 2, -h / 2, w, h);
+          // 只绘制 (0,0,w,h) 区域，避免复用 canvas 的残留内容被拉伸
+          ctx.drawImage(c, 0, 0, cw, ch, -w / 2, -h / 2, w, h);
         } else {
           ctx.drawImage(img, -w / 2, -h / 2, w, h);
         }
