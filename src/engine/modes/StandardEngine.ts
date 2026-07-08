@@ -214,7 +214,7 @@ export class StandardEngine extends GameEngine {
       if (obj.time - time > this.windows["50"] + 100) break;
     }
 
-    // 选择移动目标：circle 在击打窗口内时最优先，已按住头部的滑条权重最低
+    // 选择移动目标：能滑完滑条就尽量滑完，同时保证 circle 紧急时不会被漏掉
     let focus: HitObject | null = null;
     let focusIndex = -1;
     let bestScore = Infinity;
@@ -226,13 +226,19 @@ export class StandardEngine extends GameEngine {
       const dt = obj.time - time;
       let score = dt;
 
-      // circle 在窗口内时最优先，避免长按滑条时漏掉 circle 导致 combo 断
+      // circle 在窗口内时加分， urgency 越高越优先；刚进入窗口时不抢滑条
       if (obj.type === "circle" && Math.abs(dt) <= win300) {
-        score -= 3000;
+        const urgency = (win300 - Math.abs(dt)) / win300; // 0 ~ 1
+        score -= 400 + urgency * 2200;
       }
-      // 已经在按的滑条权重降低，让光标可以去点 circle
+      // 已按住头部的滑条：剩余时间多时优先滑完，快结束时才允许切换
       if (obj.type === "slider" && obj._sliderHit) {
-        score += 2000;
+        const remaining = (obj.endTime || obj.time) - time;
+        if (remaining > 200) {
+          score -= 1800; // 优先滑完
+        } else {
+          score += 600; // 快结束，准备切换
+        }
       }
       // 进行中的 spinner 保持中等优先
       if (obj.type === "spinner" && time >= obj.time && time <= (obj.endTime || obj.time)) {
@@ -300,26 +306,36 @@ export class StandardEngine extends GameEngine {
       targetY = p.y;
     }
 
-    // 查找下一个目标，用于贝塞尔曲线 lookahead
+    // 预测未来路径方向：加权接下来 3 个未判定物件，用于贝塞尔曲线 lookahead
     let nextX = targetX;
     let nextY = targetY;
-    for (let j = focusIndex + 1; j < len; j++) {
+    let futureDx = 0;
+    let futureDy = 0;
+    let futureWeight = 0;
+    const cx = this.ctx.width / 2;
+    const cy = this.ctx.height / 2;
+    for (let j = focusIndex + 1, w = 1; j < len && w > 0.1; j++) {
       const next = objs[j];
       if (next.judged) continue;
       if (next.type === "slider" && time > (next.endTime || next.time)) continue;
+
+      let np: { x: number; y: number };
       if (next.type === "spinner") {
-        nextX = this.ctx.width / 2;
-        nextY = this.ctx.height / 2;
+        np = { x: cx, y: cy };
       } else if (next.type === "slider") {
-        const np = this.toCanvas(next.x, next.y);
-        nextX = np.x;
-        nextY = np.y;
+        np = this.toCanvas(next.x, next.y);
       } else {
-        const np = this.toCanvas(next.x, next.y);
-        nextX = np.x;
-        nextY = np.y;
+        np = this.toCanvas(next.x, next.y);
       }
-      break;
+
+      futureDx += (np.x - targetX) * w;
+      futureDy += (np.y - targetY) * w;
+      futureWeight += w;
+      w *= 0.55;
+    }
+    if (futureWeight > 0) {
+      nextX = targetX + futureDx / futureWeight;
+      nextY = targetY + futureDy / futureWeight;
     }
 
     // 目标切换时记录贝塞尔移动起点、上一目标和持续时间
