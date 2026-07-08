@@ -239,6 +239,11 @@ export const useGameStore = create<GameState>()(
       name: "osu-game-settings",
       // 只持久化 settings
       partialize: (s) => ({ settings: s.settings }) as unknown as GameState,
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted as GameState),
+        settings: { ...DEFAULT_SETTINGS, ...(persisted as GameState).settings },
+      }),
     },
   ),
 );

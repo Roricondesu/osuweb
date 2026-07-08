@@ -95,6 +95,8 @@ export abstract class GameEngine {
   protected cursorMoveDuration = 0;
   protected cursorMoveStartX = -100;
   protected cursorMoveStartY = -100;
+  protected cursorLastTargetX = -100;
+  protected cursorLastTargetY = -100;
 
   protected backgroundImage: HTMLImageElement | null = null;
   protected backgroundLoaded = false;
@@ -680,18 +682,54 @@ export abstract class GameEngine {
     return 3 * y1 * (1 - ct) * (1 - ct) * ct + 3 * y2 * (1 - ct) * ct * ct + ct * ct * ct;
   }
 
-  /** 光标平滑跟随：auto 使用 Cubic Bezier 在时间轴上插值；手动模式使用柔和弹簧 */
+  /** 计算二次贝塞尔曲线上的点：A -> C -> B */
+  private quadBezier(a: number, c: number, b: number, t: number): number {
+    const m = 1 - t;
+    return m * m * a + 2 * m * t * c + t * t * b;
+  }
+
+  /** 光标平滑跟随：auto 使用空间二次贝塞尔曲线 + 时间 Cubic Bezier；手动模式使用柔和弹簧 */
   protected smoothCursor(dt: number, time: number): void {
     if (!this.auto && !this.showCursor) return;
 
     if (this.auto && this.cursorMoveDuration > 0) {
-      // Auto 模式：按目标到达时间做贝塞尔插值，减少缓动、确保跟上节奏
       const elapsed = time - this.cursorMoveStartTime;
-      const t = clamp(elapsed / this.cursorMoveDuration, 0, 1);
-      // ease-out 型贝塞尔，起步快、收尾柔，x1 较小即减少缓动
-      const eased = this.cubicBezier(t, 0.12, 0.9, 0.25, 1);
-      this.cursorX = lerp(this.cursorMoveStartX, this.cursorTargetX, eased);
-      this.cursorY = lerp(this.cursorMoveStartY, this.cursorTargetY, eased);
+      const rawT = clamp(elapsed / this.cursorMoveDuration, 0, 1);
+      // 时间轴 ease-out：起步快、收尾柔
+      const t = this.cubicBezier(rawT, 0.12, 0.9, 0.25, 1);
+
+      const ax = this.cursorMoveStartX;
+      const ay = this.cursorMoveStartY;
+      const bx = this.cursorTargetX;
+      const by = this.cursorTargetY;
+
+      // 控制点：中点沿垂直方向偏移，产生弧线轨迹
+      let cx = (ax + bx) / 2;
+      let cy = (ay + by) / 2;
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len = Math.hypot(dx, dy);
+      if (len > 10) {
+        // 垂直单位向量 (-dy, dx) / len，偏移量为距离 * 0.18
+        const offset = len * 0.18;
+        const nx = -dy / len;
+        const ny = dx / len;
+        // 方向按起止交换做简单交替，避免总是同向弯曲
+        const side = ((Math.floor(time / 400) % 2) === 0) ? 1 : -1;
+        cx += nx * offset * side;
+        cy += ny * offset * side;
+      }
+
+      this.cursorX = this.quadBezier(ax, cx, bx, t);
+      this.cursorY = this.quadBezier(ay, cy, by, t);
+
+      // 到达目标后仍保持轻微环绕，避免完全停顿
+      if (rawT >= 1) {
+        const idleT = (time % 600) / 600;
+        const radius = 2.5;
+        this.cursorX += Math.cos(idleT * Math.PI * 2) * radius;
+        this.cursorY += Math.sin(idleT * Math.PI * 2) * radius;
+      }
       return;
     }
 

@@ -195,8 +195,8 @@ export class StandardEngine extends GameEngine {
       if (obj.judged) continue;
       if (obj.type === "slider") {
         const endTime = obj.endTime || obj.time;
-        // 已结束滑条跳过，等 update 标记 judged
-        if (time > endTime + this.windows["50"]) continue;
+        // 滑条一结束就切换到下一个目标，避免光标在尾部停顿
+        if (time > endTime) continue;
       }
       focus = obj;
       focusIndex = i;
@@ -270,10 +270,12 @@ export class StandardEngine extends GameEngine {
       }
     }
 
-    // 目标切换时记录贝塞尔移动起点和持续时间
+    // 目标切换时记录贝塞尔移动起点、上一目标和持续时间
     if (focusIndex !== this.lastFocusIndex) {
       this.lastFocusIndex = focusIndex;
       this.cursorMoveStartTime = time;
+      this.cursorLastTargetX = this.cursorTargetX;
+      this.cursorLastTargetY = this.cursorTargetY;
       this.cursorMoveStartX = this.cursorX;
       this.cursorMoveStartY = this.cursorY;
       // 持续时间：到目标物件时间，最短 50ms 防止过短，最长 preempt 防止过长
