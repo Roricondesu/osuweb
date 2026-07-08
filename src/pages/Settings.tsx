@@ -217,6 +217,19 @@ export default function Settings() {
             />
           </div>
 
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Auto 圆周模式</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>光标沿圆弧匀速移动，流畅衔接每个音符</div>
+            </div>
+            <GlassSwitch
+              checked={settings.autoCircleMode}
+              onCheckedChange={(c) => updateSetting("autoCircleMode", c)}
+              scheme={scheme}
+              ariaLabel="Auto 圆周模式"
+            />
+          </div>
+
           <div>
             <div className="mb-1 flex items-center justify-between text-sm">
               <span style={{ color: "var(--text-primary)" }}>按键音音量</span>

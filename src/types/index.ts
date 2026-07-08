@@ -323,6 +323,7 @@ export interface Settings {
   showCursorTrail: boolean; // 显示光标拖尾
   showCursorPress: boolean; // 显示光标按下反馈
   autoCursorSpeed: number; // 0.5-2.0，auto 光标移动速度倍率
+  autoCircleMode: boolean; // Auto 匀速圆周移动模式
 
   // 歌词
   showLyrics: boolean; // 游戏内底部显示匹配歌词
@@ -349,5 +350,6 @@ export const DEFAULT_SETTINGS: Settings = {
   showCursorTrail: true,
   showCursorPress: true,
   autoCursorSpeed: 1,
+  autoCircleMode: false,
   hitSoundVolume: 0.6,
 };

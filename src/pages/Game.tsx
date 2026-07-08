@@ -33,6 +33,7 @@ export default function Game() {
   const showCursorTrail = useGameStore((s) => s.settings.showCursorTrail);
   const showCursorPress = useGameStore((s) => s.settings.showCursorPress);
   const autoCursorSpeed = useGameStore((s) => s.settings.autoCursorSpeed);
+  const autoCircleMode = useGameStore((s) => s.settings.autoCircleMode);
   const hitSoundVolume = useGameStore((s) => s.settings.hitSoundVolume);
   const lyricsSource = useGameStore((s) => s.settings.lyricsSource);
   const updateRuntime = useGameStore((s) => s.updateRuntime);
@@ -101,6 +102,7 @@ export default function Game() {
         showCursorTrail,
         showCursorPress,
         autoCursorSpeed,
+        autoCircleMode,
         hitSoundVolume,
         callbacks: {
           onScoreUpdate: (s) => {
@@ -134,7 +136,7 @@ export default function Game() {
     };
     // 引擎创建依赖较多，避免音量/offset 等运行时可调设置导致整引擎重建
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, hitSoundVolume]);
+  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume]);
 
   // 同步音量
   useEffect(() => {

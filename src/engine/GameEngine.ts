@@ -58,6 +58,7 @@ export interface EngineOptions {
   showCursorTrail?: boolean;
   showCursorPress?: boolean;
   autoCursorSpeed?: number;
+  autoCircleMode?: boolean;
   hitSoundVolume?: number;
 }
 
@@ -91,6 +92,7 @@ export abstract class GameEngine {
   protected showCursorTrail = true;
   protected showCursorPress = true;
   protected autoCursorSpeed = 1;
+  protected autoCircleMode = false;
   // auto 光标贝塞尔移动参数
   protected cursorMoveStartTime = 0;
   protected cursorMoveDuration = 0;
@@ -145,6 +147,7 @@ export abstract class GameEngine {
     this.showCursorTrail = opts.showCursorTrail ?? true;
     this.showCursorPress = opts.showCursorPress ?? true;
     this.autoCursorSpeed = opts.autoCursorSpeed ?? 1;
+    this.autoCircleMode = opts.autoCircleMode ?? false;
     this.hitSoundVolume = opts.hitSoundVolume ?? 0.6;
     if (opts.lyrics) this.lyrics = opts.lyrics;
     if (opts.backgroundUrl) this.loadBackground(opts.backgroundUrl);
@@ -623,7 +626,7 @@ export abstract class GameEngine {
     ctx.restore();
   }
 
-  /** 绘制 Break 提示 */
+  /** 绘制 Break 提示与倒计时条 */
   protected drawBreakOverlay(time: number): void {
     const { ctx, width, height } = this.ctx;
     const objs = this.beatmap.hitObjects;
@@ -632,16 +635,45 @@ export abstract class GameEngine {
       const end = objs[i].endTime || objs[i].time;
       const nextStart = objs[i + 1].time;
       if (nextStart - end < 2000) continue;
-      if (time >= end + 500 && time <= nextStart - 500) {
-        const inBreak = time - end - 500;
-        const alpha = Math.min(1, inBreak / 300) * Math.min(1, (nextStart - 500 - time) / 300);
+      const breakStart = end + 500;
+      const breakEnd = nextStart - 500;
+      if (time >= breakStart && time <= breakEnd) {
+        const inBreak = time - breakStart;
+        const alpha = Math.min(1, inBreak / 300) * Math.min(1, (breakEnd - time) / 300);
+        const totalBreak = breakEnd - breakStart;
+        const remaining = breakEnd - time;
+        const ratio = totalBreak > 0 ? remaining / totalBreak : 0;
         ctx.save();
         ctx.globalAlpha = alpha;
+
+        // BREAK 文字
         ctx.font = `bold 36px ${GAME_FONT}`;
         ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
+        ctx.textBaseline = "bottom";
         ctx.fillStyle = "#fff";
-        ctx.fillText("BREAK", width / 2, height / 2);
+        ctx.fillText("BREAK", width / 2, height / 2 - 14);
+
+        // 倒计时条
+        const barW = Math.min(320, width * 0.6);
+        const barH = 6;
+        const barX = (width - barW) / 2;
+        const barY = height / 2 + 2;
+        ctx.fillStyle = "rgba(255,255,255,0.2)";
+        ctx.beginPath();
+        ctx.roundRect(barX, barY, barW, barH, barH / 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.roundRect(barX, barY, barW * ratio, barH, barH / 2);
+        ctx.fill();
+
+        // 剩余时间
+        const sec = Math.max(0, remaining / 1000).toFixed(1);
+        ctx.font = `bold 18px ${GAME_FONT}`;
+        ctx.textBaseline = "top";
+        ctx.fillText(`${sec}s`, width / 2, barY + barH + 10);
+
         ctx.restore();
         break;
       }
@@ -783,6 +815,111 @@ export abstract class GameEngine {
     return m * m * m * p0 + 3 * m * m * t * p1 + 3 * m * t * t * p2 + t * t * t * p3;
   }
 
+  /** 根据弧长系数 K 反解圆心角 theta，满足 L = d*K = d*theta/(2*sin(theta/2)) */
+  private solveThetaForArc(K: number, maxTheta: number): number {
+    if (K <= 1) return 0;
+    let lo = 0;
+    let hi = maxTheta;
+    for (let i = 0; i < 20; i++) {
+      const mid = (lo + hi) / 2;
+      const val = mid / (2 * Math.sin(mid / 2));
+      if (val < K) lo = mid;
+      else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
+
+  /** Auto 匀速圆周移动：光标沿固定大弧匀速滑动到目标，中间不停顿 */
+  private applyCircularCursor(rawT: number, dt: number, time: number): void {
+    const p0x = this.cursorMoveStartX;
+    const p0y = this.cursorMoveStartY;
+    const p1x = this.cursorTargetX;
+    const p1y = this.cursorTargetY;
+
+    const dx = p1x - p0x;
+    const dy = p1y - p0y;
+    const d = Math.hypot(dx, dy);
+
+    const oldX = this.cursorX;
+    const oldY = this.cursorY;
+
+    if (d < 1 || rawT >= 1) {
+      this.cursorX = p1x;
+      this.cursorY = p1y;
+      if (rawT >= 1) {
+        // 到达目标后保持轻微环绕，避免完全停顿
+        const idleT = (time % 600) / 600;
+        const radius = 2.5;
+        this.cursorX += Math.cos(idleT * Math.PI * 2) * radius;
+        this.cursorY += Math.sin(idleT * Math.PI * 2) * radius;
+      }
+    } else {
+      const durationSec = this.cursorMoveDuration / 1000;
+      const maxSpeed = 2200 * this.autoCursorSpeed; // px/s
+      const maxArcLen = Math.max(d, maxSpeed * durationSec);
+
+      // 默认圆心角 240°，使路程约为直线距离的 2.4 倍
+      const theta0 = (4 * Math.PI) / 3;
+      const baseR = d / (2 * Math.sin(theta0 / 2));
+      const baseArcLen = baseR * theta0;
+      const desiredSpeed = baseArcLen / durationSec;
+
+      let theta = theta0;
+      if (desiredSpeed > maxSpeed) {
+        // 速度超限则缩短圆心角，保证匀速且不超速
+        theta = this.solveThetaForArc(maxArcLen / d, theta0);
+      }
+
+      if (theta < 0.01) {
+        // 退化为直线插值
+        const t = this.cubicBezier(rawT, 0.12, 0.9, 0.25, 1);
+        this.cursorX = p0x + dx * t;
+        this.cursorY = p0y + dy * t;
+      } else {
+        const r = d / (2 * Math.sin(theta / 2));
+        const h = r * Math.cos(theta / 2);
+        const midX = (p0x + p1x) / 2;
+        const midY = (p0y + p1y) / 2;
+        // 取垂直于弦的方向作为圆心方向
+        const perpX = -dy / d;
+        const perpY = dx / d;
+        const cx = midX + perpX * h;
+        const cy = midY + perpY * h;
+
+        const v0x = (p0x - cx) / r;
+        const v0y = (p0y - cy) / r;
+        const v1x = (p1x - cx) / r;
+        const v1y = (p1y - cy) / r;
+
+        // 匀速圆周：参数与经过的弧长成正比
+        const u = rawT;
+        const sinTheta = Math.sin(theta);
+        const s0 = Math.sin((1 - u) * theta);
+        const s1 = Math.sin(u * theta);
+        const vx = sinTheta === 0 ? v0x : (s0 * v0x + s1 * v1x) / sinTheta;
+        const vy = sinTheta === 0 ? v0y : (s0 * v0y + s1 * v1y) / sinTheta;
+
+        this.cursorX = cx + r * vx;
+        this.cursorY = cy + r * vy;
+      }
+    }
+
+    if (dt > 0) {
+      const rawVx = (this.cursorX - oldX) / dt;
+      const rawVy = (this.cursorY - oldY) / dt;
+      const alpha = 0.25;
+      this.cursorVelocityX = this.cursorVelocityX * (1 - alpha) + rawVx * alpha;
+      this.cursorVelocityY = this.cursorVelocityY * (1 - alpha) + rawVy * alpha;
+      const maxVel = 2500;
+      const vMag = Math.hypot(this.cursorVelocityX, this.cursorVelocityY);
+      if (vMag > maxVel) {
+        const s = maxVel / vMag;
+        this.cursorVelocityX *= s;
+        this.cursorVelocityY *= s;
+      }
+    }
+  }
+
   /** 光标平滑跟随：auto 使用空间 Cubic Bezier + 时间 Cubic Bezier；手动模式使用柔和弹簧 */
   protected smoothCursor(dt: number, time: number): void {
     if (!this.auto && !this.showCursor) return;
@@ -790,6 +927,13 @@ export abstract class GameEngine {
     if (this.auto && this.cursorMoveDuration > 0) {
       const elapsed = time - this.cursorMoveStartTime;
       const rawT = clamp(elapsed / this.cursorMoveDuration, 0, 1);
+
+      // Auto 匀速圆周模式：通过圆弧增加路程，使光标在打击点平滑到达
+      if (this.autoCircleMode) {
+        this.applyCircularCursor(rawT, dt, time);
+        return;
+      }
+
       // 时间轴 ease-out：起步快、收尾柔
       const t = this.cubicBezier(rawT, 0.12, 0.9, 0.25, 1);
 

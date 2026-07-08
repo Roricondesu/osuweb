@@ -43,6 +43,9 @@ interface OsuDirectBeatmapSet {
     card?: string;
   };
   beatmaps: OsuDirectBeatmap[];
+  /** osu.direct 是否返回 Storyboard 字段 */
+  storyboard?: boolean;
+  has_storyboard?: boolean;
 }
 
 interface SayobotListItem {
@@ -101,6 +104,7 @@ const mapBeatmapSet = (s: OsuDirectBeatmapSet): BeatmapSet => ({
   ranked: s.ranked,
   covers: s.covers,
   beatmaps: (s.beatmaps || []).map(mapBeatmap),
+  hasStoryboard: s.storyboard || s.has_storyboard || undefined,
 });
 
 /** 搜索 beatmapset（osu.direct） */
