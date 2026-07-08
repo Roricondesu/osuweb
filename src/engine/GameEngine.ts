@@ -652,20 +652,24 @@ export abstract class GameEngine {
   protected drawBackground(): void {
     const { ctx, width, height } = this.ctx;
     if (this.backgroundImage && this.backgroundLoaded) {
-      ctx.save();
-      ctx.globalAlpha = 1 - this.backgroundDim;
       const img = this.backgroundImage;
-      const scale = Math.max(width / img.width, height / img.height);
-      const dw = img.width * scale;
-      const dh = img.height * scale;
+      const iw = img.naturalWidth || img.width;
+      const ih = img.naturalHeight || img.height;
+      ctx.save();
+      ctx.globalAlpha = 1;
+      const scale = Math.max(width / iw, height / ih);
+      const dw = iw * scale;
+      const dh = ih * scale;
       ctx.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
       ctx.restore();
     }
-    // 整体变暗遮罩
-    ctx.save();
-    ctx.fillStyle = `rgba(0,0,0,${this.backgroundDim})`;
-    ctx.fillRect(0, 0, width, height);
-    ctx.restore();
+    // 整体变暗遮罩（在背景图之上、Storyboard 之下）
+    if (this.backgroundDim > 0) {
+      ctx.save();
+      ctx.fillStyle = `rgba(0,0,0,${this.backgroundDim})`;
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
+    }
   }
 
   /** 绘制 Break 提示与倒计时条 */
@@ -1429,16 +1433,14 @@ export abstract class GameEngine {
 
     const { ctx } = this.ctx;
     const { width, height } = this.ctx;
-    // 固定逻辑分辨率 640x480，按短边等比缩放并居中（保持 Storyboard 原始比例）
+    // osu! Storyboard 使用 640x480 逻辑分辨率，拉伸铺满整个屏幕
     const SB_W = 640;
     const SB_H = 480;
-    const scale = Math.min(width / SB_W, height / SB_H);
-    const offsetX = (width - SB_W * scale) / 2;
-    const offsetY = (height - SB_H * scale) / 2;
+    const scaleX = width / SB_W;
+    const scaleY = height / SB_H;
 
     ctx.save();
-    ctx.translate(offsetX, offsetY);
-    ctx.scale(scale, scale);
+    ctx.scale(scaleX, scaleY);
 
     for (const sprite of sprites) {
       if (!layers.includes(sprite.layer)) continue;
@@ -1465,18 +1467,22 @@ export abstract class GameEngine {
       // 颜色着色：在离屏 canvas 上先画原图，再用 source-atop 叠色，
       // 这样透明像素不会被背景/其他物件染色
       const hasColor = state.colorR !== 255 || state.colorG !== 255 || state.colorB !== 255;
-      if (hasColor) {
+      if (hasColor && w > 0 && h > 0) {
         const c = this.getStoryboardColorCanvas(w, h);
         const cctx = c.getContext("2d");
         if (cctx) {
-          // 只清理实际使用区域，canvas 可能因复用而比当前需要的大
-          cctx.clearRect(0, 0, w, h);
+          // 清理实际使用区域（整数化避免子像素残留）
+          const cw = Math.ceil(w);
+          const ch = Math.ceil(h);
+          cctx.clearRect(0, 0, cw, ch);
+          cctx.globalCompositeOperation = "source-over";
           cctx.drawImage(img, 0, 0, w, h);
           cctx.globalCompositeOperation = "source-atop";
           cctx.fillStyle = `rgb(${state.colorR},${state.colorG},${state.colorB})`;
-          cctx.fillRect(0, 0, w, h);
+          cctx.fillRect(0, 0, cw, ch);
           cctx.globalCompositeOperation = "source-over";
-          ctx.drawImage(c, -w / 2, -h / 2, w, h);
+          // 只取 (0,0,cw,ch) 区域，避免复用 canvas 的残留内容
+          ctx.drawImage(c, 0, 0, cw, ch, -w / 2, -h / 2, w, h);
         } else {
           ctx.drawImage(img, -w / 2, -h / 2, w, h);
         }
