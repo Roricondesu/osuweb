@@ -19,6 +19,7 @@ import {
 } from "@/api/osuDirect";
 import { extractOsz } from "@/utils/oszLoader";
 import { saveDownload, loadAllDownloads, deleteDownload, clearAllDownloads } from "@/utils/indexedDb";
+import { fetchNeteaseLyrics } from "@/utils/neteaseLyrics";
 
 const EMPTY_RUNTIME: GameRuntime = {
   setId: 0,
@@ -164,24 +165,30 @@ export const useGameStore = create<GameState>()(
       downloadProgress: 0,
       downloadError: null,
       downloadSet: async (set_, force = false, fullPackage?: boolean) => {
-    const cached = get().downloaded.get(set_.id);
-    if (cached && !force) {
-      set({ downloadProgress: 1 });
-      return cached;
-    }
-    set({ downloadProgress: 0, downloadError: null });
-    try {
-      const full = fullPackage ?? get().settings.downloadFullPackage;
-      const buf = await apiDownloadOsz(set_.id, full, (r) =>
-        set({ downloadProgress: r }),
-      );
+        const cached = get().downloaded.get(set_.id);
+        if (cached && !force) {
+          set({ downloadProgress: 1 });
+          return cached;
+        }
+        set({ downloadProgress: 0, downloadError: null });
+        try {
+          const full = fullPackage ?? get().settings.downloadFullPackage;
+          const title = set_.title_unicode || set_.title;
+          const artist = set_.artist_unicode || set_.artist;
+
+          // 歌词与谱面下载并行进行
+          const lyricsPromise = fetchNeteaseLyrics(title, artist).catch(() => []);
+
+          const buf = await apiDownloadOsz(set_.id, full, (r) => set({ downloadProgress: r }));
           const loaded = await extractOsz(buf, {
             id: set_.id,
-            title: set_.title_unicode || set_.title,
-            artist: set_.artist_unicode || set_.artist,
+            title,
+            artist,
             cover: set_.covers?.["cover@2x"] || set_.covers?.cover || "",
             beatmaps: set_.beatmaps,
           });
+          loaded.lyrics = await lyricsPromise;
+
           set((s) => ({
             downloaded: new Map(s.downloaded).set(set_.id, loaded),
             downloadProgress: 1,

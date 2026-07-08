@@ -1163,14 +1163,6 @@ export abstract class GameEngine {
     return state;
   }
 
-  private storyboardTransform(): { scale: number; offsetX: number; offsetY: number } {
-    const { width, height } = this.ctx;
-    const scale = Math.min(width / 640, height / 480);
-    const offsetX = (width - 640 * scale) / 2;
-    const offsetY = (height - 480 * scale) / 2;
-    return { scale, offsetX, offsetY };
-  }
-
   private originOffset(origin: string, w: number, h: number): { x: number; y: number } {
     switch (origin) {
       case "TopLeft": return { x: 0, y: 0 };
@@ -1225,7 +1217,17 @@ export abstract class GameEngine {
     if (sprites.length === 0) return;
 
     const { ctx } = this.ctx;
-    const { scale, offsetX, offsetY } = this.storyboardTransform();
+    const { width, height } = this.ctx;
+    // 固定逻辑分辨率 640x480，按短边等比缩放并居中（保持 Storyboard 原始比例）
+    const SB_W = 640;
+    const SB_H = 480;
+    const scale = Math.min(width / SB_W, height / SB_H);
+    const offsetX = (width - SB_W * scale) / 2;
+    const offsetY = (height - SB_H * scale) / 2;
+
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
 
     for (const sprite of sprites) {
       if (!layers.includes(sprite.layer)) continue;
@@ -1234,11 +1236,12 @@ export abstract class GameEngine {
       const img = this.getStoryboardImage(sprite, time);
       if (!img || !img.complete || img.naturalWidth === 0) continue;
 
-      const w = img.naturalWidth * state.scaleX * scale;
-      const h = img.naturalHeight * state.scaleY * scale;
+      // 逻辑尺寸，最终由 ctx.scale 统一缩放到屏幕
+      const w = img.naturalWidth * state.scaleX;
+      const h = img.naturalHeight * state.scaleY;
       const origin = this.originOffset(sprite.origin, w, h);
-      const x = offsetX + state.x * scale + origin.x;
-      const y = offsetY + state.y * scale + origin.y;
+      const x = state.x + origin.x;
+      const y = state.y + origin.y;
 
       ctx.save();
       ctx.globalAlpha = clamp(state.alpha, 0, 1);
@@ -1258,6 +1261,8 @@ export abstract class GameEngine {
       }
       ctx.restore();
     }
+
+    ctx.restore();
   }
 
   /** 绘制 Background / Fail / Pass 层（在游戏内容之前） */

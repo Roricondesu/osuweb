@@ -276,6 +276,8 @@ export interface LoadedBeatmapSet {
   beatmaps: Beatmap[]; // 已填充 parsed
   /** 是否有 Storyboard（.osb 或 .osu Events 动画） */
   hasStoryboard?: boolean;
+  /** 网易云歌词（下载时预加载） */
+  lyrics?: { time: number; text: string }[];
   downloadedAt: number;
 }
 

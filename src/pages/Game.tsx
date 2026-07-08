@@ -46,9 +46,13 @@ export default function Game() {
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // 加载歌词
+  // 加载歌词（优先使用下载时预加载的，没有则实时拉取）
   useEffect(() => {
     if (!showLyrics || !set) return;
+    if (set.lyrics && set.lyrics.length > 0) {
+      setLyrics(set.lyrics as LyricLine[]);
+      return;
+    }
     let cancelled = false;
     fetchNeteaseLyrics(set.title, set.artist).then((lines) => {
       if (!cancelled) setLyrics(lines);

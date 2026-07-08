@@ -1,8 +1,9 @@
 import React from "react";
 import { useGameStore } from "@/store/useGameStore";
 import { GlassSwitch, GlassSlider } from "@/components/glass";
-import { Moon, Volume2, Clock, Palette, Info, Gamepad2, Search, Download, Image, Music } from "lucide-react";
+import { Moon, Volume2, Clock, Palette, Info, Gamepad2, Search, Download, Image, Music, Activity } from "lucide-react";
 import type { Settings } from "@/types";
+import { checkApiHealth, type ApiHealthResult } from "@/utils/apiHealth";
 
 const ACCENTS = [
   { key: "#0a84ff", label: "蓝" },
@@ -36,6 +37,19 @@ export default function Settings() {
   const settings = useGameStore((s) => s.settings);
   const updateSetting = useGameStore((s) => s.updateSetting);
   const scheme = settings.theme === "dark" ? "dark" : "light";
+  const [health, setHealth] = React.useState<ApiHealthResult | null>(null);
+  const [checking, setChecking] = React.useState(false);
+
+  const runCheck = async () => {
+    setChecking(true);
+    setHealth(null);
+    try {
+      const res = await checkApiHealth();
+      setHealth(res);
+    } finally {
+      setChecking(false);
+    }
+  };
 
   return (
     <div className="page-shell space-y-4">
@@ -262,6 +276,50 @@ export default function Settings() {
               ariaLabel="仅显示有 Storyboard"
             />
           </div>
+        </div>
+      </Section>
+
+      <Section icon={<Activity size={18} />} title="连接检测" delay={5}>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>检测 API 连接</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>osu.direct / Sayobot / 网易云歌词</div>
+            </div>
+            <button
+              onClick={runCheck}
+              disabled={checking}
+              className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95 disabled:opacity-50"
+              style={{
+                border: "1px solid var(--accent)",
+                color: "var(--accent)",
+                background: "var(--accent-soft)",
+                cursor: checking ? "not-allowed" : "pointer",
+              }}
+            >
+              {checking ? "检测中..." : "开始检测"}
+            </button>
+          </div>
+
+          {health && (
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {[
+                { key: "osuDirect", label: "osu.direct 搜索" },
+                { key: "sayobotSearch", label: "Sayobot 搜索" },
+                { key: "sayobotDownload", label: "Sayobot 详情" },
+                { key: "neteaseLyrics", label: "网易云歌词" },
+              ].map(({ key, label }) => {
+                const ok = health[key as keyof ApiHealthResult];
+                return (
+                  <div key={key} className="flex items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: "var(--accent-soft)" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: ok ? "#66cc44" : "#ff375f" }} />
+                    <span style={{ color: "var(--text-primary)" }}>{label}</span>
+                    <span style={{ color: ok ? "#66cc44" : "#ff375f", marginLeft: "auto" }}>{ok ? "正常" : "不可用"}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </Section>
 

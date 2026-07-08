@@ -348,7 +348,8 @@ const flattenCommands = (
   for (const c of commands) {
     if (c.type === "L") {
       const loopBase = baseTime + c.startTime;
-      const loopDuration = c.endTime - c.startTime;
+      // 循环时长 = 内部命令最大相对 endTime
+      const loopDuration = Math.max(1, ...c.commands.map((cmd) => cmd.endTime));
       for (let i = 0; i < c.loopCount; i++) {
         out.push(...flattenCommands(c.commands, loopBase + i * loopDuration));
       }
