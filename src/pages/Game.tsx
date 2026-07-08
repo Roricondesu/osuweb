@@ -3,10 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "@/store/useGameStore";
 import { createEngine, type GameEngine, type ScoreState } from "@/engine";
 import { GlassButton } from "@/components/glass/GlassButton";
-import { RotateCcw, ArrowLeft, Pause, Play } from "lucide-react";
+import { RotateCcw, ArrowLeft, Pause, Play, Menu, X } from "lucide-react";
 import type { GameMode } from "@/types";
 import { MODE_LABEL } from "@/types";
 import { useOrientation } from "@/hooks/useOrientation";
+import { fetchNeteaseLyrics, type LyricLine } from "@/utils/neteaseLyrics";
 
 type Phase = "loading" | "ready" | "playing" | "paused" | "finished";
 
@@ -25,6 +26,9 @@ export default function Game() {
   const offset = useGameStore((s) => s.settings.offset);
   const auto = useGameStore((s) => s.settings.auto);
   const showCursor = useGameStore((s) => s.settings.showCursor);
+  const showStoryboard = useGameStore((s) => s.settings.showStoryboard);
+  const backgroundDim = useGameStore((s) => s.settings.backgroundDim);
+  const showLyrics = useGameStore((s) => s.settings.showLyrics);
   const updateRuntime = useGameStore((s) => s.updateRuntime);
   const endGame = useGameStore((s) => s.endGame);
 
@@ -35,6 +39,18 @@ export default function Game() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [score, setScore] = useState<ScoreState | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>("");
+  const [lyrics, setLyrics] = useState<LyricLine[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // 加载歌词
+  useEffect(() => {
+    if (!showLyrics || !set) return;
+    let cancelled = false;
+    fetchNeteaseLyrics(set.title, set.artist).then((lines) => {
+      if (!cancelled) setLyrics(lines);
+    });
+    return () => { cancelled = true; };
+  }, [set, showLyrics]);
 
   // 加载谱面 + 创建引擎
   useEffect(() => {
@@ -65,8 +81,13 @@ export default function Game() {
         offset,
         isLandscape,
         backgroundUrl: set.backgroundUrl || set.cover,
+        assetUrls: set.assetUrls,
         auto,
         showCursor,
+        showStoryboard,
+        backgroundDim,
+        showLyrics,
+        lyrics,
         callbacks: {
           onScoreUpdate: (s) => {
             setScore({ ...s });
@@ -97,7 +118,7 @@ export default function Game() {
       engineRef.current?.destroy();
       engineRef.current = null;
     };
-  }, [set, beatmap, gameMode, isLandscape, auto, showCursor]);
+  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics]);
 
   // 同步音量
   useEffect(() => {
@@ -237,24 +258,24 @@ export default function Game() {
         }}
       />
 
-      {/* HUD 浮层（左上角控制按钮） */}
+      {/* HUD 浮层（右上角聚合菜单） */}
       <div
         style={{
           position: "absolute",
           top: "env(safe-area-inset-top, 0px)",
-          left: 0,
-          right: 0,
-          padding: 12,
+          right: 12,
+          paddingTop: 12,
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          gap: 8,
           pointerEvents: "none",
           zIndex: 10,
         }}
       >
         <button
-          onClick={() => navigate(-1)}
-          aria-label="退出"
+          onClick={() => setMenuOpen((v) => !v)}
+          aria-label="菜单"
           style={{
             width: 40,
             height: 40,
@@ -271,31 +292,64 @@ export default function Game() {
             pointerEvents: "auto",
           }}
         >
-          <ArrowLeft size={18} />
+          {menuOpen ? <X size={18} /> : <Menu size={18} />}
         </button>
 
-        {phase === "playing" && (
-          <button
-            onClick={handlePause}
-            aria-label="暂停"
+        {menuOpen && (
+          <div
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              border: "none",
-              background: "rgba(0,0,0,0.4)",
-              color: "#fff",
-              backdropFilter: "blur(8px)",
-              WebkitBackdropFilter: "blur(8px)",
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
+              flexDirection: "column",
+              gap: 8,
               pointerEvents: "auto",
             }}
           >
-            <Pause size={18} fill="currentColor" />
-          </button>
+            {phase === "playing" && (
+              <button
+                onClick={() => {
+                  handlePause();
+                  setMenuOpen(false);
+                }}
+                aria-label="暂停"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  border: "none",
+                  background: "rgba(0,0,0,0.4)",
+                  color: "#fff",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                }}
+              >
+                <Pause size={18} fill="currentColor" />
+              </button>
+            )}
+            <button
+              onClick={() => navigate(-1)}
+              aria-label="退出"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                border: "none",
+                background: "rgba(0,0,0,0.4)",
+                color: "#fff",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+              }}
+            >
+              <ArrowLeft size={18} />
+            </button>
+          </div>
         )}
       </div>
 

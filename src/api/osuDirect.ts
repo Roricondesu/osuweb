@@ -2,10 +2,13 @@
 // 公共镜像，无需 API key。yuimusic 中已验证 CORS 与可用性。
 
 import type { BeatmapSet, Beatmap, GameMode } from "@/types";
-import { MODE_TO_ID } from "@/types";
+import { MODE_TO_ID, MODE_FROM_ID } from "@/types";
 
 const OSU_DIRECT_HOST = "https://osu.direct/api/v2";
 const SAYOBOT_MINI = "https://dl.sayobot.cn/beatmaps/download/mini";
+const SAYOBOT_FULL = "https://dl.sayobot.cn/beatmaps/download/full";
+const SAYOBOT_LIST = "https://api.sayobot.cn/beatmaplist";
+const SAYOBOT_INFO = "https://api.sayobot.cn/beatmapinfo";
 
 interface OsuDirectBeatmap {
   id: number;
@@ -42,6 +45,35 @@ interface OsuDirectBeatmapSet {
   beatmaps: OsuDirectBeatmap[];
 }
 
+interface SayobotListItem {
+  sid: number;
+  title: string;
+  titleU: string;
+  artist: string;
+  artistU: string;
+  creator: string;
+  modes: number;
+}
+
+interface SayobotBeatmap {
+  bid: number;
+  sid: number;
+  title: string;
+  artist: string;
+  titleU: string;
+  artistU: string;
+  creator: string;
+  version: string;
+  star: number;
+  CS: number;
+  AR: number;
+  HP: number;
+  OD: number;
+  mode: number;
+  length: number;
+  BPM: number;
+}
+
 const mapBeatmap = (b: OsuDirectBeatmap): Beatmap => ({
   id: b.id,
   beatmapset_id: b.beatmapset_id,
@@ -71,7 +103,7 @@ const mapBeatmapSet = (s: OsuDirectBeatmapSet): BeatmapSet => ({
   beatmaps: (s.beatmaps || []).map(mapBeatmap),
 });
 
-/** 搜索 beatmapset */
+/** 搜索 beatmapset（osu.direct） */
 export const searchBeatmapsets = async (
   query: string,
   mode?: GameMode,
@@ -92,12 +124,11 @@ export const searchBeatmapsets = async (
     .map(mapBeatmapSet);
 };
 
-/** 获取热门谱面（无关键词） */
+/** 获取热门谱面（无关键词，osu.direct） */
 export const fetchFeatured = async (
   mode?: GameMode,
   limit = 24,
 ): Promise<BeatmapSet[]> => {
-  // osu.direct 没有"热门"接口，用空查询 + 排序获取最新上架的谱面
   const params = new URLSearchParams({
     q: "",
     limit: String(limit),
@@ -112,7 +143,7 @@ export const fetchFeatured = async (
     .map(mapBeatmapSet);
 };
 
-/** 通过 setId 获取谱面详情 */
+/** 通过 setId 获取谱面详情（osu.direct） */
 export const fetchBeatmapSet = async (setId: number): Promise<BeatmapSet> => {
   const url = `${OSU_DIRECT_HOST}/s/${setId}`;
   const res = await fetch(url);
@@ -121,14 +152,95 @@ export const fetchBeatmapSet = async (setId: number): Promise<BeatmapSet> => {
   return mapBeatmapSet(data);
 };
 
-/** 下载 .osz（sayobot mini 镜像，无视频体积最小）
- *  返回 ArrayBuffer，调用方用 JSZip 解析
+/** Sayobot 搜索 */
+export const searchSayobot = async (
+  query: string,
+  mode?: GameMode,
+  limit = 30,
+): Promise<BeatmapSet[]> => {
+  const params = new URLSearchParams({
+    "0": String(limit),
+    "1": "0",
+    "2": "4",
+    "3": query,
+  });
+  const res = await fetch(`${SAYOBOT_LIST}?${params.toString()}`);
+  if (!res.ok) throw new Error(`Sayobot 搜索失败：HTTP ${res.status}`);
+  const json = (await res.json()) as { data?: SayobotListItem[] };
+  const items = json.data || [];
+  if (items.length === 0) return [];
+
+  // 并行拉取每个 set 的 beatmap 详情
+  const detailed = await Promise.all(
+    items.map(async (item) => {
+      try {
+        const infoRes = await fetch(`${SAYOBOT_INFO}?1=${item.sid}`);
+        if (!infoRes.ok) return null;
+        const infoJson = (await infoRes.json()) as { data?: SayobotBeatmap[] };
+        const bms = infoJson.data || [];
+        return { item, bms };
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return detailed
+    .filter((d): d is { item: SayobotListItem; bms: SayobotBeatmap[] } => !!d && d.bms.length > 0)
+    .map(({ item, bms }) => {
+      let beatmaps = bms.map((b): Beatmap => ({
+        id: b.bid,
+        beatmapset_id: b.sid,
+        difficulty_rating: b.star,
+        version: b.version,
+        mode: b.mode,
+        total_length: b.length,
+        hit_length: b.length,
+        bpm: b.BPM,
+        cs: b.CS,
+        ar: b.AR,
+        od: b.OD,
+        hp: b.HP,
+      }));
+      if (mode !== undefined) {
+        const modeId = MODE_TO_ID[mode];
+        beatmaps = beatmaps.filter((b) => b.mode === modeId);
+      }
+      return {
+        id: item.sid,
+        title: item.title,
+        title_unicode: item.titleU || undefined,
+        artist: item.artist,
+        artist_unicode: item.artistU || undefined,
+        creator: item.creator,
+        covers: {
+          cover: `https://a.sayobot.cn/beatmaps/${item.sid}/covers/cover.jpg`,
+          "cover@2x": `https://a.sayobot.cn/beatmaps/${item.sid}/covers/cover@2x.jpg`,
+        },
+        beatmaps,
+      };
+    })
+    .filter((s) => s.beatmaps.length > 0);
+};
+
+/** 获取 Sayobot 热门/默认列表（空查询时返回最新上架） */
+export const fetchSayobotFeatured = async (
+  mode?: GameMode,
+  limit = 30,
+): Promise<BeatmapSet[]> => {
+  return searchSayobot("", mode, limit);
+};
+
+/** 下载 .osz
+ * @param full 是否下载完整包（含 Storyboard / 视频），否则用 sayobot mini
  */
 export const downloadOsz = async (
   setId: number,
+  full = false,
   onProgress?: (ratio: number) => void,
 ): Promise<ArrayBuffer> => {
-  const url = `${SAYOBOT_MINI}/${setId}`;
+  const base = full ? SAYOBOT_FULL : SAYOBOT_MINI;
+  const url = `${base}/${setId}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`下载失败：HTTP ${res.status}`);
 
@@ -152,7 +264,6 @@ export const downloadOsz = async (
     }
   }
   onProgress(1);
-  // 合并 chunks 为单个 ArrayBuffer
   const merged = new Uint8Array(received);
   let offset = 0;
   for (const c of chunks) {

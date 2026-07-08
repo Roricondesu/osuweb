@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useGameStore } from "@/store/useGameStore";
 import { GlassButton } from "@/components/glass/GlassButton";
 import { ModeBadge } from "@/components/common";
-import { Trash2, Play, Music2, HardDrive, AlertCircle } from "lucide-react";
+import { Trash2, Play, Music2, HardDrive, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { GameMode, Beatmap, LoadedBeatmapSet } from "@/types";
 import { MODE_FROM_ID } from "@/types";
@@ -16,12 +16,22 @@ export default function Downloads() {
   const deleteDownload = useGameStore((s) => s.deleteDownload);
   const clearDownloads = useGameStore((s) => s.clearDownloads);
   const [loading, setLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     loadDownloads().finally(() => setLoading(false));
   }, [loadDownloads]);
 
   const items = Array.from(downloaded.values());
+
+  const toggleCollapse = (setId: number) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(setId)) next.delete(setId);
+      else next.add(setId);
+      return next;
+    });
+  };
 
   const handlePlay = (set: LoadedBeatmapSet, beatmap: Beatmap) => {
     const mode = MODE_FROM_NUM[beatmap.mode] || "standard";
@@ -104,7 +114,9 @@ export default function Downloads() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {items.map((set) => (
+            {items.map((set) => {
+              const isCollapsed = collapsed.has(set.setId);
+              return (
               <div
                 key={set.setId}
                 style={{
@@ -165,18 +177,27 @@ export default function Downloads() {
                       {new Date(set.downloadedAt).toLocaleString()}
                     </div>
                   </div>
-                  <GlassButton
-                    onClick={() => handleDelete(set.setId)}
-                    style={{
-                      alignSelf: "flex-start",
-                      background: "rgba(255,55,95,0.12)",
-                      color: "#ff375f",
-                    }}
-                  >
-                    <Trash2 size={16} />
-                  </GlassButton>
+                  <div style={{ display: "flex", gap: 6, alignSelf: "flex-start" }}>
+                    <GlassButton
+                      onClick={() => toggleCollapse(set.setId)}
+                      style={{ background: "var(--surface-elevated)", color: "var(--text-secondary)" }}
+                      aria-label={isCollapsed ? "展开" : "折叠"}
+                    >
+                      {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                    </GlassButton>
+                    <GlassButton
+                      onClick={() => handleDelete(set.setId)}
+                      style={{
+                        background: "rgba(255,55,95,0.12)",
+                        color: "#ff375f",
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </GlassButton>
+                  </div>
                 </div>
 
+                {!isCollapsed && (
                 <div
                   style={{
                     display: "flex",
@@ -220,8 +241,10 @@ export default function Downloads() {
                     );
                   })}
                 </div>
+                )}
               </div>
-            ))}
+            );
+          })}
           </div>
         )}
 

@@ -102,6 +102,18 @@ export class ManiaEngine extends GameEngine {
     const win300 = this.windows["300"];
     this.heldCols.clear();
     for (let c = 0; c < this.cols; c++) {
+      // 保持正在按住的长条
+      let holding = false;
+      for (const [obj] of this.activeHolds) {
+        if ((obj.column ?? 0) === c && obj.endTime && time < obj.endTime) {
+          holding = true;
+          break;
+        }
+      }
+      if (holding) {
+        this.heldCols.add(c);
+        continue;
+      }
       const best = this.findHitTarget(
         time,
         (obj) => (obj.column ?? 0) === c && !this.activeHolds.has(obj),

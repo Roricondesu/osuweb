@@ -4,9 +4,9 @@
  *  - 转盘：纯色圆环 + 旋转指针
  *  - 性能：预计算 combo、活动物件指针
  */
-import type { HitObject, ParsedBeatmap, Judgement } from "@/types";
-import { GameEngine } from "../GameEngine";
-import { drawCircle, drawRing, drawText, drawRect, drawGlassCircle, clamp, lerp, GAME_FONT, hexToRgba } from "../renderer/Canvas2D";
+import type { HitObject, ParsedBeatmap } from "@/types";
+import { GameEngine, type EngineOptions } from "../GameEngine";
+import { drawCircle, drawRing, drawText, drawRect, drawGlassCircle, clamp, GAME_FONT, hexToRgba } from "../renderer/Canvas2D";
 
 const OSU_W = 512;
 const OSU_H = 384;
@@ -43,20 +43,18 @@ export class StandardEngine extends GameEngine {
   private lastPointer: { x: number; y: number } | null = null;
   private cached: CachedObj[] = [];
 
-  constructor(opts: {
-    canvas: HTMLCanvasElement;
-    audio: HTMLAudioElement;
-    beatmap: ParsedBeatmap;
-    offset?: number;
-    isLandscape?: boolean;
-    callbacks?: import("../GameEngine").EngineCallbacks;
-    backgroundUrl?: string;
-    auto?: boolean;
-    showCursor?: boolean;
-  }) {
+  constructor(opts: EngineOptions) {
     super(opts);
     this.preempt = arToPreempt(opts.beatmap.ar);
     this.r = csToRadius(opts.beatmap.cs);
+    this.precomputeObjects();
+    this.onLayoutChange();
+  }
+
+  protected resetState(): void {
+    super.resetState();
+    this.spinnerRotation = 0;
+    this.lastPointer = null;
     this.precomputeObjects();
     this.onLayoutChange();
   }
@@ -96,6 +94,18 @@ export class StandardEngine extends GameEngine {
     if (pixelLength <= 0 || slides <= 0) return 0;
     const beatDuration = this.getBeatDurationAt(obj.time);
     return (pixelLength * beatDuration * slides) / (100 * sliderMultiplier);
+  }
+
+  /** 滑条实际结束位置（考虑返程） */
+  private sliderEndPosition(obj: HitObject, idx: number): { x: number; y: number } {
+    const c = this.cached[idx];
+    if (obj.type !== "slider" || c.canvasPoints.length < 2) {
+      return this.toCanvas(obj.x, obj.y);
+    }
+    const slides = obj.slides || 1;
+    // 奇数 slide 结束在尾部，偶数 slide 结束在头部
+    const endIdx = slides % 2 === 1 ? c.canvasPoints.length - 1 : 0;
+    return c.canvasPoints[endIdx];
   }
 
   private getBeatDurationAt(time: number): number {
@@ -154,8 +164,9 @@ export class StandardEngine extends GameEngine {
           obj.judged = true;
           obj.judgement = "300";
           this.submitJudgement("300");
-          const p = this.toCanvas(obj.x, obj.y);
-          this.spawnHitEffect(p.x, p.y, "300", time);
+          const endPos = this.sliderEndPosition(obj, i);
+          this.spawnHitEffect(endPos.x, endPos.y, "300", time);
+          this.spawnJudgePopup("300", endPos.x, endPos.y, time);
         } else {
           obj.judged = true;
           obj.judgement = "miss";
@@ -202,7 +213,9 @@ export class StandardEngine extends GameEngine {
       if (obj.type === "slider") {
         const c = this.cached[i];
         const pts = c.canvasPoints;
-        if (time >= obj.time && time <= (obj.endTime || obj.time) && pts.length >= 2) {
+        const endTime = obj.endTime || obj.time;
+        const isActive = time >= obj.time && time <= endTime && pts.length >= 2;
+        if (isActive) {
           // auto 跟随滑条球
           const sd = c.sliderDuration || 1;
           const slides = obj.slides || 1;
@@ -221,7 +234,16 @@ export class StandardEngine extends GameEngine {
           obj.judged = false;
           this.spawnHitEffect(p.x, p.y, "300", time);
         }
-        break;
+        // 滑条仍在进行（已击中且未结束）：光标跟随球，不再处理后续物件
+        if (obj._sliderHit && time <= endTime) {
+          break;
+        }
+        // 滑条未开始：光标停在头部等待
+        if (!obj._sliderHit && time < obj.time) {
+          break;
+        }
+        // 滑条已结束或刚要开始时（delta 在窗口内已处理）：继续处理下一个物件，避免光标跳回头部
+        continue;
       }
 
       if (delta <= win300) {
@@ -236,8 +258,8 @@ export class StandardEngine extends GameEngine {
 
 
   protected render(): void {
-    this.clearScreen();
     const time = this.currentTime;
+    this.renderBackground(time);
     this.drawPlayfield();
 
     const objs = this.beatmap.hitObjects;
@@ -254,8 +276,8 @@ export class StandardEngine extends GameEngine {
       else if (obj.type === "spinner") this.drawSpinner(obj, time);
     }
 
-    this.drawHitEffects(time);
-    this.drawJudgePopups(time);
+    this.drawGuideLine(time);
+    this.renderForeground(time);
     this.drawHUD({ comboColor: MODE_COLOR, modeLabel: "osu!standard", modeColor: MODE_COLOR });
   }
 
@@ -268,6 +290,60 @@ export class StandardEngine extends GameEngine {
     this.ctx.ctx.strokeStyle = "rgba(255,255,255,0.08)";
     this.ctx.ctx.lineWidth = 1;
     this.ctx.ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+  }
+
+  /** 引导线：在上一物件与下一目标之间显示实线，两端透明度渐变，带整体淡入淡出 */
+  private drawGuideLine(time: number): void {
+    const objs = this.beatmap.hitObjects;
+    if (objs.length < 2) return;
+
+    // 找下一个未判定且即将到来的目标
+    let nextIdx = -1;
+    for (let i = this.activeIndex; i < objs.length; i++) {
+      const obj = objs[i];
+      if (obj.judged) continue;
+      const dt = obj.time - time;
+      if (dt > 0 && dt <= this.preempt) {
+        nextIdx = i;
+        break;
+      }
+    }
+    if (nextIdx < 1) return;
+
+    const prev = objs[nextIdx - 1];
+    const next = objs[nextIdx];
+
+    // 上一物件位置（滑条取结束位置）
+    const prevIdx = nextIdx - 1;
+    const prevPos = prev.type === "slider"
+      ? this.sliderEndPosition(prev, prevIdx)
+      : this.toCanvas(prev.x, prev.y);
+    const nextPos = this.toCanvas(next.x, next.y);
+
+    const dt = next.time - time;
+    // 整体淡入淡出
+    const fadeIn = 1 - clamp((dt - this.preempt * 0.5) / (this.preempt * 0.4), 0, 1);
+    const fadeOut = clamp(dt / (this.preempt * 0.4), 0, 1);
+    const globalAlpha = Math.min(fadeIn, fadeOut);
+    if (globalAlpha <= 0.01) return;
+
+    const { ctx } = this.ctx;
+    const grad = ctx.createLinearGradient(prevPos.x, prevPos.y, nextPos.x, nextPos.y);
+    grad.addColorStop(0, "rgba(255,255,255,0)");
+    grad.addColorStop(0.2, "rgba(255,255,255,0.55)");
+    grad.addColorStop(0.8, "rgba(255,255,255,0.55)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+
+    ctx.save();
+    ctx.globalAlpha = globalAlpha;
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(prevPos.x, prevPos.y);
+    ctx.lineTo(nextPos.x, nextPos.y);
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawCircle(obj: HitObject, idx: number, time: number): void {
@@ -288,11 +364,9 @@ export class StandardEngine extends GameEngine {
     drawGlassCircle(this.ctx, p.x, p.y, r, hexToRgba(color, GLASS_ALPHA), "rgba(255,255,255,0.7)", 2);
     // 内圈
     drawCircle(this.ctx, p.x, p.y, r * 0.55, hexToRgba(color, 0.7));
-    // 中心点
-    drawCircle(this.ctx, p.x, p.y, r * 0.12, "rgba(255,255,255,0.9)");
 
     // combo 数字
-    drawText(this.ctx, String(c.comboNumber), p.x, p.y - 1, {
+    drawText(this.ctx, String(c.comboNumber), p.x, p.y, {
       font: `800 ${Math.max(12, Math.round(r * 0.9))}px ${GAME_FONT}`,
       fillStyle: "rgba(255,255,255,0.95)",
       align: "center",
@@ -383,8 +457,7 @@ export class StandardEngine extends GameEngine {
     // 头部圆
     drawGlassCircle(this.ctx, pts[0].x, pts[0].y, r, hexToRgba(color, GLASS_ALPHA), "rgba(255,255,255,0.85)", 2);
     drawCircle(this.ctx, pts[0].x, pts[0].y, r * 0.55, hexToRgba(color, 0.55));
-    drawCircle(this.ctx, pts[0].x, pts[0].y, r * 0.12, "rgba(255,255,255,0.95)");
-    drawText(this.ctx, String(c.comboNumber), pts[0].x, pts[0].y - 1, {
+    drawText(this.ctx, String(c.comboNumber), pts[0].x, pts[0].y, {
       font: `800 ${Math.max(12, Math.round(r * 0.8))}px ${GAME_FONT}`,
       fillStyle: "rgba(255,255,255,0.95)",
       align: "center",
@@ -427,17 +500,16 @@ export class StandardEngine extends GameEngine {
       ctx.restore();
       // 主体
       drawCircle(this.ctx, bx, by, r * 0.48, "rgba(255,255,255,0.95)", color, 2.5);
-      // 核心
-      drawCircle(this.ctx, bx, by, r * 0.22, "#fff");
     }
   }
 
-  private drawReverseArrow(tail: { x: number; y: number }, prev: { x: number; y: number }, r: number, color: string, time: number): void {
+  private drawReverseArrow(tail: { x: number; y: number }, prev: { x: number; y: number }, r: number, _color: string, time: number): void {
     const { ctx } = this.ctx;
-    const dx = tail.x - prev.x;
-    const dy = tail.y - prev.y;
+    // 箭头指向返程方向（从尾部回到头部）
+    const dx = prev.x - tail.x;
+    const dy = prev.y - tail.y;
     const angle = Math.atan2(dy, dx);
-    const size = r * 0.7;
+    const size = r * 0.65;
     const pulse = 1 + Math.sin(time / 80) * 0.08;
     ctx.save();
     ctx.translate(tail.x, tail.y);
@@ -448,9 +520,9 @@ export class StandardEngine extends GameEngine {
     ctx.lineTo(size * 0.5, 0);
     ctx.lineTo(-size * 0.5, size * 0.5);
     ctx.closePath();
-    ctx.fillStyle = hexToRgba(color, 0.85);
-    ctx.strokeStyle = "rgba(255,255,255,0.8)";
-    ctx.lineWidth = 2;
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
+    ctx.lineWidth = 1.5;
     ctx.fill();
     ctx.stroke();
     ctx.restore();

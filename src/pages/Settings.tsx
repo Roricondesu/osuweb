@@ -1,7 +1,7 @@
 import React from "react";
 import { useGameStore } from "@/store/useGameStore";
 import { GlassSwitch, GlassSlider } from "@/components/glass";
-import { Moon, Volume2, Clock, Palette, Info, Gamepad2 } from "lucide-react";
+import { Moon, Volume2, Clock, Palette, Info, Gamepad2, Search, Download, Image, Music } from "lucide-react";
 import type { Settings } from "@/types";
 
 const ACCENTS = [
@@ -161,14 +161,118 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section icon={<Info size={18} />} title="关于" delay={5}>
+      <Section icon={<Search size={18} />} title="搜索" delay={5}>
+        <div className="flex flex-col gap-4">
+          <div>
+            <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>搜索源</div>
+            <div className="mt-2 flex gap-2">
+              {(["osu", "sayobot"] as const).map((src) => (
+                <button
+                  key={src}
+                  onClick={() => updateSetting("searchSource", src)}
+                  className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95"
+                  style={{
+                    border: "1px solid",
+                    borderColor: settings.searchSource === src ? "var(--accent)" : "var(--border)",
+                    color: settings.searchSource === src ? "var(--accent)" : "var(--text-primary)",
+                    background: settings.searchSource === src ? "var(--accent-soft)" : "transparent",
+                    cursor: "pointer",
+                  }}
+                >
+                  {src === "osu" ? "osu.direct" : "Sayobot"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>仅显示有 Storyboard</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>osu.direct 结果过滤（Sayobot 不支持）</div>
+            </div>
+            <GlassSwitch
+              checked={settings.storyboardOnly}
+              onCheckedChange={(c) => updateSetting("storyboardOnly", c)}
+              scheme={scheme}
+              ariaLabel="仅显示有 Storyboard"
+            />
+          </div>
+        </div>
+      </Section>
+
+      <Section icon={<Download size={18} />} title="下载" delay={6}>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>下载完整谱面包</div>
+            <div className="text-xs" style={{ color: "var(--text-secondary)" }}>含 Storyboard / 视频资源，体积更大</div>
+          </div>
+          <GlassSwitch
+            checked={settings.downloadFullPackage}
+            onCheckedChange={(c) => updateSetting("downloadFullPackage", c)}
+            scheme={scheme}
+            ariaLabel="下载完整谱面包"
+          />
+        </div>
+      </Section>
+
+      <Section icon={<Image size={18} />} title="画面" delay={7}>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示 Storyboard</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>游戏内渲染完整 Storyboard</div>
+            </div>
+            <GlassSwitch
+              checked={settings.showStoryboard}
+              onCheckedChange={(c) => updateSetting("showStoryboard", c)}
+              scheme={scheme}
+              ariaLabel="显示 Storyboard"
+            />
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <span style={{ color: "var(--text-primary)" }}>背景变暗</span>
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                {Math.round(settings.backgroundDim * 100)}%
+              </span>
+            </div>
+            <GlassSlider
+              value={settings.backgroundDim}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(v) => updateSetting("backgroundDim", v)}
+              scheme={scheme}
+              ariaLabel="背景变暗"
+            />
+          </div>
+        </div>
+      </Section>
+
+      <Section icon={<Music size={18} />} title="歌词" delay={8}>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示网易云歌词</div>
+            <div className="text-xs" style={{ color: "var(--text-secondary)" }}>游戏内底部显示匹配歌词</div>
+          </div>
+          <GlassSwitch
+            checked={settings.showLyrics}
+            onCheckedChange={(c) => updateSetting("showLyrics", c)}
+            scheme={scheme}
+            ariaLabel="显示网易云歌词"
+          />
+        </div>
+      </Section>
+
+      <Section icon={<Info size={18} />} title="关于" delay={9}>
         <div className="space-y-2 text-sm" style={{ color: "var(--text-secondary)" }}>
           <p>
             <strong style={{ color: "var(--text-primary)" }}>osu! game</strong> · 移动端节奏游戏
           </p>
           <p>支持 4 种模式：osu! / 太鼓 / 接水果 / 下落式</p>
-          <p>谱面来源：osu.direct 公共镜像（无 API key）</p>
-          <p>下载镜像：sayobot mini（无视频，体积最小）</p>
+          <p>谱面来源：osu.direct / Sayobot 公共镜像</p>
+          <p>下载镜像：Sayobot {settings.downloadFullPackage ? "full" : "mini"}</p>
           <p className="pt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
             仅供学习交流，请勿用于商业用途
           </p>

@@ -14,6 +14,8 @@ import {
   fetchFeatured as apiFeatured,
   fetchBeatmapSet as apiFetchSet,
   downloadOsz as apiDownloadOsz,
+  searchSayobot,
+  fetchSayobotFeatured,
 } from "@/api/osuDirect";
 import { extractOsz } from "@/utils/oszLoader";
 import { saveDownload, loadAllDownloads, deleteDownload, clearAllDownloads } from "@/utils/indexedDb";
@@ -55,7 +57,7 @@ interface GameState {
   downloaded: Map<number, LoadedBeatmapSet>;
   downloadProgress: number; // 0-1
   downloadError: string | null;
-  downloadSet: (set: BeatmapSet, force?: boolean) => Promise<LoadedBeatmapSet | null>;
+  downloadSet: (set: BeatmapSet, force?: boolean, fullPackage?: boolean) => Promise<LoadedBeatmapSet | null>;
   deleteDownload: (setId: number) => Promise<void>;
   clearDownloads: () => Promise<void>;
   loadDownloads: () => Promise<void>;
@@ -70,13 +72,26 @@ interface GameState {
 const initSearch = async (
   query: string,
   mode: GameMode | null,
+  source: "osu" | "sayobot",
+  storyboardOnly: boolean,
   set: (patch: Partial<GameState>) => void,
 ): Promise<void> => {
   set({ searchLoading: true, searchError: null, searchQuery: query, searchMode: mode });
   try {
-    const results = query.trim()
-      ? await apiSearch(query, mode || undefined, 30)
-      : await apiFeatured(mode || undefined, 30);
+    let results: BeatmapSet[];
+    const hasQuery = query.trim().length > 0;
+    if (source === "sayobot") {
+      results = hasQuery
+        ? await searchSayobot(query, mode || undefined, 30)
+        : await fetchSayobotFeatured(mode || undefined, 30);
+    } else {
+      results = hasQuery
+        ? await apiSearch(query, mode || undefined, 30)
+        : await apiFeatured(mode || undefined, 30);
+      if (storyboardOnly) {
+        results = results.filter((s) => s.hasStoryboard !== false);
+      }
+    }
     set({ searchResults: results, searchLoading: false });
   } catch (e) {
     set({
@@ -103,11 +118,13 @@ export const useGameStore = create<GameState>()(
       searchError: null,
       search: async (query, mode) => {
         const m = mode !== undefined ? mode : get().searchMode;
-        await initSearch(query, m, set);
+        const { settings } = get();
+        await initSearch(query, m, settings.searchSource, settings.storyboardOnly, set);
       },
       loadFeatured: async (mode) => {
         const m = mode !== undefined ? mode : get().searchMode;
-        await initSearch("", m, set);
+        const { settings } = get();
+        await initSearch("", m, settings.searchSource, settings.storyboardOnly, set);
       },
 
       detailSet: null,
@@ -116,7 +133,6 @@ export const useGameStore = create<GameState>()(
         // 优先用已下载的
         const cached = get().downloaded.get(setId);
         if (cached) {
-          // 仍然要展示封面等信息，构造一个 BeatmapSet
           set({
             detailSet: {
               id: cached.setId,
@@ -125,6 +141,7 @@ export const useGameStore = create<GameState>()(
               creator: "",
               covers: { cover: cached.cover },
               beatmaps: cached.beatmaps,
+              hasStoryboard: cached.hasStoryboard,
             },
             detailLoading: false,
           });
@@ -146,17 +163,18 @@ export const useGameStore = create<GameState>()(
       downloaded: new Map(),
       downloadProgress: 0,
       downloadError: null,
-      downloadSet: async (set_, force = false) => {
-        const cached = get().downloaded.get(set_.id);
-        if (cached && !force) {
-          set({ downloadProgress: 1 });
-          return cached;
-        }
-        set({ downloadProgress: 0, downloadError: null });
-        try {
-          const buf = await apiDownloadOsz(set_.id, (r) =>
-            set({ downloadProgress: r }),
-          );
+      downloadSet: async (set_, force = false, fullPackage?: boolean) => {
+    const cached = get().downloaded.get(set_.id);
+    if (cached && !force) {
+      set({ downloadProgress: 1 });
+      return cached;
+    }
+    set({ downloadProgress: 0, downloadError: null });
+    try {
+      const full = fullPackage ?? get().settings.downloadFullPackage;
+      const buf = await apiDownloadOsz(set_.id, full, (r) =>
+        set({ downloadProgress: r }),
+      );
           const loaded = await extractOsz(buf, {
             id: set_.id,
             title: set_.title_unicode || set_.title,

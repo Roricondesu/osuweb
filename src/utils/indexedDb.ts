@@ -3,7 +3,7 @@
 import type { LoadedBeatmapSet } from "@/types";
 
 const DB_NAME = "osuweb-downloads";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // 升级到 2，新增 assetBlobs
 const STORE_NAME = "beatmapsets";
 
 function openDB(): Promise<IDBDatabase> {
@@ -21,10 +21,11 @@ function openDB(): Promise<IDBDatabase> {
 }
 
 /** 序列化：Blob URL 无法直接存 IndexedDB，需要把 Blob 拿出来存 */
-type StoredBeatmapSet = Omit<LoadedBeatmapSet, "audioUrl" | "backgroundUrl" | "cover"> & {
+type StoredBeatmapSet = Omit<LoadedBeatmapSet, "audioUrl" | "backgroundUrl" | "cover" | "assetUrls"> & {
   audioBlob?: Blob;
   backgroundBlob?: Blob;
   coverBlob?: Blob;
+  assetBlobs?: Record<string, Blob>;
 };
 
 async function blobFromUrl(url: string): Promise<Blob | undefined> {
@@ -49,11 +50,22 @@ export async function saveDownload(set: LoadedBeatmapSet): Promise<void> {
     set.cover ? blobFromUrl(set.cover) : Promise.resolve(undefined),
   ]);
 
+  const assetBlobs: Record<string, Blob> = {};
+  if (set.assetUrls) {
+    const entries = Object.entries(set.assetUrls);
+    const blobs = await Promise.all(entries.map(([_, url]) => blobFromUrl(url)));
+    entries.forEach(([name], i) => {
+      const b = blobs[i];
+      if (b) assetBlobs[name] = b;
+    });
+  }
+
   const stored: StoredBeatmapSet = {
     ...set,
     audioBlob,
     backgroundBlob,
     coverBlob,
+    assetBlobs,
   };
 
   const db = await openDB();
@@ -81,11 +93,18 @@ export async function loadAllDownloads(): Promise<Map<number, LoadedBeatmapSet>>
       const storedList = req.result as StoredBeatmapSet[];
       const map = new Map<number, LoadedBeatmapSet>();
       for (const s of storedList) {
+        const assetUrls: Record<string, string> = {};
+        if (s.assetBlobs) {
+          for (const [name, blob] of Object.entries(s.assetBlobs)) {
+            assetUrls[name] = urlFromBlob(blob) || "";
+          }
+        }
         const loaded: LoadedBeatmapSet = {
           ...s,
           audioUrl: urlFromBlob(s.audioBlob) || "",
           backgroundUrl: urlFromBlob(s.backgroundBlob),
           cover: urlFromBlob(s.coverBlob) || "",
+          assetUrls,
         };
         map.set(loaded.setId, loaded);
       }

@@ -5,7 +5,8 @@
  *  - 调用子类的 update / render / onInput
  *  - 维护分数状态（通过 Judger）
  */
-import type { ParsedBeatmap, HitObject, Judgement } from "@/types";
+import type { ParsedBeatmap, HitObject, Judgement, StoryboardSprite, StoryboardCommand } from "@/types";
+import type { LyricLine } from "@/utils/neteaseLyrics";
 import {
   createInitialScore,
   applyJudgement,
@@ -16,6 +17,7 @@ import {
 } from "./Judger";
 import type { CanvasContext } from "./renderer/Canvas2D";
 import { setupCanvas, clear, drawText, GAME_FONT, clamp } from "./renderer/Canvas2D";
+import { getCurrentLyric } from "@/utils/neteaseLyrics";
 
 interface HitEffect {
   x: number;
@@ -36,6 +38,23 @@ interface JudgePopup {
 export interface EngineCallbacks {
   onScoreUpdate?: (score: ScoreState) => void;
   onFinish?: (score: ScoreState) => void;
+}
+
+export interface EngineOptions {
+  canvas: HTMLCanvasElement;
+  audio: HTMLAudioElement;
+  beatmap: ParsedBeatmap;
+  offset?: number;
+  isLandscape?: boolean;
+  callbacks?: EngineCallbacks;
+  backgroundUrl?: string;
+  assetUrls?: Record<string, string>;
+  auto?: boolean;
+  showCursor?: boolean;
+  showStoryboard?: boolean;
+  backgroundDim?: number;
+  showLyrics?: boolean;
+  lyrics?: LyricLine[];
 }
 
 export abstract class GameEngine {
@@ -63,23 +82,27 @@ export abstract class GameEngine {
 
   protected backgroundImage: HTMLImageElement | null = null;
   protected backgroundLoaded = false;
+  protected assetUrls: Record<string, string> = {};
+  protected storyboardImages: Map<string, HTMLImageElement> = new Map();
+  protected storyboardLoaded = false;
+  protected storyboardFlat = new Map<
+    StoryboardSprite,
+    {
+      all: StoryboardCommand[];
+      byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>>;
+    }
+  >();
+  protected showStoryboard = true;
+  protected backgroundDim = 0.68;
+  protected showLyrics = true;
+  protected lyrics: LyricLine[] = [];
   private lastFrameAt = 0;
 
   protected activeIndex = 0;
   protected hitEffects: HitEffect[] = [];
   protected judgePopups: JudgePopup[] = [];
 
-  constructor(opts: {
-    canvas: HTMLCanvasElement;
-    audio: HTMLAudioElement;
-    beatmap: ParsedBeatmap;
-    offset?: number;
-    isLandscape?: boolean;
-    callbacks?: EngineCallbacks;
-    backgroundUrl?: string;
-    auto?: boolean;
-    showCursor?: boolean;
-  }) {
+  constructor(opts: EngineOptions) {
     this.canvas = opts.canvas;
     this.ctx = setupCanvas(opts.canvas);
     this.audio = opts.audio;
@@ -90,7 +113,31 @@ export abstract class GameEngine {
     this.callbacks = opts.callbacks || {};
     this.auto = opts.auto ?? false;
     this.showCursor = opts.showCursor ?? false;
+    this.showStoryboard = opts.showStoryboard ?? true;
+    this.backgroundDim = opts.backgroundDim ?? 0.68;
+    this.showLyrics = opts.showLyrics ?? true;
+    if (opts.lyrics) this.lyrics = opts.lyrics;
     if (opts.backgroundUrl) this.loadBackground(opts.backgroundUrl);
+    if (opts.assetUrls) {
+      this.assetUrls = opts.assetUrls;
+      this.loadStoryboardImages();
+    }
+    this.prepareStoryboardCommands();
+  }
+
+  /** 预先展开并排序 storyboard 命令，避免每帧重复计算 */
+  private prepareStoryboardCommands(): void {
+    for (const s of this.beatmap.storyboard || []) {
+      const all = this.flattenStoryboardCommands(s.commands);
+      all.sort((a, b) => a.startTime - b.startTime);
+      const byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>> = {};
+      for (const c of all) {
+        const arr = byType[c.type] || [];
+        arr.push(c);
+        byType[c.type] = arr;
+      }
+      this.storyboardFlat.set(s, { all, byType });
+    }
   }
 
   private loadBackground(url: string): void {
@@ -104,6 +151,78 @@ export abstract class GameEngine {
       this.backgroundLoaded = false;
     };
     img.src = url;
+  }
+
+  private loadStoryboardImages(): void {
+    const sprites = this.beatmap.storyboard || [];
+    const needed = new Set<string>();
+    for (const s of sprites) {
+      for (const url of this.collectStoryboardImageUrls(s)) {
+        needed.add(url);
+      }
+    }
+    if (needed.size === 0) {
+      this.storyboardLoaded = true;
+      return;
+    }
+    let loaded = 0;
+    for (const url of needed) {
+      const img = new Image();
+      // blob URL 不需要跨域；http(s) URL 需要
+      if (!url.startsWith("blob:")) {
+        img.crossOrigin = "anonymous";
+      }
+      img.onload = () => {
+        loaded++;
+        if (loaded >= needed.size) this.storyboardLoaded = true;
+      };
+      img.onerror = () => {
+        loaded++;
+        if (loaded >= needed.size) this.storyboardLoaded = true;
+      };
+      img.src = url;
+      this.storyboardImages.set(url, img);
+    }
+  }
+
+  private collectStoryboardImageUrls(sprite: StoryboardSprite): string[] {
+    const urls: string[] = [];
+    const normalizePath = (name: string) => name.replace(/\\/g, "/");
+    const findUrl = (name: string): string | undefined => {
+      const norm = normalizePath(name);
+      const base = norm.split("/").pop() || norm;
+      // 优先精确匹配，再匹配文件名
+      if (this.assetUrls[norm]) return this.assetUrls[norm];
+      if (this.assetUrls[base]) return this.assetUrls[base];
+      // 大小写不敏感兜底
+      const lowerNorm = norm.toLowerCase();
+      const lowerBase = base.toLowerCase();
+      for (const [k, v] of Object.entries(this.assetUrls)) {
+        const kk = normalizePath(k).toLowerCase();
+        if (kk === lowerNorm || kk === lowerBase) return v;
+      }
+      return undefined;
+    };
+    const add = (name: string) => {
+      const url = findUrl(name);
+      if (url) urls.push(url);
+    };
+    add(sprite.fileName);
+    if (sprite.type === "animation" && sprite.frameCount && sprite.frameDelay) {
+      const normFile = normalizePath(sprite.fileName);
+      const extMatch = normFile.match(/(\.[^.]+)$/);
+      const base = extMatch ? normFile.slice(0, -extMatch[1].length) : normFile;
+      const ext = extMatch ? extMatch[1].toLowerCase() : "";
+      const exts = ext ? [ext] : [".png", ".jpg", ".jpeg", ".webp"];
+      const baseName = base.split("/").pop() || base;
+      for (let i = 0; i < sprite.frameCount; i++) {
+        for (const e of exts) {
+          add(`${base}${i}${e}`);
+          add(`${baseName}${i}${e}`);
+        }
+      }
+    }
+    return urls;
   }
 
   /** 横竖屏切换 */
@@ -192,7 +311,10 @@ export abstract class GameEngine {
     const time = this.getCurrentTime();
     this.update(time);
     this.smoothCursor(dt);
+
     this.render();
+    this.drawStoryboardForeground(time);
+    this.drawLyrics(time);
     this.drawCursor();
     this.callbacks.onScoreUpdate?.(this.score);
 
@@ -242,14 +364,14 @@ export abstract class GameEngine {
     return false;
   }
 
-  /** 用时间差判定一个对象 */
-  protected judgeHit(obj: HitObject, time: number): Judgement {
+  /** 用时间差判定一个对象（x/y 为判定文字显示位置） */
+  protected judgeHit(obj: HitObject, time: number, x = 0, y = 0): Judgement {
     const delta = time - obj.time;
     const j = judgeByDelta(delta, this.windows);
     obj.judged = true;
     obj.judgement = j;
     this.submitJudgement(j);
-    this.spawnJudgePopup(j, 0, 0, time);
+    this.spawnJudgePopup(j, x, y, time);
     return j;
   }
 
@@ -294,13 +416,13 @@ export abstract class GameEngine {
     this.hitEffects.push({ x, y, judgement, time });
   }
 
-  /** 添加判定文字（实际坐标由子类传入，这里用相对偏移） */
+  /** 添加判定文字（实际坐标由子类传入） */
   protected spawnJudgePopup(judgement: Judgement, x: number, y: number, time: number): void {
     const map: Record<Judgement, { text: string; color: string; scale: number }> = {
-      "300": { text: "PERFECT", color: "#66cc44", scale: 1.15 },
-      "100": { text: "GREAT", color: "#0a84ff", scale: 1.05 },
-      "50": { text: "GOOD", color: "#ff9100", scale: 0.95 },
-      miss: { text: "MISS", color: "#ff375f", scale: 0.9 },
+      "300": { text: "PERFECT", color: "#facc15", scale: 0.9 },
+      "100": { text: "GREAT", color: "#38bdf8", scale: 0.85 },
+      "50": { text: "GOOD", color: "#4ade80", scale: 0.8 },
+      miss: { text: "MISS", color: "#ff375f", scale: 0.75 },
     };
     const info = map[judgement];
     this.judgePopups.push({
@@ -315,289 +437,543 @@ export abstract class GameEngine {
 
   /** 清理过期命中效果 */
   protected pruneHitEffects(time: number): void {
-    this.hitEffects = this.hitEffects.filter((e) => time - e.time < 320);
-    this.judgePopups = this.judgePopups.filter((p) => time - p.time < 500);
+    this.hitEffects = this.hitEffects.filter((e) => time - e.time < 420);
+    this.judgePopups = this.judgePopups.filter((p) => time - p.time < 600);
   }
 
-  /** 绘制命中爆点 */
+  /** 绘制命中爆点（带颜色和发光） */
   protected drawHitEffects(time: number): void {
     const { ctx } = this.ctx;
+    const colorMap: Record<Judgement, string> = {
+      "300": "#facc15",
+      "100": "#38bdf8",
+      "50": "#4ade80",
+      miss: "#ff375f",
+    };
     for (const e of this.hitEffects) {
       const age = time - e.time;
-      const t = age / 320;
+      const t = age / 420;
       const alpha = 1 - t;
-      const r = 16 + t * 24;
-      const color = e.judgement === "miss" ? "#ff375f" : "#fff";
+      const r = 12 + t * 44;
+      const color = colorMap[e.judgement];
       ctx.save();
       ctx.globalAlpha = alpha;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 16;
       ctx.beginPath();
       ctx.arc(e.x, e.y, r, 0, Math.PI * 2);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.fill();
       ctx.restore();
     }
   }
 
-  /** 绘制判定 popup（子类可在 HUD 上方调用） */
+  /** 绘制判定文字（在传入位置弹出，向上漂移） */
   protected drawJudgePopups(time: number): void {
-    const { ctx, width } = this.ctx;
-    const centerX = width / 2;
-    const baseY = this.ctx.height * 0.42;
+    const { ctx } = this.ctx;
     for (const p of this.judgePopups) {
       const age = time - p.time;
-      const t = Math.min(age / 520, 1);
-      const y = baseY - Math.sin(t * Math.PI) * 24;
-      const alpha = 1 - t * t;
-      const pop = Math.sin(Math.min(t * 6, Math.PI)) * 0.18;
-      const scale = p.scale * (1 + pop);
+      const t = age / 600;
+      const alpha = 1 - t;
+      const drift = -t * 40;
+      const scale = p.scale * (1 + Math.sin(t * Math.PI) * 0.15);
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.translate(centerX, y);
+      ctx.translate(p.x, p.y + drift);
       ctx.scale(scale, scale);
-      ctx.font = `900 34px ${GAME_FONT}`;
+      ctx.font = `bold 24px ${GAME_FONT}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      // 外发光
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = 16;
       ctx.fillStyle = p.color;
       ctx.fillText(p.text, 0, 0);
-      // 内高光描边
-      ctx.shadowBlur = 0;
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = "rgba(255,255,255,0.75)";
-      ctx.strokeText(p.text, 0, 0);
       ctx.restore();
     }
   }
 
-  /** 统一 HUD（精致现代） */
-  protected drawHUD(opts?: { comboColor?: string; modeLabel?: string; modeColor?: string }): void {
+  /** 绘制背景图 */
+  protected drawBackground(): void {
     const { ctx, width, height } = this.ctx;
-    const s = this.score;
-    const comboColor = opts?.comboColor || "#fff";
-    const modeColor = opts?.modeColor || "#fff";
-
-    // 顶部毛玻璃条
-    ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.28)";
-    ctx.beginPath();
-    ctx.roundRect(12, 10, width - 24, 52, 16);
-    ctx.fill();
-    // 顶部高光边
-    ctx.strokeStyle = "rgba(255,255,255,0.1)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.restore();
-
-    // 分数
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.6)";
-    ctx.shadowBlur = 8;
-    drawText(this.ctx, Math.round(s.score).toLocaleString(), width / 2, 36, {
-      font: `900 24px ${GAME_FONT}`,
-      fillStyle: "#fff",
-      align: "center",
-      baseline: "middle",
-    });
-    ctx.restore();
-
-    // 准确率
-    drawText(this.ctx, `${s.accuracy.toFixed(2)}%`, width - 30, 36, {
-      font: `700 15px ${GAME_FONT}`,
-      fillStyle: "rgba(255,255,255,0.85)",
-      align: "right",
-      baseline: "middle",
-    });
-
-    // combo
-    if (s.combo > 0) {
+    if (this.backgroundImage && this.backgroundLoaded) {
       ctx.save();
-      ctx.shadowColor = comboColor;
-      ctx.shadowBlur = 12;
-      drawText(this.ctx, `${s.combo}x`, 30, 36, {
-        font: `900 20px ${GAME_FONT}`,
-        fillStyle: comboColor,
-        align: "left",
-        baseline: "middle",
-      });
-      ctx.restore();
-    }
-
-    // 血条
-    const barY = 70;
-    const barW = Math.min(220, width * 0.5);
-    const barX = (width - barW) / 2;
-    ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.beginPath();
-    ctx.roundRect(barX, barY, barW, 6, 3);
-    ctx.fill();
-    const hp = clamp(s.health / 100, 0, 1);
-    const hpColor = hp > 0.5 ? "#4ade80" : hp > 0.25 ? "#facc15" : "#ff375f";
-    ctx.fillStyle = hpColor;
-    ctx.beginPath();
-    ctx.roundRect(barX, barY, barW * hp, 6, 3);
-    ctx.fill();
-    ctx.shadowColor = hpColor;
-    ctx.shadowBlur = 6;
-    ctx.fill();
-    ctx.restore();
-
-    // 判定计数（彩色药丸）
-    const j = s.judgements;
-    const counts: { label: string; value: number; color: string }[] = [
-      { label: "P", value: j["300"], color: "#66cc44" },
-      { label: "G", value: j["100"], color: "#0a84ff" },
-      { label: "GO", value: j["50"], color: "#ff9100" },
-      { label: "X", value: j.miss, color: "#ff375f" },
-    ];
-    const pillH = 22;
-    const pillGap = 8;
-    let px = width - 14;
-    const py = 92;
-    for (let i = counts.length - 1; i >= 0; i--) {
-      const item = counts[i];
-      ctx.font = `800 11px ${GAME_FONT}`;
-      const textW = ctx.measureText(`${item.label} ${item.value}`).width;
-      const pillW = textW + 18;
-      px -= pillW;
-      ctx.save();
-      ctx.fillStyle = `${item.color}22`;
-      ctx.strokeStyle = `${item.color}66`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.roundRect(px, py, pillW, pillH, 11);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = item.color;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(`${item.label} ${item.value}`, px + pillW / 2, py + pillH / 2 + 1);
-      ctx.restore();
-      px -= pillGap;
-    }
-
-    // 模式标签
-    if (opts?.modeLabel) {
-      ctx.save();
-      ctx.fillStyle = `${modeColor}22`;
-      ctx.strokeStyle = `${modeColor}55`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.roundRect(14, height - 42, 78, 26, 13);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = modeColor;
-      ctx.font = `800 12px ${GAME_FONT}`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(opts.modeLabel, 53, height - 29);
-      ctx.restore();
-    }
-  }
-
-  /** 清屏并绘制基础背景 */
-  protected clearScreen(): void {
-    const { ctx, width, height } = this.ctx;
-    if (this.backgroundLoaded && this.backgroundImage && this.backgroundImage.complete && this.backgroundImage.naturalWidth > 0) {
+      ctx.globalAlpha = 1 - this.backgroundDim;
       const img = this.backgroundImage;
-      const imgAspect = img.naturalWidth / img.naturalHeight;
-      const canvasAspect = width / height;
-      let drawW: number, drawH: number, drawX: number, drawY: number;
-      if (canvasAspect > imgAspect) {
-        drawW = width;
-        drawH = width / imgAspect;
-        drawX = 0;
-        drawY = (height - drawH) / 2;
-      } else {
-        drawH = height;
-        drawW = height * imgAspect;
-        drawX = (width - drawW) / 2;
-        drawY = 0;
+      const scale = Math.max(width / img.width, height / img.height);
+      const dw = img.width * scale;
+      const dh = img.height * scale;
+      ctx.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
+      ctx.restore();
+    }
+    // 整体变暗遮罩
+    ctx.save();
+    ctx.fillStyle = `rgba(0,0,0,${this.backgroundDim})`;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  }
+
+  /** 绘制 Break 提示 */
+  protected drawBreakOverlay(time: number): void {
+    const { ctx, width, height } = this.ctx;
+    const objs = this.beatmap.hitObjects;
+    if (objs.length < 2) return;
+    for (let i = 0; i < objs.length - 1; i++) {
+      const end = objs[i].endTime || objs[i].time;
+      const nextStart = objs[i + 1].time;
+      if (nextStart - end < 2000) continue;
+      if (time >= end + 500 && time <= nextStart - 500) {
+        const inBreak = time - end - 500;
+        const alpha = Math.min(1, inBreak / 300) * Math.min(1, (nextStart - 500 - time) / 300);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.font = `bold 36px ${GAME_FONT}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#fff";
+        ctx.fillText("BREAK", width / 2, height / 2);
+        ctx.restore();
+        break;
       }
-      ctx.drawImage(img, drawX, drawY, drawW, drawH);
-      ctx.fillStyle = "rgba(0,0,0,0.68)";
-      ctx.fillRect(0, 0, width, height);
-    } else {
-      clear(this.ctx, "#000");
     }
   }
 
-  /** 光标位置更新 */
-  public setCursorPos(x: number, y: number): void {
-    this.cursorTargetX = x;
-    this.cursorTargetY = y;
-    if (!this.auto) {
-      this.cursorX = x;
-      this.cursorY = y;
-    }
+  /** 绘制歌词 */
+  protected drawLyrics(time: number): void {
+    if (!this.showLyrics || this.lyrics.length === 0) return;
+    const current = getCurrentLyric(this.lyrics, time);
+    if (!current || !current.text) return;
+    const { ctx, width, height } = this.ctx;
+    ctx.save();
+    ctx.font = `600 18px ${GAME_FONT}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.shadowColor = "rgba(0,0,0,0.6)";
+    ctx.shadowBlur = 6;
+    ctx.fillText(current.text, width / 2, height - 24);
+    ctx.restore();
   }
 
-  /** 自动模式下对光标做平滑插值，避免瞬移 */
-  private smoothCursor(dt: number): void {
-    if (!this.auto) return;
-    if (this.cursorTargetX < 0 || this.cursorTargetY < 0) return;
-    const omega = 18; // 约 88ms 时间常数
-    const k = 1 - Math.exp(-omega * dt);
-    this.cursorX += (this.cursorTargetX - this.cursorX) * k;
-    this.cursorY += (this.cursorTargetY - this.cursorY) * k;
-  }
-
-  /** 绘制光标 */
+  /** 绘制光标（auto 模式下） */
   protected drawCursor(): void {
     if (!this.showCursor) return;
     const { ctx } = this.ctx;
-    const x = this.cursorX;
-    const y = this.cursorY;
     ctx.save();
     ctx.beginPath();
-    ctx.arc(x, y, 10, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.arc(this.cursorX, this.cursorY, 6, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.shadowColor = "rgba(255,255,255,0.8)";
+    ctx.shadowBlur = 8;
     ctx.fill();
-    ctx.beginPath();
-    ctx.arc(x, y, 16, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(255,255,255,0.45)";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(x, y, 22, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(255,255,255,0.2)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
     ctx.restore();
   }
 
-  // === 抽象方法（子类实现） ===
-  protected abstract update(time: number): void;
-  protected abstract render(): void;
-  public abstract onPointerDown(x: number, y: number): void;
-  public abstract onPointerMove?(x: number, y: number): void;
-  public abstract onPointerUp?(x: number, y: number): void;
-  public abstract onKeyDown(key: string): void;
-  public abstract onKeyUp?(key: string): void;
+  /** 光标平滑跟随 */
+  protected smoothCursor(dt: number): void {
+    if (!this.auto && !this.showCursor) return;
+    const speed = 18; // 跟随速度
+    const dx = this.cursorTargetX - this.cursorX;
+    const dy = this.cursorTargetY - this.cursorY;
+    this.cursorX += dx * Math.min(1, speed * dt);
+    this.cursorY += dy * Math.min(1, speed * dt);
+  }
 
-  /** 重启时重置子类内部状态 */
+  /** 子类实现：每帧逻辑更新 */
+  protected abstract update(time: number): void;
+
+  /** 子类实现：绘制游戏物件 */
+  protected abstract render(): void;
+
+  /** 子类可重写：重置状态（restart 时调用） */
   protected resetState(): void {
     this.activeIndex = 0;
     this.hitEffects = [];
     this.judgePopups = [];
-    for (const obj of this.beatmap.hitObjects) {
-      obj.judged = false;
-      obj.judgement = null;
-      obj._sliderHit = false;
-    }
     this.cursorX = -100;
     this.cursorY = -100;
     this.cursorTargetX = -100;
     this.cursorTargetY = -100;
   }
 
-  public getScore(): ScoreState {
-    return this.score;
+  /** 输入：设置光标位置（子类可重写） */
+  public setCursorPos(x: number, y: number): void {
+    this.cursorX = x;
+    this.cursorY = y;
   }
-  public getStatus(): typeof this.status {
-    return this.status;
+
+  /** 输入：按下（子类必须实现） */
+  public abstract onPointerDown(x: number, y: number): void;
+
+  /** 输入：移动（子类可选实现） */
+  public onPointerMove = (x: number, y: number): void => {
+    this.setCursorPos(x, y);
+  };
+
+  /** 输入：抬起（子类可选实现） */
+  public onPointerUp = (x: number, y: number): void => {
+    this.setCursorPos(x, y);
+  };
+
+  /** 输入：按键（子类可选实现） */
+  public onKeyDown(key: string): void {}
+
+  /** 输入：抬键（子类可选实现） */
+  public onKeyUp = (key: string): void => {};
+
+  // ===== Storyboard 渲染 =====
+
+  /** 把循环/触发器命令再展开（parser 已展开过，这里兜底并排序） */
+  private flattenStoryboardCommands(commands: StoryboardCommand[]): StoryboardCommand[] {
+    return commands;
+  }
+
+  private lastCommandBefore<T extends StoryboardCommand["type"]>(
+    list: (StoryboardCommand & { startTime: number; endTime: number })[] | undefined,
+    time: number,
+  ): (Extract<StoryboardCommand, { type: T }> & { startTime: number; endTime: number }) | null {
+    if (!list || list.length === 0) return null;
+    let lo = 0;
+    let hi = list.length - 1;
+    let ans = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (list[mid].startTime <= time) {
+        ans = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    if (ans < 0) return null;
+    return list[ans] as any;
+  }
+
+  private ease(t: number, easing: number): number {
+    const clamped = clamp(t, 0, 1);
+    switch (easing) {
+      case 1: // easeOut
+        return 1 - Math.pow(1 - clamped, 2);
+      case 2: // easeIn
+        return clamped * clamped;
+      default:
+        return clamped;
+    }
+  }
+
+  private evaluateStoryboardSprite(
+    sprite: StoryboardSprite,
+    time: number,
+  ): {
+    x: number;
+    y: number;
+    scaleX: number;
+    scaleY: number;
+    rotation: number;
+    alpha: number;
+    colorR: number;
+    colorG: number;
+    colorB: number;
+    flipH: boolean;
+    flipV: boolean;
+    additive: boolean;
+  } {
+    const cached = this.storyboardFlat.get(sprite);
+    if (!cached) {
+      return {
+        x: sprite.x,
+        y: sprite.y,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+        alpha: 1,
+        colorR: 255,
+        colorG: 255,
+        colorB: 255,
+        flipH: false,
+        flipV: false,
+        additive: false,
+      };
+    }
+    const { byType } = cached;
+
+    const lastCmd = <T extends StoryboardCommand["type"]>(type: T): Extract<StoryboardCommand, { type: T }> | null => {
+      const list = byType[type] as (StoryboardCommand & { startTime: number; endTime: number })[] | undefined;
+      return this.lastCommandBefore(list, time) as any;
+    };
+
+    const state = {
+      x: sprite.x,
+      y: sprite.y,
+      scaleX: 1,
+      scaleY: 1,
+      rotation: 0,
+      alpha: 1,
+      colorR: 255,
+      colorG: 255,
+      colorB: 255,
+      flipH: false,
+      flipV: false,
+      additive: false,
+    };
+
+    const mx = lastCmd("MX");
+    if (mx) {
+      const dur = mx.endTime - mx.startTime;
+      state.x = dur <= 0 ? mx.endX : mx.startX + (mx.endX - mx.startX) * this.ease((time - mx.startTime) / dur, mx.easing);
+    }
+
+    const my = lastCmd("MY");
+    if (my) {
+      const dur = my.endTime - my.startTime;
+      state.y = dur <= 0 ? my.endY : my.startY + (my.endY - my.startY) * this.ease((time - my.startTime) / dur, my.easing);
+    }
+
+    // M 优先级高于 MX/MY
+    const mv = lastCmd("M");
+    if (mv) {
+      const dur = mv.endTime - mv.startTime;
+      if (dur <= 0) {
+        state.x = mv.endX;
+        state.y = mv.endY;
+      } else {
+        const t = this.ease((time - mv.startTime) / dur, mv.easing);
+        state.x = mv.startX + (mv.endX - mv.startX) * t;
+        state.y = mv.startY + (mv.endY - mv.startY) * t;
+      }
+    }
+
+    const fade = lastCmd("F");
+    if (fade) {
+      const dur = fade.endTime - fade.startTime;
+      state.alpha = dur <= 0 ? fade.endOpacity : fade.startOpacity + (fade.endOpacity - fade.startOpacity) * this.ease((time - fade.startTime) / dur, fade.easing);
+    }
+
+    const scale = lastCmd("S");
+    if (scale) {
+      const dur = scale.endTime - scale.startTime;
+      const s = dur <= 0 ? scale.endScale : scale.startScale + (scale.endScale - scale.startScale) * this.ease((time - scale.startTime) / dur, scale.easing);
+      state.scaleX = s;
+      state.scaleY = s;
+    }
+
+    const vScale = lastCmd("V");
+    if (vScale) {
+      const dur = vScale.endTime - vScale.startTime;
+      state.scaleX = dur <= 0 ? vScale.endScaleX : vScale.startScaleX + (vScale.endScaleX - vScale.startScaleX) * this.ease((time - vScale.startTime) / dur, vScale.easing);
+      state.scaleY = dur <= 0 ? vScale.endScaleY : vScale.startScaleY + (vScale.endScaleY - vScale.startScaleY) * this.ease((time - vScale.startTime) / dur, vScale.easing);
+    }
+
+    const rot = lastCmd("R");
+    if (rot) {
+      const dur = rot.endTime - rot.startTime;
+      state.rotation = dur <= 0 ? rot.endRotation : rot.startRotation + (rot.endRotation - rot.startRotation) * this.ease((time - rot.startTime) / dur, rot.easing);
+    }
+
+    const color = lastCmd("C");
+    if (color) {
+      const dur = color.endTime - color.startTime;
+      if (dur <= 0) {
+        state.colorR = color.endR;
+        state.colorG = color.endG;
+        state.colorB = color.endB;
+      } else {
+        const t = this.ease((time - color.startTime) / dur, color.easing);
+        state.colorR = color.startR + (color.endR - color.startR) * t;
+        state.colorG = color.startG + (color.endG - color.startG) * t;
+        state.colorB = color.startB + (color.endB - color.startB) * t;
+      }
+    }
+
+    const pList = byType["P"] as (StoryboardCommand & { parameter: "H" | "V" | "A" })[] | undefined;
+    if (pList) {
+      let h = 0, v = 0, a = 0;
+      for (const pc of pList) {
+        if (pc.startTime > time) break;
+        if (pc.parameter === "H") h++;
+        else if (pc.parameter === "V") v++;
+        else if (pc.parameter === "A") a++;
+      }
+      state.flipH = h % 2 === 1;
+      state.flipV = v % 2 === 1;
+      state.additive = a % 2 === 1;
+    }
+
+    return state;
+  }
+
+  private storyboardTransform(): { scale: number; offsetX: number; offsetY: number } {
+    const { width, height } = this.ctx;
+    const scale = Math.min(width / 640, height / 480);
+    const offsetX = (width - 640 * scale) / 2;
+    const offsetY = (height - 480 * scale) / 2;
+    return { scale, offsetX, offsetY };
+  }
+
+  private originOffset(origin: string, w: number, h: number): { x: number; y: number } {
+    switch (origin) {
+      case "TopLeft": return { x: 0, y: 0 };
+      case "TopCentre": return { x: -w / 2, y: 0 };
+      case "TopRight": return { x: -w, y: 0 };
+      case "CentreLeft": return { x: 0, y: -h / 2 };
+      case "Centre": return { x: -w / 2, y: -h / 2 };
+      case "CentreRight": return { x: -w, y: -h / 2 };
+      case "BottomLeft": return { x: 0, y: -h };
+      case "BottomCentre": return { x: -w / 2, y: -h };
+      case "BottomRight": return { x: -w, y: -h };
+      default: return { x: 0, y: 0 };
+    }
+  }
+
+  private findAssetUrl(name: string): string | undefined {
+    const norm = name.replace(/\\/g, "/");
+    const base = norm.split("/").pop() || norm;
+    if (this.assetUrls[norm]) return this.assetUrls[norm];
+    if (this.assetUrls[base]) return this.assetUrls[base];
+    const lowerNorm = norm.toLowerCase();
+    const lowerBase = base.toLowerCase();
+    for (const [k, v] of Object.entries(this.assetUrls)) {
+      const kk = k.replace(/\\/g, "/").toLowerCase();
+      if (kk === lowerNorm || kk === lowerBase) return v;
+    }
+    return undefined;
+  }
+
+  private getStoryboardImage(sprite: StoryboardSprite, time: number): HTMLImageElement | null {
+    let name = sprite.fileName;
+    if (sprite.type === "animation" && sprite.frameCount && sprite.frameDelay) {
+      const cycle = sprite.frameCount * sprite.frameDelay;
+      let frame = 0;
+      if (cycle > 0) {
+        frame = Math.floor((time % cycle) / sprite.frameDelay) % sprite.frameCount;
+      }
+      const normFile = name.replace(/\\/g, "/");
+      const extMatch = normFile.match(/(\.[^.]+)$/);
+      const base = extMatch ? normFile.slice(0, -extMatch[1].length) : normFile;
+      const ext = extMatch ? extMatch[1] : "";
+      name = `${base}${frame}${ext}`;
+    }
+    const url = this.findAssetUrl(name);
+    return url ? this.storyboardImages.get(url) || null : null;
+  }
+
+  private drawStoryboardLayer(time: number, layers: string[]): void {
+    if (!this.showStoryboard) return;
+    if (!this.storyboardLoaded) return;
+    const sprites = this.beatmap.storyboard || [];
+    if (sprites.length === 0) return;
+
+    const { ctx } = this.ctx;
+    const { scale, offsetX, offsetY } = this.storyboardTransform();
+
+    for (const sprite of sprites) {
+      if (!layers.includes(sprite.layer)) continue;
+      const state = this.evaluateStoryboardSprite(sprite, time);
+      if (state.alpha <= 0.001) continue;
+      const img = this.getStoryboardImage(sprite, time);
+      if (!img || !img.complete || img.naturalWidth === 0) continue;
+
+      const w = img.naturalWidth * state.scaleX * scale;
+      const h = img.naturalHeight * state.scaleY * scale;
+      const origin = this.originOffset(sprite.origin, w, h);
+      const x = offsetX + state.x * scale + origin.x;
+      const y = offsetY + state.y * scale + origin.y;
+
+      ctx.save();
+      ctx.globalAlpha = clamp(state.alpha, 0, 1);
+      if (state.additive) {
+        ctx.globalCompositeOperation = "lighter";
+      }
+      ctx.translate(x + w / 2, y + h / 2);
+      ctx.rotate((state.rotation * Math.PI) / 180);
+      ctx.scale(state.flipH ? -1 : 1, state.flipV ? -1 : 1);
+      ctx.fillStyle = `rgb(${state.colorR},${state.colorG},${state.colorB})`;
+      // 颜色着色：通过 drawImage + globalAlpha 混合；更简单的用 fillRect 作 tint？
+      // 这里直接绘制图片；颜色命令通过 globalCompositeOperation + fillRect 实现太复杂，先忽略着色
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
+      ctx.restore();
+    }
+  }
+
+  /** 绘制 Background / Fail / Pass 层（在游戏内容之前） */
+  protected drawStoryboardBackground(time: number): void {
+    const isPass = this.score.health > 0;
+    this.drawStoryboardLayer(time, ["Background"]);
+    this.drawStoryboardLayer(time, isPass ? ["Pass"] : ["Fail"]);
+  }
+
+  /** 绘制 Foreground 层（在游戏内容之后） */
+  protected drawStoryboardForeground(time: number): void {
+    this.drawStoryboardLayer(time, ["Foreground", "Overlay"]);
+  }
+
+  /** 标准背景+Storyboard流程，子类 render() 应先调用此方法 */
+  protected renderBackground(time: number): void {
+    clear(this.ctx);
+    this.drawBackground();
+    this.drawStoryboardBackground(time);
+  }
+
+  /** 标准前景流程，子类 render() 末尾应调用此方法 */
+  protected renderForeground(time: number): void {
+    this.drawBreakOverlay(time);
+    this.drawHitEffects(time);
+    this.drawJudgePopups(time);
+  }
+
+  /** 清空画布（兼容旧子类） */
+  protected clearScreen(): void {
+    clear(this.ctx);
+  }
+
+  /** 绘制 HUD（兼容旧子类） */
+  protected drawHUD(opts: { comboColor: string; modeLabel: string; modeColor: string }): void {
+    const { ctx, width } = this.ctx;
+    const top = 16;
+    const left = 16;
+
+    // 模式标签
+    ctx.save();
+    ctx.font = `700 12px ${GAME_FONT}`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = opts.modeColor;
+    ctx.fillText(opts.modeLabel, left, top);
+    ctx.restore();
+
+    // 分数 / combo / acc
+    const scoreText = Math.floor(this.score.score).toLocaleString();
+    const comboText = `${this.score.combo}x`;
+    const accText = `${this.score.accuracy.toFixed(2)}%`;
+
+    ctx.save();
+    ctx.font = `700 20px ${GAME_FONT}`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.shadowColor = "rgba(0,0,0,0.5)";
+    ctx.shadowBlur = 4;
+    ctx.fillText(scoreText, left, top + 18);
+    ctx.font = `700 14px ${GAME_FONT}`;
+    ctx.fillStyle = opts.comboColor;
+    ctx.fillText(comboText, left, top + 42);
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.fillText(accText, left + 64, top + 42);
+    ctx.restore();
+
+    // 血量条
+    const barW = 160;
+    const barH = 5;
+    const barX = left;
+    const barY = top + 66;
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,0.15)";
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, barW, barH, 3);
+    ctx.fill();
+    const hpRatio = clamp(this.score.health / 100, 0, 1);
+    const hpColor = hpRatio > 0.5 ? "#4ade80" : hpRatio > 0.25 ? "#facc15" : "#ff375f";
+    ctx.fillStyle = hpColor;
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, barW * hpRatio, barH, 3);
+    ctx.fill();
+    ctx.restore();
   }
 }

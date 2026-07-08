@@ -152,23 +152,25 @@ export class CatchEngine extends GameEngine {
   private autoPlay(time: number): void {
     const objs = this.beatmap.hitObjects;
     const len = objs.length;
-    let nearest: HitObject | null = null;
-    let nearestDist = Infinity;
+    let target: number | null = null;
+    let totalWeight = 0;
+    // 综合判断轴附近 300ms 内所有水果的位置，带距离权重，避免只追单个水果导致盘子抖动
     for (let i = this.activeIndex; i < len; i++) {
       const obj = objs[i];
       if (obj.judged) continue;
       const flow = this.fruitFlow(obj, time);
-      const dist = this.isLandscape
+      const distToJudge = this.isLandscape
         ? this.judgeAxis + 200 - flow
         : flow - (this.judgeAxis - 200);
-      if (dist < 0) break;
-      if (dist < nearestDist) {
-        nearestDist = dist;
-        nearest = obj;
-      }
+      if (distToJudge < -100) break;
+      const cross = this.fruitCross(obj);
+      // 权重：越接近判断轴的水果权重越高
+      const w = Math.max(0.1, 1 - Math.max(0, distToJudge) / 300);
+      target = (target ?? 0) + cross * w;
+      totalWeight += w;
     }
-    if (nearest) {
-      this.targetPos = this.fruitCross(nearest);
+    if (target !== null && totalWeight > 0) {
+      this.targetPos = target / totalWeight;
     }
     const px = this.isLandscape ? this.judgeAxis : this.platePos;
     const py = this.isLandscape ? this.platePos : this.judgeAxis;

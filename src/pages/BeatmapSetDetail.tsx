@@ -29,6 +29,7 @@ export default function BeatmapSetDetail() {
 
   const [downloading, setDownloading] = useState(false);
   const [filterMode, setFilterMode] = useState<GameMode | null>(null);
+  const [fullPackage, setFullPackage] = useState(() => useGameStore.getState().settings.downloadFullPackage);
 
   useEffect(() => {
     if (setId) loadDetail(Number(setId));
@@ -39,7 +40,7 @@ export default function BeatmapSetDetail() {
   const handleDownload = async () => {
     if (!detailSet) return;
     setDownloading(true);
-    await downloadSet(detailSet);
+    await downloadSet(detailSet, false, fullPackage);
     setDownloading(false);
   };
 
@@ -191,9 +192,42 @@ export default function BeatmapSetDetail() {
                 </div>
               </div>
             ) : (
-              <GlassButton onClick={handleDownload} accent style={{ width: "100%" }}>
-                <Download size={16} /> 下载谱面（{sorted.length} 个难度）
-              </GlassButton>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between rounded-xl px-3 py-2" style={{ background: "var(--surface-elevated)" }}>
+                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>下载类型</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setFullPackage(false)}
+                      className="rounded-full px-3 py-1 text-xs font-medium transition-transform active:scale-95"
+                      style={{
+                        border: "1px solid",
+                        borderColor: !fullPackage ? "var(--accent)" : "var(--border)",
+                        color: !fullPackage ? "var(--accent)" : "var(--text-primary)",
+                        background: !fullPackage ? "var(--accent-soft)" : "transparent",
+                        cursor: "pointer",
+                      }}
+                    >
+                      mini（小）
+                    </button>
+                    <button
+                      onClick={() => setFullPackage(true)}
+                      className="rounded-full px-3 py-1 text-xs font-medium transition-transform active:scale-95"
+                      style={{
+                        border: "1px solid",
+                        borderColor: fullPackage ? "var(--accent)" : "var(--border)",
+                        color: fullPackage ? "var(--accent)" : "var(--text-primary)",
+                        background: fullPackage ? "var(--accent-soft)" : "transparent",
+                        cursor: "pointer",
+                      }}
+                    >
+                      full（含 Storyboard）
+                    </button>
+                  </div>
+                </div>
+                <GlassButton onClick={handleDownload} accent style={{ width: "100%" }}>
+                  <Download size={16} /> 下载谱面（{sorted.length} 个难度）
+                </GlassButton>
+              </div>
             )}
             {downloadError && (
               <p className="mt-2 text-xs" style={{ color: "#ff453a" }}>

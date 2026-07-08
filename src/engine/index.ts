@@ -16,8 +16,13 @@ export const createEngine = (
     isLandscape?: boolean;
     callbacks?: EngineCallbacks;
     backgroundUrl?: string;
+    assetUrls?: Record<string, string>;
     auto?: boolean;
     showCursor?: boolean;
+    showStoryboard?: boolean;
+    backgroundDim?: number;
+    showLyrics?: boolean;
+    lyrics?: import("@/utils/neteaseLyrics").LyricLine[];
   },
 ): GameEngine => {
   switch (mode) {

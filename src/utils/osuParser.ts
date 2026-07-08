@@ -1,7 +1,7 @@
 // .osu 文件解析器
 // 格式参考：https://osu.ppy.sh/wiki/en/Client/File_formats/Osu_(file_format)
 //
-// .osu 是 INI 风格文本，分 sections：General / Metadata / Difficulty / TimingPoints / HitObjects
+// .osu 是 INI 风格文本，分 sections：General / Metadata / Difficulty / TimingPoints / HitObjects / Events
 
 import type {
   ParsedBeatmap,
@@ -9,6 +9,12 @@ import type {
   HitObjectType,
   TimingPoint,
   GameMode,
+  StoryboardSprite,
+  StoryboardCommand,
+  StoryboardLayer,
+  StoryboardOrigin,
+  StoryboardLoopCommand,
+  StoryboardTriggerCommand,
 } from "@/types";
 import { MODE_FROM_ID } from "@/types";
 
@@ -89,10 +95,6 @@ const parseHitObjectLine = (line: string, mode: GameMode, cs: number): HitObject
     obj.curveType = parseCurve(params);
     obj.curvePoints = parseCurvePoints(params);
     // slides 在第 7 位，length 在第 8 位（params 之后）
-    const afterCurve = params.split("|");
-    // afterCurve[0] 是 curveType；曲线点最后一段是 "slides:length"
-    // 实际上整个 objectParams 是 curveType|p1|p2|...
-    // 然后 slides 和 length 在 parts[6] 和 parts[7]
     obj.slides = Number(parts[6]) || 1;
     obj.length = Number(parts[7]) || 0;
   } else if (type === "spinner") {
@@ -133,6 +135,379 @@ const parseTimingPoint = (line: string): TimingPoint | null => {
   };
 };
 
+// === Storyboard 解析 ===
+
+const LAYER_MAP: Record<string, StoryboardLayer> = {
+  background: "Background",
+  fail: "Fail",
+  pass: "Pass",
+  foreground: "Foreground",
+  overlay: "Overlay",
+  0: "Background",
+  1: "Fail",
+  2: "Pass",
+  3: "Foreground",
+  4: "Overlay",
+};
+
+const ORIGIN_MAP: Record<string, StoryboardOrigin> = {
+  topleft: "TopLeft",
+  topcentre: "TopCentre",
+  topcenter: "TopCentre",
+  topright: "TopRight",
+  centreleft: "CentreLeft",
+  centerleft: "CentreLeft",
+  centre: "Centre",
+  center: "Centre",
+  centreright: "CentreRight",
+  centerright: "CentreRight",
+  bottomleft: "BottomLeft",
+  bottomcentre: "BottomCentre",
+  bottomcenter: "BottomCentre",
+  bottomright: "BottomRight",
+};
+
+const parseLayer = (raw: string): StoryboardLayer =>
+  LAYER_MAP[raw.trim().toLowerCase()] || "Background";
+const parseOrigin = (raw: string): StoryboardOrigin =>
+  ORIGIN_MAP[raw.trim().toLowerCase()] || "Centre";
+
+const stripQuotes = (s: string): string => s.replace(/^"/, "").replace(/"$/, "");
+
+const parseCommand = (line: string): StoryboardCommand | null => {
+  // 命令行可能有前导缩进（循环内），先去掉
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(",");
+  if (parts.length < 2) return null;
+
+  const type = parts[0] as StoryboardCommand["type"];
+  const easing = Number(parts[1]) || 0;
+  const startTime = Number(parts[2]) || 0;
+  // 第四项可能是 endTime 或第一个参数；通过 type 判断
+  let paramStart = 3;
+  let endTime = startTime;
+
+  switch (type) {
+    case "F":
+    case "M":
+    case "MX":
+    case "MY":
+    case "S":
+    case "V":
+    case "R":
+    case "C":
+      // 这些命令都有 endTime 在 parts[3]
+      if (parts.length > 3 && !Number.isNaN(Number(parts[3]))) {
+        endTime = Number(parts[3]);
+        paramStart = 4;
+      }
+      break;
+    case "P":
+      // P,easing,startTime,parameter
+      endTime = startTime;
+      paramStart = 3;
+      break;
+    default:
+      return null;
+  }
+
+  const rest = parts.slice(paramStart).map((p) => p.trim());
+
+  switch (type) {
+    case "F": {
+      if (rest.length < 1) return null;
+      const startOpacity = rest.length >= 2 ? Number(rest[0]) : 1;
+      const endOpacity = rest.length >= 2 ? Number(rest[1]) : Number(rest[0]);
+      return {
+        type: "F",
+        startTime,
+        endTime,
+        easing,
+        startOpacity,
+        endOpacity,
+      };
+    }
+    case "M": {
+      if (rest.length < 4) return null;
+      return {
+        type: "M",
+        startTime,
+        endTime,
+        easing,
+        startX: Number(rest[0]),
+        startY: Number(rest[1]),
+        endX: Number(rest[2]),
+        endY: Number(rest[3]),
+      };
+    }
+    case "MX": {
+      if (rest.length < 2) return null;
+      return {
+        type: "MX",
+        startTime,
+        endTime,
+        easing,
+        startX: Number(rest[0]),
+        endX: Number(rest[1]),
+      };
+    }
+    case "MY": {
+      if (rest.length < 2) return null;
+      return {
+        type: "MY",
+        startTime,
+        endTime,
+        easing,
+        startY: Number(rest[0]),
+        endY: Number(rest[1]),
+      };
+    }
+    case "S": {
+      if (rest.length < 1) return null;
+      const startScale = rest.length >= 2 ? Number(rest[0]) : 1;
+      const endScale = rest.length >= 2 ? Number(rest[1]) : Number(rest[0]);
+      return {
+        type: "S",
+        startTime,
+        endTime,
+        easing,
+        startScale,
+        endScale,
+      };
+    }
+    case "V": {
+      if (rest.length < 4) return null;
+      return {
+        type: "V",
+        startTime,
+        endTime,
+        easing,
+        startScaleX: Number(rest[0]),
+        startScaleY: Number(rest[1]),
+        endScaleX: Number(rest[2]),
+        endScaleY: Number(rest[3]),
+      };
+    }
+    case "R": {
+      if (rest.length < 1) return null;
+      const startRotation = rest.length >= 2 ? Number(rest[0]) : 0;
+      const endRotation = rest.length >= 2 ? Number(rest[1]) : Number(rest[0]);
+      return {
+        type: "R",
+        startTime,
+        endTime,
+        easing,
+        startRotation,
+        endRotation,
+      };
+    }
+    case "C": {
+      if (rest.length < 6) return null;
+      return {
+        type: "C",
+        startTime,
+        endTime,
+        easing,
+        startR: Number(rest[0]),
+        startG: Number(rest[1]),
+        startB: Number(rest[2]),
+        endR: Number(rest[3]),
+        endG: Number(rest[4]),
+        endB: Number(rest[5]),
+      };
+    }
+    case "P": {
+      if (rest.length < 1) return null;
+      const p = rest[0];
+      if (p !== "H" && p !== "V" && p !== "A") return null;
+      return {
+        type: "P",
+        startTime,
+        endTime,
+        easing: 0,
+        parameter: p,
+      };
+    }
+  }
+
+  return null;
+};
+
+/** 将循环命令展开为绝对时间 */
+const flattenCommands = (
+  commands: StoryboardCommand[],
+  baseTime = 0,
+): StoryboardCommand[] => {
+  const out: StoryboardCommand[] = [];
+  for (const c of commands) {
+    if (c.type === "L") {
+      const loopBase = baseTime + c.startTime;
+      const loopDuration = c.endTime - c.startTime;
+      for (let i = 0; i < c.loopCount; i++) {
+        out.push(...flattenCommands(c.commands, loopBase + i * loopDuration));
+      }
+    } else if (c.type === "T") {
+      // 触发器简单按绝对时间展开（忽略触发条件）
+      out.push(...flattenCommands(c.commands, baseTime + c.startTime));
+    } else {
+      const shifted = { ...c, startTime: baseTime + c.startTime, endTime: baseTime + c.endTime };
+      out.push(shifted);
+    }
+  }
+  return out;
+};
+
+/** 解析 Storyboard 的 Events 区段原始文本 */
+export const parseStoryboardEvents = (text: string): StoryboardSprite[] => {
+  const lines = text.split(/\r?\n/);
+  const sprites: StoryboardSprite[] = [];
+  let current: StoryboardSprite | null = null;
+  let stack: { sprite: StoryboardSprite | null; loop?: StoryboardCommand }[] = [];
+
+  const pushCommands = (target: StoryboardSprite, ...cmds: (StoryboardCommand | null)[]) => {
+    for (const cmd of cmds) {
+      if (cmd) target.commands.push(cmd);
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.trim();
+    if (!line || line.startsWith("//")) continue;
+
+    // 缩进级别：用于循环 / 触发器嵌套
+    const indentMatch = raw.match(/^(\s*)/);
+    const indent = indentMatch ? indentMatch[1].length : 0;
+
+    // 退出当前循环/触发器栈，直到缩进匹配
+    while (stack.length > 0 && indent <= 0) {
+      const top = stack.pop();
+      if (top?.loop && current) {
+        current.commands.push(top.loop);
+      }
+    }
+
+    const parts = line.split(",");
+    const head = parts[0].trim().toLowerCase();
+
+    if (head === "sprite" || head === "animation") {
+      // 保存上一个 sprite 的命令
+      if (current) {
+        sprites.push(current);
+      }
+      stack = [];
+      const isAnimation = head === "animation";
+      const layer = parseLayer(parts[1] || "Background");
+      const origin = parseOrigin(parts[2] || "Centre");
+      const fileName = stripQuotes(parts[3] || "");
+      const x = Number(parts[4]) || 0;
+      const y = Number(parts[5]) || 0;
+      current = {
+        type: isAnimation ? "animation" : "sprite",
+        layer,
+        origin,
+        fileName,
+        x,
+        y,
+        commands: [],
+      };
+      if (isAnimation) {
+        current.frameCount = Number(parts[6]) || 1;
+        current.frameDelay = Number(parts[7]) || 0;
+        current.loopType = (parts[8] || "LoopForever") as "LoopOnce" | "LoopForever";
+      }
+      continue;
+    }
+
+    if (!current) continue;
+
+    if (head === "l") {
+      // L,startTime,loopCount
+      const startTime = Number(parts[1]) || 0;
+      const loopCount = Number(parts[2]) || 1;
+      stack.push({ sprite: current, loop: { type: "L", startTime, endTime: startTime, easing: 0, loopCount, commands: [] } as StoryboardCommand });
+      continue;
+    }
+
+    if (head === "t") {
+      // T,triggerName,startTime,endTime
+      const triggerName = parts[1] || "";
+      const startTime = Number(parts[2]) || 0;
+      const endTime = Number(parts[3]) || startTime;
+      stack.push({ sprite: current, loop: { type: "T", triggerName, startTime, endTime, easing: 0, startCondition: 0, endCondition: 0, groupNumber: 0, commands: [] } as StoryboardCommand });
+      continue;
+    }
+
+    // 普通命令
+    const cmd = parseCommand(line);
+    if (!cmd) continue;
+
+    // 如果有循环栈，加到最内层 loop 的 commands
+    let target = current;
+    for (const s of stack) {
+      if (s.loop) {
+        if (s.loop.type === "L" || s.loop.type === "T") {
+          target = null as any; // 占位，实际会放到最内层 loop
+        }
+      }
+    }
+    if (stack.length > 0) {
+      const topLoop = stack[stack.length - 1].loop;
+      if (topLoop && (topLoop.type === "L" || topLoop.type === "T")) {
+        (topLoop as StoryboardLoopCommand | StoryboardTriggerCommand).commands.push(cmd);
+        continue;
+      }
+    }
+
+    current.commands.push(cmd);
+  }
+
+  if (current) {
+    sprites.push(current);
+  }
+
+  // 展开循环
+  for (const s of sprites) {
+    s.commands = flattenCommands(s.commands);
+  }
+
+  return sprites;
+};
+
+/** 解析 [Events] 区段，返回背景和 storyboard 精灵 */
+export const parseEventsSection = (
+  text: string,
+): { backgroundFilename?: string; storyboard: StoryboardSprite[] } => {
+  const lines = text.split(/\r?\n/);
+  let inEvents = false;
+  let eventLines: string[] = [];
+  let backgroundFilename: string | undefined;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("//")) continue;
+    const sec = parseSection(line);
+    if (sec) {
+      inEvents = sec === "Events";
+      continue;
+    }
+    if (!inEvents) continue;
+    eventLines.push(rawLine);
+
+    // 背景事件：0,0,"bg.jpg"
+    if (line.startsWith("0,")) {
+      const m = line.match(/0,0,\s*"?([^"]+)"?/);
+      if (m) backgroundFilename = m[1];
+    }
+  }
+
+  return {
+    backgroundFilename,
+    storyboard: parseStoryboardEvents(eventLines.join("\n")),
+  };
+};
+
 export const parseOsu = (text: string): ParsedBeatmap => {
   const lines = text.split(/\r?\n/);
   let section = "";
@@ -155,10 +530,13 @@ export const parseOsu = (text: string): ParsedBeatmap => {
     sliderTickRate: 1,
     timingPoints: [],
     hitObjects: [],
+    storyboard: [],
   };
 
   const timingPoints: TimingPoint[] = [];
   const hitObjects: HitObject[] = [];
+  const eventLines: string[] = [];
+  let inEvents = false;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -167,6 +545,17 @@ export const parseOsu = (text: string): ParsedBeatmap => {
     const sec = parseSection(line);
     if (sec) {
       section = sec;
+      inEvents = section === "Events";
+      if (inEvents) continue;
+      continue;
+    }
+
+    if (section === "Events") {
+      eventLines.push(rawLine);
+      if (line.startsWith("0,")) {
+        const m = line.match(/0,0,\s*"?([^"]+)"?/);
+        if (m) result.backgroundFilename = m[1];
+      }
       continue;
     }
 
@@ -232,6 +621,12 @@ export const parseOsu = (text: string): ParsedBeatmap => {
 
   result.timingPoints = timingPoints;
   result.hitObjects = hitObjects.sort((a, b) => a.time - b.time);
+
+  // 解析 Storyboard
+  if (eventLines.length > 0) {
+    result.storyboard = parseStoryboardEvents(eventLines.join("\n"));
+  }
+
   return result;
 };
 

@@ -4,35 +4,30 @@
  *  - 竖屏：音符垂直下落判定圈
  *  - 性能：活动物件指针
  */
-import type { HitObject, ParsedBeatmap, Judgement } from "@/types";
-import { GameEngine } from "../GameEngine";
+import type { HitObject, ParsedBeatmap } from "@/types";
+import { GameEngine, type EngineOptions } from "../GameEngine";
 import { drawCircle, drawRect, drawRing, drawText, clamp, GAME_FONT } from "../renderer/Canvas2D";
 
 const NOTE_R = 36;
 const APPROACH_TIME = 1500;
 
-const COLOR_RED = "#f87171";
-const COLOR_BLUE = "#60a5fa";
-const COLOR_GOLD = "#facc15";
-const MODE_COLOR = "#fbbf24";
+const COLOR_RED = "#ff5e5e";
+const COLOR_BLUE = "#4da6ff";
+const COLOR_GOLD = "#ffd03d";
+const MODE_COLOR = "#ff9100";
 
 export class TaikoEngine extends GameEngine {
   private judgePos = 0;
   private crossPos = 0;
   private isHorizontalFlow = true;
 
-  constructor(opts: {
-    canvas: HTMLCanvasElement;
-    audio: HTMLAudioElement;
-    beatmap: ParsedBeatmap;
-    offset?: number;
-    isLandscape?: boolean;
-    callbacks?: import("../GameEngine").EngineCallbacks;
-    backgroundUrl?: string;
-    auto?: boolean;
-    showCursor?: boolean;
-  }) {
+  constructor(opts: EngineOptions) {
     super(opts);
+    this.computeLayout();
+  }
+
+  protected resetState(): void {
+    super.resetState();
     this.computeLayout();
   }
 
@@ -100,7 +95,12 @@ export class TaikoEngine extends GameEngine {
       (obj) => Math.abs(time - obj.time),
     );
     if (best && Math.abs(time - best.time) <= win300) {
-      this.tryHit(this.isBlue(best));
+      const blue = this.isBlue(best);
+      this.tryHit(blue);
+      // 大音符需要同色的双键同时击打才能出 300
+      if (this.isBig(best)) {
+        this.tryHit(blue);
+      }
     }
     const x = this.isHorizontalFlow ? this.judgePos : this.crossPos;
     const y = this.isHorizontalFlow ? this.crossPos : this.judgePos;
@@ -109,8 +109,8 @@ export class TaikoEngine extends GameEngine {
   }
 
   protected render(): void {
-    this.clearScreen();
     const time = this.currentTime;
+    this.renderBackground(time);
     this.drawTrack();
 
     const objs = this.beatmap.hitObjects;
@@ -189,29 +189,97 @@ export class TaikoEngine extends GameEngine {
   private drawJudgeCircle(): void {
     const x = this.isHorizontalFlow ? this.judgePos : this.crossPos;
     const y = this.isHorizontalFlow ? this.crossPos : this.judgePos;
-    drawRing(this.ctx, x, y, NOTE_R + 10, "rgba(255,255,255,0.25)", 4);
-    drawRing(this.ctx, x, y, NOTE_R + 2, "#fff", 2);
-    drawCircle(this.ctx, x, y, NOTE_R * 0.25, "rgba(255,255,255,0.85)");
+    const { ctx } = this.ctx;
+    const r = NOTE_R + 14;
+
+    // 鼓身木 rim
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#5c3a21";
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "#8b5a33";
+    ctx.stroke();
+
+    // 鼓面底色
+    ctx.beginPath();
+    ctx.arc(x, y, r - 6, 0, Math.PI * 2);
+    ctx.fillStyle = "#f5e6d3";
+    ctx.fill();
+
+    // 鼓面左右（或上下）分红蓝两区
+    if (this.isHorizontalFlow) {
+      ctx.beginPath();
+      ctx.arc(x, y, r - 6, -Math.PI / 2, Math.PI / 2);
+      ctx.fillStyle = "rgba(255,94,94,0.22)";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y, r - 6, Math.PI / 2, -Math.PI / 2);
+      ctx.fillStyle = "rgba(77,166,255,0.22)";
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(x, y, r - 6, 0, Math.PI);
+      ctx.fillStyle = "rgba(255,94,94,0.22)";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y, r - 6, Math.PI, 0);
+      ctx.fillStyle = "rgba(77,166,255,0.22)";
+      ctx.fill();
+    }
+
+    // 中心环
+    ctx.beginPath();
+    ctx.arc(x, y, NOTE_R * 0.35, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(0,0,0,0.12)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawNote(x: number, y: number, obj: HitObject, time: number): void {
     const blue = this.isBlue(obj);
     const big = this.isBig(obj);
-    const r = big ? NOTE_R * 1.28 : NOTE_R;
+    const r = big ? NOTE_R * 1.32 : NOTE_R;
     const color = blue ? COLOR_BLUE : COLOR_RED;
     const dt = obj.time - time;
     const alpha = clamp(1 - dt / APPROACH_TIME, 0.55, 1);
     const { ctx } = this.ctx;
     ctx.save();
     ctx.globalAlpha = alpha;
-    drawCircle(this.ctx, x, y, r, color, "#fff", 3);
     if (blue) {
-      drawCircle(this.ctx, x, y, r * 0.32, "#fff");
+      // Katsu：蓝环（打击鼓边）
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.32, 0, Math.PI * 2);
+      ctx.fillStyle = "#fff";
+      ctx.fill();
     } else {
-      drawRect(this.ctx, x - r * 0.24, y - r * 0.24, r * 0.48, r * 0.48, "#fff", 2);
+      // Don：实心红圆（打击鼓面）
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.3, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
+      ctx.fill();
     }
+    // 大音符金边
     if (big) {
-      drawRing(this.ctx, x, y, r * 1.12, COLOR_GOLD, 3);
+      ctx.beginPath();
+      ctx.arc(x, y, r + 5, 0, Math.PI * 2);
+      ctx.strokeStyle = COLOR_GOLD;
+      ctx.lineWidth = 3;
+      ctx.stroke();
     }
     ctx.restore();
   }

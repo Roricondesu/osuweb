@@ -1,7 +1,7 @@
 import React from "react";
 import type { BeatmapSet } from "@/types";
 import { DifficultyBadge, ModeBadge } from "@/components/common";
-import { Music2 } from "lucide-react";
+import { Music2, Film } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface BeatmapCardProps {
@@ -21,9 +21,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = ({ set, index = 0 }) => {
   const modes = new Set(
     set.beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3),
   );
-  const modeIdx = (modes.values().next().value as number) || 0;
+  const modeList = Array.from(modes).slice(0, 2);
   const modeNames = ["standard", "taiko", "catch", "mania"] as const;
-  const primaryMode = modeNames[modeIdx];
 
   return (
     <div
@@ -81,7 +80,26 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = ({ set, index = 0 }) => {
             flexWrap: "wrap",
           }}
         >
-          <ModeBadge mode={primaryMode} />
+          {modeList.map((m) => (
+            <ModeBadge key={m} mode={modeNames[m]} />
+          ))}
+          {set.hasStoryboard && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 2,
+                padding: "2px 6px",
+                borderRadius: 6,
+                background: "rgba(0,0,0,0.5)",
+                color: "#fff",
+                fontSize: 10,
+                fontWeight: 600,
+              }}
+            >
+              <Film size={10} /> Storyboard
+            </span>
+          )}
         </div>
         <div
           style={{

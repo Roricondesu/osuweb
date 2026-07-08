@@ -19,9 +19,9 @@ export const MODE_TO_ID: Record<GameMode, number> = {
 
 export const MODE_LABEL: Record<GameMode, string> = {
   standard: "osu!",
-  taiko: "太鼓",
-  catch: "接水果",
-  mania: "下落式",
+  taiko: "Taiko!",
+  catch: "Catch!",
+  mania: "Mania!",
 };
 
 export const MODE_COLOR: Record<GameMode, string> = {
@@ -49,6 +49,8 @@ export interface BeatmapSet {
     card?: string;
   };
   beatmaps: Beatmap[];
+  /** 是否存在 Storyboard（osu.direct 不一定返回，下载后重新判定） */
+  hasStoryboard?: boolean;
 }
 
 /** 单个难度 */
@@ -67,6 +69,130 @@ export interface Beatmap {
   hp?: number; // HPDrainRate
   // 解析后的 .osu 数据（下载后填充）
   parsed?: ParsedBeatmap;
+}
+
+/** Storyboard 命令缓动函数编号 */
+export type StoryboardEasing = number;
+
+export type StoryboardLayer = "Background" | "Fail" | "Pass" | "Foreground" | "Overlay";
+export type StoryboardOrigin =
+  | "TopLeft"
+  | "TopCentre"
+  | "TopRight"
+  | "CentreLeft"
+  | "Centre"
+  | "CentreRight"
+  | "BottomLeft"
+  | "BottomCentre"
+  | "BottomRight";
+
+export interface StoryboardCommandBase {
+  type: string;
+  startTime: number;
+  endTime: number;
+  easing: StoryboardEasing;
+}
+
+export interface StoryboardFadeCommand extends StoryboardCommandBase {
+  type: "F";
+  startOpacity: number;
+  endOpacity: number;
+}
+
+export interface StoryboardMoveCommand extends StoryboardCommandBase {
+  type: "M";
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
+export interface StoryboardMoveXCommand extends StoryboardCommandBase {
+  type: "MX";
+  startX: number;
+  endX: number;
+}
+
+export interface StoryboardMoveYCommand extends StoryboardCommandBase {
+  type: "MY";
+  startY: number;
+  endY: number;
+}
+
+export interface StoryboardScaleCommand extends StoryboardCommandBase {
+  type: "S";
+  startScale: number;
+  endScale: number;
+}
+
+export interface StoryboardVectorScaleCommand extends StoryboardCommandBase {
+  type: "V";
+  startScaleX: number;
+  startScaleY: number;
+  endScaleX: number;
+  endScaleY: number;
+}
+
+export interface StoryboardRotateCommand extends StoryboardCommandBase {
+  type: "R";
+  startRotation: number;
+  endRotation: number;
+}
+
+export interface StoryboardColorCommand extends StoryboardCommandBase {
+  type: "C";
+  startR: number;
+  startG: number;
+  startB: number;
+  endR: number;
+  endG: number;
+  endB: number;
+}
+
+export interface StoryboardParameterCommand extends StoryboardCommandBase {
+  type: "P";
+  parameter: "H" | "V" | "A"; // 水平翻转 / 垂直翻转 / Additive 混合
+}
+
+export interface StoryboardLoopCommand extends StoryboardCommandBase {
+  type: "L";
+  loopCount: number;
+  commands: StoryboardCommand[];
+}
+
+export interface StoryboardTriggerCommand extends StoryboardCommandBase {
+  type: "T";
+  triggerName: string;
+  startCondition: number;
+  endCondition: number;
+  groupNumber: number;
+  commands: StoryboardCommand[];
+}
+
+export type StoryboardCommand =
+  | StoryboardFadeCommand
+  | StoryboardMoveCommand
+  | StoryboardMoveXCommand
+  | StoryboardMoveYCommand
+  | StoryboardScaleCommand
+  | StoryboardVectorScaleCommand
+  | StoryboardRotateCommand
+  | StoryboardColorCommand
+  | StoryboardParameterCommand
+  | StoryboardLoopCommand
+  | StoryboardTriggerCommand;
+
+export interface StoryboardSprite {
+  type: "sprite" | "animation";
+  layer: StoryboardLayer;
+  origin: StoryboardOrigin;
+  fileName: string;
+  x: number;
+  y: number;
+  frameCount?: number;
+  frameDelay?: number;
+  loopType?: "LoopOnce" | "LoopForever";
+  commands: StoryboardCommand[];
 }
 
 /** .osu 文件解析结果 */
@@ -89,6 +215,10 @@ export interface ParsedBeatmap {
   sliderTickRate: number;
   timingPoints: TimingPoint[];
   hitObjects: HitObject[];
+  /** Events 里指定的背景文件名 */
+  backgroundFilename?: string;
+  /** Storyboard 物件（.osu Events 或 .osb 合并而来） */
+  storyboard: StoryboardSprite[];
 }
 
 export interface TimingPoint {
@@ -139,7 +269,11 @@ export interface LoadedBeatmapSet {
   cover: string;
   audioUrl: string; // Blob URL
   backgroundUrl?: string; // Blob URL
+  /** 谱面包内所有资源文件名 -> Blob URL，用于 Storyboard */
+  assetUrls?: Record<string, string>;
   beatmaps: Beatmap[]; // 已填充 parsed
+  /** 是否有 Storyboard（.osb 或 .osu Events 动画） */
+  hasStoryboard?: boolean;
   downloadedAt: number;
 }
 
@@ -169,6 +303,18 @@ export interface Settings {
   offset: number; // ms，判定时间偏移
   auto: boolean; // 自动模式
   showCursor: boolean; // 显示光标
+
+  // 搜索 / 下载
+  searchSource: "osu" | "sayobot";
+  /** 仅显示有 Storyboard 的谱面（仅对 osu.direct 有效） */
+  storyboardOnly: boolean;
+  /** 下载完整谱面包（含视频/Storyboard 资源），否则用 sayobot mini */
+  downloadFullPackage: boolean;
+
+  // 画面
+  showStoryboard: boolean;
+  backgroundDim: number; // 0-1，背景变暗强度
+  showLyrics: boolean; // 显示网易云歌词
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -178,4 +324,10 @@ export const DEFAULT_SETTINGS: Settings = {
   offset: 0,
   auto: false,
   showCursor: false,
+  searchSource: "sayobot",
+  storyboardOnly: false,
+  downloadFullPackage: false,
+  showStoryboard: true,
+  backgroundDim: 0.68,
+  showLyrics: true,
 };
