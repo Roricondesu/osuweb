@@ -1046,13 +1046,30 @@ export abstract class GameEngine {
       return this.lastCommandBefore(list, time) as any;
     };
 
+    const firstCmdStart = (type: StoryboardCommand["type"]): number => {
+      const list = byType[type] as (StoryboardCommand & { startTime: number })[] | undefined;
+      return list && list.length > 0 ? list[0].startTime : Infinity;
+    };
+
+    // 在第一个非 P 命令开始之前隐藏，避免物件提前出现
+    const firstActionTime = Math.min(
+      firstCmdStart("F"),
+      firstCmdStart("M"),
+      firstCmdStart("MX"),
+      firstCmdStart("MY"),
+      firstCmdStart("S"),
+      firstCmdStart("V"),
+      firstCmdStart("R"),
+      firstCmdStart("C"),
+    );
+
     const state = {
       x: sprite.x,
       y: sprite.y,
       scaleX: 1,
       scaleY: 1,
       rotation: 0,
-      alpha: 1,
+      alpha: firstActionTime === Infinity || time >= firstActionTime ? 1 : 0,
       colorR: 255,
       colorG: 255,
       colorB: 255,
@@ -1231,10 +1248,14 @@ export abstract class GameEngine {
       ctx.translate(x + w / 2, y + h / 2);
       ctx.rotate((state.rotation * Math.PI) / 180);
       ctx.scale(state.flipH ? -1 : 1, state.flipV ? -1 : 1);
-      ctx.fillStyle = `rgb(${state.colorR},${state.colorG},${state.colorB})`;
-      // 颜色着色：通过 drawImage + globalAlpha 混合；更简单的用 fillRect 作 tint？
-      // 这里直接绘制图片；颜色命令通过 globalCompositeOperation + fillRect 实现太复杂，先忽略着色
       ctx.drawImage(img, -w / 2, -h / 2, w, h);
+      // 颜色着色：用 source-atop 覆盖一层命令颜色
+      const hasColor = state.colorR !== 255 || state.colorG !== 255 || state.colorB !== 255;
+      if (hasColor) {
+        ctx.globalCompositeOperation = "source-atop";
+        ctx.fillStyle = `rgb(${state.colorR},${state.colorG},${state.colorB})`;
+        ctx.fillRect(-w / 2, -h / 2, w, h);
+      }
       ctx.restore();
     }
   }

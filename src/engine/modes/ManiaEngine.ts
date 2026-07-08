@@ -144,10 +144,16 @@ export class ManiaEngine extends GameEngine {
       const x = this.colX(col);
       const color = COL_COLORS[col % COL_COLORS.length];
       if (obj.type === "hold" && obj.endTime) {
-        const endY = this.noteY(obj.endTime, time);
-        const h = Math.max(6, this.judgeY - endY);
-        drawRect(this.ctx, x - this.colWidth * 0.4, this.judgeY - h, this.colWidth * 0.8, h, color, 4);
-        drawRect(this.ctx, x - this.colWidth * 0.4, this.judgeY - h, this.colWidth * 0.8, 10, "#fff", 4);
+        const headY = this.noteY(obj.time, time);
+        const tailY = this.noteY(obj.endTime, time);
+        const top = Math.max(tailY, -40);
+        const bottom = Math.min(headY, this.judgeY);
+        const h = bottom - top;
+        if (h > 0) {
+          drawRect(this.ctx, x - this.colWidth * 0.4, top, this.colWidth * 0.8, h, color, 4);
+          // 头部高亮
+          drawRect(this.ctx, x - this.colWidth * 0.4, bottom - 10, this.colWidth * 0.8, 10, "#fff", 4);
+        }
       } else {
         const alpha = clamp(1 - (this.judgeY - y) / (this.judgeY - 10), 0.6, 1);
         this.ctx.ctx.save();
@@ -209,15 +215,22 @@ export class ManiaEngine extends GameEngine {
       (obj) => (obj.column ?? 0) === col && !this.activeHolds.has(obj),
       (obj) => Math.abs(time - obj.time),
     );
-    if (best) {
-      if (best.type === "hold" && best.endTime) {
-        const j = this.judgeHit(best, time);
-        this.spawnHitEffect(this.colX(col), this.judgeY, j, time);
+    if (!best) return;
+
+    if (best.type === "hold" && best.endTime) {
+      // 长条：在窗口内按下头部即开始按住，到结尾再判定
+      const delta = time - best.time;
+      const win300 = this.windows["300"];
+      const win100 = this.windows["100"];
+      const win50 = this.windows["50"];
+      if (Math.abs(delta) <= win50) {
         this.activeHolds.set(best, true);
-      } else {
-        const j = this.judgeHit(best, time);
-        this.spawnHitEffect(this.colX(col), this.judgeY, j, time);
+        this.spawnHitEffect(this.colX(col), this.judgeY, delta <= win300 ? "300" : delta <= win100 ? "100" : "50", time);
+        this.playHitSound(best);
       }
+    } else {
+      const j = this.judgeHit(best, time);
+      this.spawnHitEffect(this.colX(col), this.judgeY, j, time);
     }
   }
 
@@ -225,11 +238,15 @@ export class ManiaEngine extends GameEngine {
     this.heldCols.delete(col);
     for (const [obj] of this.activeHolds) {
       if ((obj.column ?? 0) !== col) continue;
-      if (obj.endTime && time < obj.endTime) {
-        obj.judged = true; obj.judgement = "miss"; this.submitJudgement("miss");
+      if (obj.endTime && time < obj.endTime - this.windows["50"]) {
+        // 在可判定结尾之前松手 = miss
+        obj.judged = true;
+        obj.judgement = "miss";
+        this.submitJudgement("miss");
         this.spawnHitEffect(this.colX(col), this.judgeY, "miss", time);
+        this.activeHolds.delete(obj);
       }
-      this.activeHolds.delete(obj);
+      // 如果已经到达或超过结尾，交给 update 统一判 300，不要提前移除
     }
   }
 

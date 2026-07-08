@@ -507,7 +507,7 @@ export class StandardEngine extends GameEngine {
     }
 
     // 绘制整条路径（闭路复用）
-    const drawPath = (lineWidth: number, strokeStyle: string, shadow = false) => {
+    const drawPath = (lineWidth: number, strokeStyle: string, glow = false) => {
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -516,18 +516,18 @@ export class StandardEngine extends GameEngine {
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
       ctx.lineWidth = lineWidth;
       ctx.strokeStyle = strokeStyle;
-      if (shadow) {
-        ctx.shadowColor = "rgba(0,0,0,0.5)";
-        ctx.shadowBlur = 10;
+      if (glow) {
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 14;
       }
       ctx.stroke();
       ctx.restore();
     };
 
-    // 外阴影轨道
-    drawPath(r * 2.35, "rgba(0,0,0,0.35)", true);
+    // 外圈（主题色弱发光，替代之前的黑色边框）
+    drawPath(r * 2.45, hexToRgba(color, 0.22), true);
     // 底色轨道
-    drawPath(r * 2.0, hexToRgba(color, 0.22));
+    drawPath(r * 2.0, hexToRgba(color, 0.28));
     // 内芯轨道
     drawPath(r * 1.55, hexToRgba(color, 0.55));
 
