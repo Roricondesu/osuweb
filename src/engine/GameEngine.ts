@@ -132,6 +132,7 @@ export abstract class GameEngine {
       hasFadeCommand: boolean;
       hideUntilMove: boolean;
       firstMoveTime: number;
+      lifetimeEnd: number;
     }
   >();
   protected showStoryboard = true;
@@ -139,6 +140,9 @@ export abstract class GameEngine {
   protected showLyrics = true;
   protected lyrics: LyricLine[] = [];
   private lastFrameAt = 0;
+  private fpsFrameCount = 0;
+  private fpsLastUpdate = 0;
+  protected fps = 0;
   // Storyboard 颜色着色用离屏 canvas（避免透明像素被背景/其他物件染色）
   private storyboardColorCanvas: HTMLCanvasElement | null = null;
 
@@ -213,12 +217,14 @@ export abstract class GameEngine {
         byType,
         triggers,
         firstFadeTime,
-      hasFadeCommand: firstFadeTime !== Infinity,
-      // 启发式：没有 F 命令但有移动命令的元素，常因作者未写初始隐藏而在开局堆叠
-      hideUntilMove: firstFadeTime === Infinity,
-      firstMoveTime:
-        firstFadeTime === Infinity ? this.findFirstMoveTime(s.commands) : Infinity,
-    });
+        hasFadeCommand: firstFadeTime !== Infinity,
+        // 启发式：没有 F 命令但有移动命令的元素，常因作者未写初始隐藏而在开局堆叠
+        hideUntilMove: firstFadeTime === Infinity,
+        firstMoveTime:
+          firstFadeTime === Infinity ? this.findFirstMoveTime(s.commands) : Infinity,
+        // 元素生命周期：所有命令（含触发器、循环展开后）的最大结束时间；超过后强制隐藏
+        lifetimeEnd: this.computeStoryboardLifetimeEnd(s.commands),
+      });
     }
   }
 
@@ -363,6 +369,8 @@ export abstract class GameEngine {
     this.status = "playing";
     this.audio.play().catch(() => {});
     this.lastFrameAt = 0;
+    this.fpsFrameCount = 0;
+    this.fpsLastUpdate = 0;
     this.loop();
   }
 
@@ -377,6 +385,8 @@ export abstract class GameEngine {
     this.status = "playing";
     this.audio.play().catch(() => {});
     this.lastFrameAt = 0;
+    this.fpsFrameCount = 0;
+    this.fpsLastUpdate = 0;
     this.initCursorPosition();
     this.loop();
   }
@@ -400,6 +410,16 @@ export abstract class GameEngine {
     const now = performance.now();
     const dt = this.lastFrameAt ? Math.min((now - this.lastFrameAt) / 1000, 0.05) : 0;
     this.lastFrameAt = now;
+
+    // FPS 统计：每 500ms 刷新一次；暂停后间隔过大则重置
+    const fpsGap = now - this.fpsLastUpdate;
+    if (fpsGap >= 500) {
+      this.fps = fpsGap > 2000 ? 0 : Math.round((this.fpsFrameCount * 1000) / fpsGap);
+      this.fpsFrameCount = 0;
+      this.fpsLastUpdate = now;
+    }
+    this.fpsFrameCount++;
+
     const time = this.getCurrentTime();
 
     // 回放模式：按时间注入已录制的输入事件
@@ -420,6 +440,7 @@ export abstract class GameEngine {
     this.drawLyrics(time);
     this.updateCursorTrail(time);
     this.drawCursor(time);
+    this.drawFPS();
     this.callbacks.onScoreUpdate?.(this.score);
 
     // 检查是否结束（所有 hitObjects 已处理 + 音频结束）
@@ -1362,6 +1383,31 @@ export abstract class GameEngine {
     return t;
   }
 
+  /** 计算元素整体生命周期结束时间（含触发器、循环展开后的最大 endTime） */
+  private computeStoryboardLifetimeEnd(commands: StoryboardCommand[]): number {
+    let end = -Infinity;
+    for (const c of commands) {
+      if (c.type === "T") {
+        // 触发器命令的时间为绝对时间，其内部命令相对于触发器 startTime
+        const innerEnd = this.computeStoryboardLifetimeEnd(c.commands);
+        if (Number.isFinite(innerEnd)) {
+          end = Math.max(end, c.startTime + innerEnd);
+        }
+        end = Math.max(end, c.endTime);
+      } else if (c.type === "L") {
+        const loopDuration =
+          c.commands.length > 0
+            ? Math.max(1, ...c.commands.map((cmd) => Math.max(cmd.endTime, cmd.startTime)))
+            : 1;
+        const loopEnd = c.startTime + c.loopCount * loopDuration;
+        end = Math.max(end, loopEnd);
+      } else {
+        end = Math.max(end, c.endTime);
+      }
+    }
+    return end;
+  }
+
   /** 把循环/触发器命令再展开（parser 已展开顶层循环，这里兜底触发器内的循环） */
   private flattenStoryboardCommands(commands: StoryboardCommand[]): StoryboardCommand[] {
     const out: StoryboardCommand[] = [];
@@ -1572,6 +1618,10 @@ export abstract class GameEngine {
     );
     const triggersHidden = hasTriggers && triggerOnly && activeTriggers.length === 0;
 
+    // 超过元素生命周期后强制隐藏，防止命令结束后仍残留
+    const lifetimeEnd = flat?.lifetimeEnd ?? -Infinity;
+    const expired = Number.isFinite(lifetimeEnd) && time > lifetimeEnd;
+
     if (cached.all.length === 0) {
       return {
         x: sprite.x,
@@ -1579,7 +1629,7 @@ export abstract class GameEngine {
         scaleX: 1,
         scaleY: 1,
         rotation: 0,
-        alpha: triggersHidden ? 0 : flat?.hasFadeCommand ? 0 : 1,
+        alpha: expired || triggersHidden ? 0 : flat?.hasFadeCommand ? 0 : 1,
         colorR: 255,
         colorG: 255,
         colorB: 255,
@@ -1624,7 +1674,7 @@ export abstract class GameEngine {
       additive: false,
     };
 
-    if (triggersHidden || moveHidden) {
+    if (triggersHidden || moveHidden || expired) {
       state.alpha = 0;
     }
 
@@ -1884,6 +1934,20 @@ export abstract class GameEngine {
   /** 清空画布（兼容旧子类） */
   protected clearScreen(): void {
     clear(this.ctx);
+  }
+
+  /** 右下角 FPS 显示 */
+  protected drawFPS(): void {
+    const { ctx, width, height } = this.ctx;
+    ctx.save();
+    ctx.font = `700 12px ${GAME_FONT}`;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    ctx.shadowColor = "rgba(0,0,0,0.5)";
+    ctx.shadowBlur = 4;
+    ctx.fillText(`${this.fps} FPS`, width - 12, height - 12);
+    ctx.restore();
   }
 
   /** 绘制 HUD（兼容旧子类） */
