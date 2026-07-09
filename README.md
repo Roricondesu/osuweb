@@ -4,11 +4,9 @@
 
 <br/>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://readme-typing-svg.demolab.com?font=Orbitron&weight=600&size=22&duration=2800&pause=800&color=FF9ECF&center=true&vCenter=true&width=600&lines=纯前端+osu!+客户端;支持+Standard+%7C+Taiko+%7C+Catch+%7C+Mania;Storyboard+%E6%B8%B2%E6%9F%93+%C2%B7+%E7%BD%91%E6%98%93%E4%BA%91%E6%AD%8C%E8%AF%8D+%C2%B7+Auto+%E6%BC%94%E7%A4%BA" />
-  <source media="(prefers-color-scheme: light)" srcset="https://readme-typing-svg.demolab.com?font=Orbitron&weight=600&size=22&duration=2800&pause=800&color=FF69B4&center=true&vCenter=true&width=600&lines=纯前端+osu!+客户端;支持+Standard+%7C+Taiko+%7C+Catch+%7C+Mania;Storyboard+%E6%B8%B2%E6%9F%93+%C2%B7+%E7%BD%91%E6%98%93%E4%BA%91%E6%AD%8C%E8%AF%8D+%C2%B7+Auto+%E6%BC%94%E7%A4%BA" />
-  <img alt="typing" src="https://readme-typing-svg.demolab.com?font=Orbitron&weight=600&size=22&duration=2800&pause=800&color=FF9ECF&center=true&vCenter=true&width=600&lines=纯前端+osu!+客户端;支持+Standard+%7C+Taiko+%7C+Catch+%7C+Mania;Storyboard+%E6%B8%B2%E6%9F%93+%C2%B7+%E7%BD%91%E6%98%93%E4%BA%91%E6%AD%8C%E8%AF%8D+%C2%B7+Auto+%E6%BC%94%E7%A4%BA" />
-</picture>
+<p align="center">
+  <sub><samp>纯前端 osu! 客户端 · Standard / Taiko / Catch / Mania · Storyboard / 歌词 / Auto</samp></sub>
+</p>
 
 <br/>
 
@@ -22,76 +20,20 @@
 
 ---
 
-## <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Activities/Video%20Game.png" width="28" /> 功能特性
+## 功能特性
 
-<table>
-<tr>
-<td width="50%">
-
-### 🎮 多模式游玩
-
-- **osu!standard** — Circle / Slider / Spinner，引导线与打击反馈
-- **osu!taiko** — 横竖屏鼓面 UI，支持 Don / Katsu 与大音符
-- **osu!catch** — 双向轨道，水果几何图形化
-- **osu!mania** — 4K / 7K，圆角矩形音符与毛玻璃按键面板
-
-</td>
-<td width="50%">
-
-### 🔍 谱面获取
-
-- 集成 **osu.direct** 与 **Sayobot** 搜索
-- 关键词 / 歌曲名 / 歌手名筛选
-- 仅显示含 Storyboard 的谱面
-- 完整包 / 精简包两种下载方式
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### 💾 本地下载管理
-
-- 使用 **IndexedDB** 持久化已下载谱面
-- 下载列表折叠 / 展开
-- 本地直接开始游戏
-
-</td>
-<td width="50%">
-
-### 🎬 Storyboard 支持
-
-- 解析 `.osb` 与 `Events` 段落
-- Sprite / Animation 及 F / M / S / R / C / P 等命令
-- 命令预展开 + 二分查找，播放流畅
-- 自动加载 Storyboard 图片资源
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### 🎤 歌词系统
-
-- 接入网易云音乐歌词 API
-- 游戏内底部显示当前歌词
-
-</td>
-<td width="50%">
-
-### 🤖 Auto 演示
-
-- 全模式支持 Auto 自动游玩
-- Standard 光标弹簧物理 + 拖尾反馈
-- 光标预判下一目标，移动平滑
-
-</td>
-</tr>
-</table>
+| 模块 | 说明 |
+| --- | --- |
+| 多模式游玩 | osu!standard / taiko / catch / mania，含引导线、打击反馈、大音符、下落式按键 |
+| 谱面获取 | 集成 osu.direct 与 Sayobot，支持关键词 / 歌曲名 / 歌手名筛选，可仅显示含 Storyboard 的谱面 |
+| 本地下载管理 | IndexedDB 持久化，下载列表折叠展开，本地直接开玩 |
+| Storyboard 支持 | 解析 `.osb` 与 `Events` 段落，支持 Sprite / Animation 及 F / M / S / R / C / P 等命令 |
+| 歌词系统 | 网易云音乐歌词 API，游戏内底部显示当前歌词 |
+| Auto 演示 | 全模式 Auto，Standard 光标弹簧物理 + 拖尾反馈 |
 
 ---
 
-## <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Hammer%20and%20Wrench.png" width="28" /> 技术栈
+## 技术栈
 
 ```mermaid
 flowchart LR
@@ -118,7 +60,7 @@ flowchart LR
 
 ---
 
-## <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Rocket.png" width="28" /> 快速开始
+## 快速开始
 
 ### 环境要求
 
@@ -143,7 +85,7 @@ pnpm preview
 
 ---
 
-## <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Folder.png" width="28" /> 项目结构
+## 项目结构
 
 ```text
 osu-game/
@@ -175,7 +117,7 @@ osu-game/
 
 ---
 
-## <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Musical%20Notes.png" width="28" /> 支持的文件格式
+## 支持的文件格式
 
 | 格式 | 说明 |
 | --- | --- |
@@ -187,7 +129,7 @@ osu-game/
 
 ---
 
-## <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Gear.png" width="28" /> 设置项说明
+## 设置项说明
 
 | 设置项 | 说明 |
 | --- | --- |
@@ -201,7 +143,7 @@ osu-game/
 
 ---
 
-## <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Sparkles.png" width="28" /> 部署
+## 部署
 
 纯静态前端，构建后部署 `dist/` 到任意静态托管服务：
 
@@ -212,7 +154,7 @@ osu-game/
 
 ---
 
-## <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Heart%20with%20Ribbon.png" width="28" /> 致谢
+## 致谢
 
 - [osu!](https://osu.ppy.sh/) 社区与谱面作者
 - [Sayobot](https://osu.sayobot.cn/) 搜索服务
