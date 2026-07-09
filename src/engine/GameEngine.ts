@@ -124,6 +124,8 @@ export abstract class GameEngine {
       triggers: import("@/types").StoryboardTriggerCommand[];
       firstFadeTime: number;
       hasFadeCommand: boolean;
+      hideUntilMove: boolean;
+      firstMoveTime: number;
     }
   >();
   protected showStoryboard = true;
@@ -200,8 +202,11 @@ export abstract class GameEngine {
         byType,
         triggers,
         firstFadeTime,
-        hasFadeCommand: firstFadeTime !== Infinity,
-      });
+      hasFadeCommand: firstFadeTime !== Infinity,
+      // 启发式：没有 F 命令但有移动命令的元素，常因作者未写初始隐藏而在开局堆叠
+      hideUntilMove: firstFadeTime === Infinity,
+      firstMoveTime: firstFadeTime === Infinity ? this.findFirstMoveTime(s.commands) : Infinity,
+    });
     }
   }
 
@@ -1223,6 +1228,21 @@ export abstract class GameEngine {
 
   // ===== Storyboard 渲染 =====
 
+  /** 递归查找最早的移动命令开始时间（含触发器内） */
+  private findFirstMoveTime(commands: StoryboardCommand[]): number {
+    let t = Infinity;
+    for (const c of commands) {
+      if (c.type === "M" || c.type === "MX" || c.type === "MY") {
+        t = Math.min(t, c.startTime);
+      } else if (c.type === "T") {
+        t = Math.min(t, this.findFirstMoveTime(c.commands));
+      } else if (c.type === "L") {
+        t = Math.min(t, c.startTime + this.findFirstMoveTime(c.commands));
+      }
+    }
+    return t;
+  }
+
   /** 把循环/触发器命令再展开（parser 已展开顶层循环，这里兜底触发器内的循环） */
   private flattenStoryboardCommands(commands: StoryboardCommand[]): StoryboardCommand[] {
     const out: StoryboardCommand[] = [];
@@ -1460,6 +1480,9 @@ export abstract class GameEngine {
     const activeFirstFade = firstCmdStart("F");
     const firstFadeTime = Math.min(spriteFirstFade, activeFirstFade);
 
+    // 启发式：没有 F 命令但有移动命令的元素，在首个移动命令前隐藏，避免开局堆叠
+    const moveHidden = flat?.hideUntilMove && (flat.firstMoveTime ?? Infinity) > 0 && time < (flat.firstMoveTime ?? Infinity);
+
     const state = {
       x: sprite.x,
       y: sprite.y,
@@ -1475,7 +1498,7 @@ export abstract class GameEngine {
       additive: false,
     };
 
-    if (triggersHidden && firstFadeTime === Infinity) {
+    if ((triggersHidden && firstFadeTime === Infinity) || moveHidden) {
       state.alpha = 0;
     }
 
