@@ -101,49 +101,49 @@ export interface StoryboardFadeCommand extends StoryboardCommandBase {
 
 export interface StoryboardMoveCommand extends StoryboardCommandBase {
   type: "M";
-  startX: number;
-  startY: number;
+  startX?: number;
+  startY?: number;
   endX: number;
   endY: number;
 }
 
 export interface StoryboardMoveXCommand extends StoryboardCommandBase {
   type: "MX";
-  startX: number;
+  startX?: number;
   endX: number;
 }
 
 export interface StoryboardMoveYCommand extends StoryboardCommandBase {
   type: "MY";
-  startY: number;
+  startY?: number;
   endY: number;
 }
 
 export interface StoryboardScaleCommand extends StoryboardCommandBase {
   type: "S";
-  startScale: number;
+  startScale?: number;
   endScale: number;
 }
 
 export interface StoryboardVectorScaleCommand extends StoryboardCommandBase {
   type: "V";
-  startScaleX: number;
-  startScaleY: number;
+  startScaleX?: number;
+  startScaleY?: number;
   endScaleX: number;
   endScaleY: number;
 }
 
 export interface StoryboardRotateCommand extends StoryboardCommandBase {
   type: "R";
-  startRotation: number;
+  startRotation?: number;
   endRotation: number;
 }
 
 export interface StoryboardColorCommand extends StoryboardCommandBase {
   type: "C";
-  startR: number;
-  startG: number;
-  startB: number;
+  startR?: number;
+  startG?: number;
+  startB?: number;
   endR: number;
   endG: number;
   endB: number;

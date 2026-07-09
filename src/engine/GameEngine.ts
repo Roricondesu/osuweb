@@ -106,6 +106,10 @@ export abstract class GameEngine {
   protected hitSoundVolume = 0.6;
   protected hitSoundAudios: Map<string, HTMLAudioElement> = new Map();
   protected hitSoundUrlCache: Map<string, string | null> = new Map();
+  // 每个 URL 保留少量音频实例，避免连续播放同一音效时互相中断
+  protected hitSoundAudioPool: Map<string, HTMLAudioElement[]> = new Map();
+  protected hitSoundPoolIndex: Map<string, number> = new Map();
+  protected maxHitSoundPoolSize = 4;
 
   protected backgroundImage: HTMLImageElement | null = null;
   protected backgroundLoaded = false;
@@ -420,15 +424,31 @@ export abstract class GameEngine {
     return j;
   }
 
-  /** 获取指定时间的 sampleSet / sampleIndex（继承点会向上查找） */
+  /** 获取指定时间的 sampleSet / sampleIndex（二分查找，避免大量 timing point 时线性扫描） */
   private getSampleAt(time: number): { set: number; index: number } {
     const tps = this.beatmap.timingPoints;
-    let current: import("@/types").TimingPoint | null = null;
+    if (tps.length === 0) return { set: 1, index: 0 };
+
+    let lo = 0;
+    let hi = tps.length - 1;
+    let idx = 0;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (tps[mid].time <= time) {
+        idx = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+
+    let current: import("@/types").TimingPoint | null = tps[idx];
     let lastUninherited: import("@/types").TimingPoint | null = null;
-    for (const tp of tps) {
-      if (tp.time > time) break;
-      if (tp.uninherited) lastUninherited = tp;
-      current = tp;
+    for (let i = idx; i >= 0; i--) {
+      if (tps[i].uninherited) {
+        lastUninherited = tps[i];
+        break;
+      }
     }
     const base = current || lastUninherited;
     if (!base) return { set: 1, index: 0 };
@@ -480,7 +500,7 @@ export abstract class GameEngine {
     const { set, index } = this.getSampleAt(obj.time);
     const setName = ["", "normal", "soft", "drum"][set] || "normal";
     const indexSuffix = index > 0 ? `-${index}` : "";
-    const flags = obj.hitSound || 1; // 默认 normal
+    const flags = obj.hitSound || 0;
     const sounds: string[] = [];
     if (flags & 1) sounds.push("normal");
     if (flags & 2) sounds.push("whistle");
@@ -492,7 +512,14 @@ export abstract class GameEngine {
       const url = this.resolveHitSoundUrl(setName, sound, indexSuffix);
       if (!url) continue;
 
-      let audio = this.hitSoundAudios.get(url);
+      // 从对象池取一个可用实例，避免连续播放时互相中断
+      let pool = this.hitSoundAudioPool.get(url);
+      if (!pool) {
+        pool = [];
+        this.hitSoundAudioPool.set(url, pool);
+      }
+      let idx = this.hitSoundPoolIndex.get(url) ?? 0;
+      let audio = pool[idx];
       if (!audio) {
         try {
           audio = new Audio(url);
@@ -500,8 +527,11 @@ export abstract class GameEngine {
           continue;
         }
         audio.preload = "auto";
-        this.hitSoundAudios.set(url, audio);
+        pool.push(audio);
       }
+      idx = (idx + 1) % this.maxHitSoundPoolSize;
+      this.hitSoundPoolIndex.set(url, idx);
+
       audio.volume = this.hitSoundVolume;
 
       const play = () => {
@@ -1338,26 +1368,30 @@ export abstract class GameEngine {
     const mx = lastCmd("MX");
     if (mx) {
       const dur = mx.endTime - mx.startTime;
-      state.x = dur <= 0 ? mx.endX : mx.startX + (mx.endX - mx.startX) * this.ease((time - mx.startTime) / dur, mx.easing);
+      const sx = mx.startX ?? state.x;
+      state.x = dur <= 0 ? mx.endX : sx + (mx.endX - sx) * this.ease((time - mx.startTime) / dur, mx.easing);
     }
 
     const my = lastCmd("MY");
     if (my) {
       const dur = my.endTime - my.startTime;
-      state.y = dur <= 0 ? my.endY : my.startY + (my.endY - my.startY) * this.ease((time - my.startTime) / dur, my.easing);
+      const sy = my.startY ?? state.y;
+      state.y = dur <= 0 ? my.endY : sy + (my.endY - sy) * this.ease((time - my.startTime) / dur, my.easing);
     }
 
     // M 优先级高于 MX/MY
     const mv = lastCmd("M");
     if (mv) {
       const dur = mv.endTime - mv.startTime;
+      const sx = mv.startX ?? state.x;
+      const sy = mv.startY ?? state.y;
       if (dur <= 0) {
         state.x = mv.endX;
         state.y = mv.endY;
       } else {
         const t = this.ease((time - mv.startTime) / dur, mv.easing);
-        state.x = mv.startX + (mv.endX - mv.startX) * t;
-        state.y = mv.startY + (mv.endY - mv.startY) * t;
+        state.x = sx + (mv.endX - sx) * t;
+        state.y = sy + (mv.endY - sy) * t;
       }
     }
 
@@ -1370,7 +1404,8 @@ export abstract class GameEngine {
     const scale = lastCmd("S");
     if (scale) {
       const dur = scale.endTime - scale.startTime;
-      const s = dur <= 0 ? scale.endScale : scale.startScale + (scale.endScale - scale.startScale) * this.ease((time - scale.startTime) / dur, scale.easing);
+      const ss = scale.startScale ?? state.scaleX;
+      const s = dur <= 0 ? scale.endScale : ss + (scale.endScale - ss) * this.ease((time - scale.startTime) / dur, scale.easing);
       state.scaleX = s;
       state.scaleY = s;
     }
@@ -1378,28 +1413,34 @@ export abstract class GameEngine {
     const vScale = lastCmd("V");
     if (vScale) {
       const dur = vScale.endTime - vScale.startTime;
-      state.scaleX = dur <= 0 ? vScale.endScaleX : vScale.startScaleX + (vScale.endScaleX - vScale.startScaleX) * this.ease((time - vScale.startTime) / dur, vScale.easing);
-      state.scaleY = dur <= 0 ? vScale.endScaleY : vScale.startScaleY + (vScale.endScaleY - vScale.startScaleY) * this.ease((time - vScale.startTime) / dur, vScale.easing);
+      const sx = vScale.startScaleX ?? state.scaleX;
+      const sy = vScale.startScaleY ?? state.scaleY;
+      state.scaleX = dur <= 0 ? vScale.endScaleX : sx + (vScale.endScaleX - sx) * this.ease((time - vScale.startTime) / dur, vScale.easing);
+      state.scaleY = dur <= 0 ? vScale.endScaleY : sy + (vScale.endScaleY - sy) * this.ease((time - vScale.startTime) / dur, vScale.easing);
     }
 
     const rot = lastCmd("R");
     if (rot) {
       const dur = rot.endTime - rot.startTime;
-      state.rotation = dur <= 0 ? rot.endRotation : rot.startRotation + (rot.endRotation - rot.startRotation) * this.ease((time - rot.startTime) / dur, rot.easing);
+      const sr = rot.startRotation ?? state.rotation;
+      state.rotation = dur <= 0 ? rot.endRotation : sr + (rot.endRotation - sr) * this.ease((time - rot.startTime) / dur, rot.easing);
     }
 
     const color = lastCmd("C");
     if (color) {
       const dur = color.endTime - color.startTime;
+      const sr = color.startR ?? state.colorR;
+      const sg = color.startG ?? state.colorG;
+      const sb = color.startB ?? state.colorB;
       if (dur <= 0) {
         state.colorR = color.endR;
         state.colorG = color.endG;
         state.colorB = color.endB;
       } else {
         const t = this.ease((time - color.startTime) / dur, color.easing);
-        state.colorR = color.startR + (color.endR - color.startR) * t;
-        state.colorG = color.startG + (color.endG - color.startG) * t;
-        state.colorB = color.startB + (color.endB - color.startB) * t;
+        state.colorR = sr + (color.endR - sr) * t;
+        state.colorG = sg + (color.endG - sg) * t;
+        state.colorB = sb + (color.endB - sb) * t;
       }
     }
 

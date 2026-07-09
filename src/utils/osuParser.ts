@@ -202,8 +202,8 @@ const parseCommand = (line: string): StoryboardCommand | null => {
     case "V":
     case "R":
     case "C":
-      // 这些命令都有 endTime 在 parts[3]
-      if (parts.length > 3 && !Number.isNaN(Number(parts[3]))) {
+      // 这些命令都有 endTime 在 parts[3]；空字符串表示与 startTime 相同
+      if (parts.length > 3 && parts[3].trim() !== "" && !Number.isNaN(Number(parts[3]))) {
         endTime = Number(parts[3]);
         paramStart = 4;
       }
@@ -218,12 +218,18 @@ const parseCommand = (line: string): StoryboardCommand | null => {
   }
 
   const rest = parts.slice(paramStart).map((p) => p.trim());
+  const num = (idx: number): number | undefined => {
+    const v = rest[idx];
+    if (v === undefined || v === "") return undefined;
+    const n = Number(v);
+    return Number.isNaN(n) ? undefined : n;
+  };
 
   switch (type) {
     case "F": {
       if (rest.length < 1) return null;
-      const startOpacity = rest.length >= 2 ? Number(rest[0]) : 1;
-      const endOpacity = rest.length >= 2 ? Number(rest[1]) : Number(rest[0]);
+      const endOpacity = num(rest.length >= 2 ? 1 : 0) ?? 1;
+      const startOpacity = rest.length >= 2 ? (num(0) ?? endOpacity) : 1;
       return {
         type: "F",
         startTime,
@@ -234,44 +240,57 @@ const parseCommand = (line: string): StoryboardCommand | null => {
       };
     }
     case "M": {
-      if (rest.length < 4) return null;
+      if (rest.length < 2) return null;
+      // 支持简写：M,,endX,endY（省略 startX/startY）
+      const full = rest.length >= 4;
+      const sx = full ? num(0) : undefined;
+      const sy = full ? num(1) : undefined;
+      const ex = full ? num(2) : num(0);
+      const ey = full ? num(3) : num(1);
+      if (ex === undefined || ey === undefined) return null;
       return {
         type: "M",
         startTime,
         endTime,
         easing,
-        startX: Number(rest[0]),
-        startY: Number(rest[1]),
-        endX: Number(rest[2]),
-        endY: Number(rest[3]),
+        startX: sx,
+        startY: sy,
+        endX: ex,
+        endY: ey,
       };
     }
     case "MX": {
-      if (rest.length < 2) return null;
+      if (rest.length < 1) return null;
+      const sx = rest.length >= 2 ? num(0) : undefined;
+      const ex = rest.length >= 2 ? num(1) : num(0);
+      if (ex === undefined) return null;
       return {
         type: "MX",
         startTime,
         endTime,
         easing,
-        startX: Number(rest[0]),
-        endX: Number(rest[1]),
+        startX: sx,
+        endX: ex,
       };
     }
     case "MY": {
-      if (rest.length < 2) return null;
+      if (rest.length < 1) return null;
+      const sy = rest.length >= 2 ? num(0) : undefined;
+      const ey = rest.length >= 2 ? num(1) : num(0);
+      if (ey === undefined) return null;
       return {
         type: "MY",
         startTime,
         endTime,
         easing,
-        startY: Number(rest[0]),
-        endY: Number(rest[1]),
+        startY: sy,
+        endY: ey,
       };
     }
     case "S": {
       if (rest.length < 1) return null;
-      const startScale = rest.length >= 2 ? Number(rest[0]) : 1;
-      const endScale = rest.length >= 2 ? Number(rest[1]) : Number(rest[0]);
+      const endScale = num(rest.length >= 2 ? 1 : 0) ?? 1;
+      const startScale = rest.length >= 2 ? (num(0) ?? endScale) : 1;
       return {
         type: "S",
         startTime,
@@ -282,22 +301,28 @@ const parseCommand = (line: string): StoryboardCommand | null => {
       };
     }
     case "V": {
-      if (rest.length < 4) return null;
+      if (rest.length < 2) return null;
+      const full = rest.length >= 4;
+      const sx = full ? num(0) : undefined;
+      const sy = full ? num(1) : undefined;
+      const ex = full ? num(2) : num(0);
+      const ey = full ? num(3) : num(1);
+      if (ex === undefined || ey === undefined) return null;
       return {
         type: "V",
         startTime,
         endTime,
         easing,
-        startScaleX: Number(rest[0]),
-        startScaleY: Number(rest[1]),
-        endScaleX: Number(rest[2]),
-        endScaleY: Number(rest[3]),
+        startScaleX: sx,
+        startScaleY: sy,
+        endScaleX: ex,
+        endScaleY: ey,
       };
     }
     case "R": {
       if (rest.length < 1) return null;
-      const startRotation = rest.length >= 2 ? Number(rest[0]) : 0;
-      const endRotation = rest.length >= 2 ? Number(rest[1]) : Number(rest[0]);
+      const endRotation = num(rest.length >= 2 ? 1 : 0) ?? 0;
+      const startRotation = rest.length >= 2 ? (num(0) ?? endRotation) : 0;
       return {
         type: "R",
         startTime,
@@ -308,18 +333,26 @@ const parseCommand = (line: string): StoryboardCommand | null => {
       };
     }
     case "C": {
-      if (rest.length < 6) return null;
+      if (rest.length < 3) return null;
+      const full = rest.length >= 6;
+      const sr = full ? num(0) : num(0);
+      const sg = full ? num(1) : num(1);
+      const sb = full ? num(2) : num(2);
+      const er = full ? num(3) : num(0);
+      const eg = full ? num(4) : num(1);
+      const eb = full ? num(5) : num(2);
+      if (er === undefined || eg === undefined || eb === undefined) return null;
       return {
         type: "C",
         startTime,
         endTime,
         easing,
-        startR: Number(rest[0]),
-        startG: Number(rest[1]),
-        startB: Number(rest[2]),
-        endR: Number(rest[3]),
-        endG: Number(rest[4]),
-        endB: Number(rest[5]),
+        startR: sr,
+        startG: sg,
+        startB: sb,
+        endR: er,
+        endG: eg,
+        endB: eb,
       };
     }
     case "P": {
@@ -371,7 +404,17 @@ export const parseStoryboardEvents = (text: string): StoryboardSprite[] => {
   const lines = text.split(/\r?\n/);
   const sprites: StoryboardSprite[] = [];
   let current: StoryboardSprite | null = null;
-  let stack: { sprite: StoryboardSprite | null; loop?: StoryboardCommand }[] = [];
+  // 记录每个循环/触发器行自身的缩进；子命令缩进必须严格更大
+  let stack: { loop: StoryboardCommand; indent: number }[] = [];
+
+  const closeLoopsToIndent = (indent: number) => {
+    while (stack.length > 0 && indent <= stack[stack.length - 1].indent) {
+      const top = stack.pop();
+      if (top?.loop && current) {
+        current.commands.push(top.loop);
+      }
+    }
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
@@ -382,19 +425,12 @@ export const parseStoryboardEvents = (text: string): StoryboardSprite[] => {
     const indentMatch = raw.match(/^(\s*)/);
     const indent = indentMatch ? indentMatch[1].length : 0;
 
-    // 退出当前循环/触发器栈，直到缩进匹配
-    while (stack.length > 0 && indent <= 0) {
-      const top = stack.pop();
-      if (top?.loop && current) {
-        current.commands.push(top.loop);
-      }
-    }
-
     const parts = line.split(",");
     const head = parts[0].trim().toLowerCase();
 
     if (head === "sprite" || head === "animation") {
-      // 保存上一个 sprite 的命令
+      // 保存上一个 sprite 的命令（先关闭所有未闭合循环）
+      closeLoopsToIndent(-1);
       if (current) {
         sprites.push(current);
       }
@@ -425,23 +461,34 @@ export const parseStoryboardEvents = (text: string): StoryboardSprite[] => {
     if (!current) continue;
 
     if (head === "l") {
+      // 进入新循环前，先关闭同级或外层缩进不小于当前行的循环
+      closeLoopsToIndent(indent);
       // L,startTime,loopCount
       const startTime = Number(parts[1]) || 0;
       const loopCount = Number(parts[2]) || 1;
-      stack.push({ sprite: current, loop: { type: "L", startTime, endTime: startTime, easing: 0, loopCount, commands: [] } as StoryboardCommand });
+      stack.push({
+        loop: { type: "L", startTime, endTime: startTime, easing: 0, loopCount, commands: [] } as StoryboardCommand,
+        indent,
+      });
       continue;
     }
 
     if (head === "t") {
+      closeLoopsToIndent(indent);
       // T,triggerName,startTime,endTime
       const triggerName = parts[1] || "";
       const startTime = Number(parts[2]) || 0;
       const endTime = Number(parts[3]) || startTime;
-      stack.push({ sprite: current, loop: { type: "T", triggerName, startTime, endTime, easing: 0, startCondition: 0, endCondition: 0, groupNumber: 0, commands: [] } as StoryboardCommand });
+      stack.push({
+        loop: { type: "T", triggerName, startTime, endTime, easing: 0, startCondition: 0, endCondition: 0, groupNumber: 0, commands: [] } as StoryboardCommand,
+        indent,
+      });
       continue;
     }
 
-    // 普通命令
+    // 普通命令：先按当前缩进关闭循环栈
+    closeLoopsToIndent(indent);
+
     const cmd = parseCommand(line);
     if (!cmd) continue;
 
@@ -456,6 +503,9 @@ export const parseStoryboardEvents = (text: string): StoryboardSprite[] => {
 
     current.commands.push(cmd);
   }
+
+  // 文件末尾关闭所有未闭合循环
+  closeLoopsToIndent(-1);
 
   if (current) {
     sprites.push(current);
