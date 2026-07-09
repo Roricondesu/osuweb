@@ -205,7 +205,8 @@ export abstract class GameEngine {
       hasFadeCommand: firstFadeTime !== Infinity,
       // 启发式：没有 F 命令但有移动命令的元素，常因作者未写初始隐藏而在开局堆叠
       hideUntilMove: firstFadeTime === Infinity,
-      firstMoveTime: firstFadeTime === Infinity ? this.findFirstMoveTime(s.commands) : Infinity,
+      firstMoveTime:
+        firstFadeTime === Infinity ? this.findFirstMoveTime(s.commands) : Infinity,
     });
     }
   }
@@ -1287,13 +1288,16 @@ export abstract class GameEngine {
   private getActiveStoryboardCommands(
     sprite: StoryboardSprite,
     health: number,
+    time: number,
   ): {
     all: StoryboardCommand[];
     byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>>;
   } {
     const cached = this.storyboardFlat.get(sprite);
     if (!cached) return { all: [], byType: {} };
-    const activeTriggers = cached.triggers.filter((t) => this.isTriggerActive(t, health));
+    const activeTriggers = cached.triggers.filter(
+      (t) => this.isTriggerActive(t, health) && time >= t.startTime && time <= t.endTime,
+    );
     if (activeTriggers.length === 0) return cached;
 
     const triggerCommands: StoryboardCommand[] = [];
@@ -1441,11 +1445,14 @@ export abstract class GameEngine {
     additive: boolean;
   } {
     const flat = this.storyboardFlat.get(sprite);
-    const cached = this.getActiveStoryboardCommands(sprite, health);
-    // 如果 sprite 有触发器但当前未激活，默认隐藏，避免 Failing/HitSound 触发器控制的元素堆叠
+    const cached = this.getActiveStoryboardCommands(sprite, health, time);
+    // 仅当 sprite 完全由触发器控制且当前触发器未生效时才隐藏；有普通命令时按普通命令走
     const hasTriggers = (flat?.triggers.length ?? 0) > 0;
-    const activeTriggers = (flat?.triggers ?? []).filter((t) => this.isTriggerActive(t, health));
-    const triggersHidden = hasTriggers && activeTriggers.length === 0;
+    const triggerOnly = (flat?.all.length ?? 0) === 0;
+    const activeTriggers = (flat?.triggers ?? []).filter(
+      (t) => this.isTriggerActive(t, health) && time >= t.startTime && time <= t.endTime,
+    );
+    const triggersHidden = hasTriggers && triggerOnly && activeTriggers.length === 0;
 
     if (cached.all.length === 0) {
       return {
@@ -1454,7 +1461,7 @@ export abstract class GameEngine {
         scaleX: 1,
         scaleY: 1,
         rotation: 0,
-        alpha: flat?.hasFadeCommand || triggersHidden ? 0 : 1,
+        alpha: triggersHidden ? 0 : flat?.hasFadeCommand ? 0 : 1,
         colorR: 255,
         colorG: 255,
         colorB: 255,
@@ -1481,7 +1488,8 @@ export abstract class GameEngine {
     const firstFadeTime = Math.min(spriteFirstFade, activeFirstFade);
 
     // 启发式：没有 F 命令但有移动命令的元素，在首个移动命令前隐藏，避免开局堆叠
-    const moveHidden = flat?.hideUntilMove && (flat.firstMoveTime ?? Infinity) > 0 && time < (flat.firstMoveTime ?? Infinity);
+    const moveHidden =
+      flat?.hideUntilMove && Number.isFinite(flat.firstMoveTime) && time < flat.firstMoveTime;
 
     const state = {
       x: sprite.x,
@@ -1498,7 +1506,7 @@ export abstract class GameEngine {
       additive: false,
     };
 
-    if ((triggersHidden && firstFadeTime === Infinity) || moveHidden) {
+    if (triggersHidden || moveHidden) {
       state.alpha = 0;
     }
 
