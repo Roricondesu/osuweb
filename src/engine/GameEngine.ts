@@ -122,6 +122,8 @@ export abstract class GameEngine {
       all: StoryboardCommand[];
       byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>>;
       triggers: import("@/types").StoryboardTriggerCommand[];
+      firstFadeTime: number;
+      hasFadeCommand: boolean;
     }
   >();
   protected showStoryboard = true;
@@ -181,7 +183,25 @@ export abstract class GameEngine {
         arr.push(c);
         byType[c.type] = arr;
       }
-      this.storyboardFlat.set(s, { all: normal, byType, triggers });
+      // 统计所有 F 命令（含触发器内）的最早开始时间；存在 F 命令的元素默认隐藏
+      let firstFadeTime = Infinity;
+      const collectFade = (commands: StoryboardCommand[]) => {
+        for (const c of commands) {
+          if (c.type === "F") {
+            firstFadeTime = Math.min(firstFadeTime, c.startTime);
+          } else if (c.type === "T") {
+            collectFade(c.commands);
+          }
+        }
+      };
+      collectFade(s.commands);
+      this.storyboardFlat.set(s, {
+        all: normal,
+        byType,
+        triggers,
+        firstFadeTime,
+        hasFadeCommand: firstFadeTime !== Infinity,
+      });
     }
   }
 
@@ -423,10 +443,13 @@ export abstract class GameEngine {
   protected judgeHit(obj: HitObject, time: number, x = 0, y = 0): Judgement {
     const delta = time - obj.time;
     const j = judgeByDelta(delta, this.windows);
+    const alreadyJudged = obj.judged;
     obj.judged = true;
     obj.judgement = j;
-    this.submitJudgement(j);
-    this.spawnJudgePopup(j, x, y, time);
+    if (!alreadyJudged) {
+      this.submitJudgement(j);
+      this.spawnJudgePopup(j, x, y, time);
+    }
     if (j !== "miss") this.playHitSound(obj);
     return j;
   }
@@ -1397,6 +1420,7 @@ export abstract class GameEngine {
     flipV: boolean;
     additive: boolean;
   } {
+    const flat = this.storyboardFlat.get(sprite);
     const cached = this.getActiveStoryboardCommands(sprite, health);
     if (cached.all.length === 0) {
       return {
@@ -1405,7 +1429,7 @@ export abstract class GameEngine {
         scaleX: 1,
         scaleY: 1,
         rotation: 0,
-        alpha: 1,
+        alpha: flat?.hasFadeCommand ? 0 : 1,
         colorR: 255,
         colorG: 255,
         colorB: 255,
@@ -1426,8 +1450,10 @@ export abstract class GameEngine {
       return list && list.length > 0 ? list[0].startTime : Infinity;
     };
 
-    // 仅 Fade 命令决定可见性；没有 F 命令时默认可见（兼容简单谱面）
-    const firstFadeTime = firstCmdStart("F");
+    // 仅 Fade 命令决定可见性；存在 F 命令的元素默认隐藏，避免触发器/循环控制的元素开局堆叠
+    const spriteFirstFade = flat?.firstFadeTime ?? Infinity;
+    const activeFirstFade = firstCmdStart("F");
+    const firstFadeTime = Math.min(spriteFirstFade, activeFirstFade);
 
     const state = {
       x: sprite.x,

@@ -85,11 +85,14 @@ export class TaikoEngine extends GameEngine {
       (obj) => Math.abs(time - obj.time),
     );
     if (best && Math.abs(time - best.time) <= win300) {
-      const blue = this.isBlue(best);
-      this.tryHit(blue);
+      const j = this.judgeHit(best, time, this.judgePos, this.crossPos);
+      this.spawnHitEffect(this.judgePos, this.crossPos, j, time);
       if (this.isBig(best)) {
-        this.tryHit(blue);
+        // 大音符需要左右键同时按下：再次命中同一物件（只播放第二声音效/效果，不重复计分）
+        this.judgeHit(best, time, this.judgePos, this.crossPos);
+        this.spawnHitEffect(this.judgePos, this.crossPos, j, time);
       }
+      this.pressCursor(time);
     }
     this.cursorTargetX = this.judgePos;
     this.cursorTargetY = this.crossPos;
@@ -216,7 +219,7 @@ export class TaikoEngine extends GameEngine {
     ctx.restore();
   }
 
-  /** 音符：空心圆环，中心透明，避免遮挡 */
+  /** 音符：带轻微毛玻璃实心的圆环 */
   private drawNote(x: number, y: number, obj: HitObject, time: number): void {
     const blue = this.isBlue(obj);
     const big = this.isBig(obj);
@@ -227,6 +230,15 @@ export class TaikoEngine extends GameEngine {
     const { ctx } = this.ctx;
     ctx.save();
     ctx.globalAlpha = alpha;
+
+    // 毛玻璃实心填充（轻微半透明径向渐变）
+    ctx.beginPath();
+    ctx.arc(x, y, r - 2, 0, Math.PI * 2);
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r - 2);
+    grad.addColorStop(0, "rgba(255,255,255,0.22)");
+    grad.addColorStop(1, blue ? "rgba(77,166,255,0.12)" : "rgba(255,94,94,0.12)");
+    ctx.fillStyle = grad;
+    ctx.fill();
 
     // 外圈
     ctx.beginPath();
