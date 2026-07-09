@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "@/store/useGameStore";
 import { createEngine, type GameEngine, type ScoreState } from "@/engine";
 import { GlassButton } from "@/components/glass/GlassButton";
-import { RotateCcw, ArrowLeft, Pause, Play, Menu, X, Maximize, Minimize } from "lucide-react";
+import { RotateCcw, ArrowLeft, Pause, Play, Menu, X, Maximize, Minimize, Eye } from "lucide-react";
 import type { GameMode, Replay } from "@/types";
 import { MODE_LABEL } from "@/types";
 import { useOrientation } from "@/hooks/useOrientation";
@@ -55,6 +55,8 @@ export default function Game() {
   const [availableReplays, setAvailableReplays] = useState<Replay[]>([]);
   const [selectedReplay, setSelectedReplay] = useState<Replay | null>(null);
   const [justSavedReplay, setJustSavedReplay] = useState(false);
+  const lastReplayRef = useRef<Replay | null>(null);
+  const autoStartRef = useRef(false);
 
   // 加载歌词（优先使用下载时预加载的，没有则实时拉取）
   useEffect(() => {
@@ -159,6 +161,7 @@ export default function Game() {
                 score: engine.buildReplayScore(),
               };
               saveReplay(replay);
+              lastReplayRef.current = replay;
               setJustSavedReplay(true);
               setAvailableReplays(getReplaysForBeatmap(set.setId, beatmap.id));
             }
@@ -210,6 +213,28 @@ export default function Game() {
     engine.restart();
     setPhase("playing");
   }, []);
+
+  // 查看刚结束游戏的回放：用录制的回放重建引擎并自动开始
+  const handleWatchReplay = useCallback(() => {
+    const replay = lastReplayRef.current;
+    if (!replay) return;
+    autoStartRef.current = true;
+    setJustSavedReplay(false);
+    setSelectedReplay(replay);
+    setPhase("loading");
+  }, []);
+
+  // 引擎重建后若标记了自动开始，则立即启动
+  useEffect(() => {
+    if (phase === "ready" && autoStartRef.current) {
+      const engine = engineRef.current;
+      if (engine) {
+        autoStartRef.current = false;
+        setPhase("playing");
+        engine.start();
+      }
+    }
+  }, [phase]);
 
   // 输入处理
   useEffect(() => {
@@ -298,7 +323,17 @@ export default function Game() {
 
   // 结算页
   if (phase === "finished" && score) {
-    return <ResultScreen score={score} onRetry={handleRestart} onBack={() => navigate(-1)} mode={gameMode} justSaved={justSavedReplay} />;
+    return (
+      <ResultScreen
+        score={score}
+        onRetry={handleRestart}
+        onBack={() => navigate(-1)}
+        mode={gameMode}
+        justSaved={justSavedReplay}
+        canWatchReplay={justSavedReplay && !!lastReplayRef.current}
+        onWatchReplay={handleWatchReplay}
+      />
+    );
   }
 
   return (
@@ -314,6 +349,34 @@ export default function Game() {
           touchAction: "none",
         }}
       />
+
+      {/* 回放模式标识 */}
+      {selectedReplay && phase === "playing" && (
+        <div
+          style={{
+            position: "absolute",
+            top: "env(safe-area-inset-top, 0px)",
+            left: 12,
+            paddingTop: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "6px 12px",
+            borderRadius: 12,
+            background: "rgba(0,0,0,0.4)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            color: "#ff9100",
+            fontSize: 12,
+            fontWeight: 700,
+            pointerEvents: "none",
+            zIndex: 10,
+            marginTop: 4,
+          }}
+        >
+          <Eye size={14} /> 回放中
+        </div>
+      )}
 
       {/* HUD 浮层（右上角聚合菜单） */}
       <div
@@ -512,7 +575,9 @@ const ResultScreen: React.FC<{
   onRetry: () => void;
   onBack: () => void;
   justSaved?: boolean;
-}> = ({ score, mode, onRetry, onBack, justSaved }) => {
+  canWatchReplay?: boolean;
+  onWatchReplay?: () => void;
+}> = ({ score, mode, onRetry, onBack, justSaved, canWatchReplay, onWatchReplay }) => {
   const total =
     score.judgements["300"] +
     score.judgements["100"] +
@@ -577,6 +642,11 @@ const ResultScreen: React.FC<{
           <GlassButton onClick={onBack} style={{ flex: 1 }}>
             <ArrowLeft size={14} /> 返回
           </GlassButton>
+          {canWatchReplay && onWatchReplay && (
+            <GlassButton onClick={onWatchReplay} style={{ flex: 1 }}>
+              <Eye size={14} /> 查看回放
+            </GlassButton>
+          )}
           <GlassButton onClick={onRetry} accent style={{ flex: 1 }}>
             <RotateCcw size={14} /> 再来一次
           </GlassButton>
