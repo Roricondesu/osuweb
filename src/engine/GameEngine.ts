@@ -1422,6 +1422,11 @@ export abstract class GameEngine {
   } {
     const flat = this.storyboardFlat.get(sprite);
     const cached = this.getActiveStoryboardCommands(sprite, health);
+    // 如果 sprite 有触发器但当前未激活，默认隐藏，避免 Failing/HitSound 触发器控制的元素堆叠
+    const hasTriggers = (flat?.triggers.length ?? 0) > 0;
+    const activeTriggers = (flat?.triggers ?? []).filter((t) => this.isTriggerActive(t, health));
+    const triggersHidden = hasTriggers && activeTriggers.length === 0;
+
     if (cached.all.length === 0) {
       return {
         x: sprite.x,
@@ -1429,7 +1434,7 @@ export abstract class GameEngine {
         scaleX: 1,
         scaleY: 1,
         rotation: 0,
-        alpha: flat?.hasFadeCommand ? 0 : 1,
+        alpha: flat?.hasFadeCommand || triggersHidden ? 0 : 1,
         colorR: 255,
         colorG: 255,
         colorB: 255,
@@ -1450,7 +1455,7 @@ export abstract class GameEngine {
       return list && list.length > 0 ? list[0].startTime : Infinity;
     };
 
-    // 仅 Fade 命令决定可见性；存在 F 命令的元素默认隐藏，避免触发器/循环控制的元素开局堆叠
+    // 仅 Fade 命令决定可见性；存在 F 命令或触发器未激活的元素默认隐藏
     const spriteFirstFade = flat?.firstFadeTime ?? Infinity;
     const activeFirstFade = firstCmdStart("F");
     const firstFadeTime = Math.min(spriteFirstFade, activeFirstFade);
@@ -1469,6 +1474,10 @@ export abstract class GameEngine {
       flipV: false,
       additive: false,
     };
+
+    if (triggersHidden && firstFadeTime === Infinity) {
+      state.alpha = 0;
+    }
 
     const mx = lastCmd("MX");
     if (mx) {

@@ -203,8 +203,11 @@ const parseCommand = (line: string): StoryboardCommand | null => {
     case "R":
     case "C":
       // 这些命令都有 endTime 在 parts[3]；空字符串表示与 startTime 相同
-      if (parts.length > 3 && parts[3].trim() !== "" && !Number.isNaN(Number(parts[3]))) {
-        endTime = Number(parts[3]);
+      if (parts.length > 3) {
+        const endPart = parts[3].trim();
+        if (endPart !== "" && !Number.isNaN(Number(endPart))) {
+          endTime = Number(endPart);
+        }
         paramStart = 4;
       }
       break;

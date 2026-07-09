@@ -87,11 +87,6 @@ export class TaikoEngine extends GameEngine {
     if (best && Math.abs(time - best.time) <= win300) {
       const j = this.judgeHit(best, time, this.judgePos, this.crossPos);
       this.spawnHitEffect(this.judgePos, this.crossPos, j, time);
-      if (this.isBig(best)) {
-        // 大音符需要左右键同时按下：再次命中同一物件（只播放第二声音效/效果，不重复计分）
-        this.judgeHit(best, time, this.judgePos, this.crossPos);
-        this.spawnHitEffect(this.judgePos, this.crossPos, j, time);
-      }
       this.pressCursor(time);
     }
     this.cursorTargetX = this.judgePos;
@@ -160,7 +155,7 @@ export class TaikoEngine extends GameEngine {
     ctx.restore();
   }
 
-  /** 底部虚拟太鼓 */
+  /** 底部虚拟太鼓 - 毛玻璃风格 */
   private drawVirtualDrum(): void {
     const { ctx, width, height } = this.ctx;
     const cx = width / 2;
@@ -170,39 +165,47 @@ export class TaikoEngine extends GameEngine {
     ctx.save();
     // 鼓身阴影
     ctx.beginPath();
-    ctx.arc(cx + 3, cy + 3, r, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.arc(cx + 4, cy + 4, r, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
     ctx.fill();
 
-    // 鼓身 rim
+    // 鼓身外圈（毛玻璃边框）
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = "#5c3a21";
-    ctx.fill();
     ctx.lineWidth = 5;
-    ctx.strokeStyle = "#8b5a33";
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
     ctx.stroke();
 
-    // 鼓面
+    // 鼓身毛玻璃底色
     ctx.beginPath();
-    ctx.arc(cx, cy, r - 7, 0, Math.PI * 2);
-    ctx.fillStyle = "#f5e6d3";
+    ctx.arc(cx, cy, r - 2, 0, Math.PI * 2);
+    const baseGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r - 2);
+    baseGrad.addColorStop(0, "rgba(255,255,255,0.18)");
+    baseGrad.addColorStop(1, "rgba(255,255,255,0.06)");
+    ctx.fillStyle = baseGrad;
     ctx.fill();
 
-    // 左红（Don）右蓝（Katsu）分区
+    // 左红（Don）右蓝（Katsu）分区 - 毛玻璃色块
     ctx.beginPath();
     ctx.arc(cx, cy, r - 7, Math.PI / 2, -Math.PI / 2);
-    ctx.fillStyle = "rgba(255,94,94,0.22)";
+    const redGrad = ctx.createRadialGradient(cx - r * 0.3, cy, 0, cx - r * 0.3, cy, r * 0.6);
+    redGrad.addColorStop(0, "rgba(255,94,94,0.32)");
+    redGrad.addColorStop(1, "rgba(255,94,94,0.10)");
+    ctx.fillStyle = redGrad;
     ctx.fill();
+
     ctx.beginPath();
     ctx.arc(cx, cy, r - 7, -Math.PI / 2, Math.PI / 2);
-    ctx.fillStyle = "rgba(77,166,255,0.22)";
+    const blueGrad = ctx.createRadialGradient(cx + r * 0.3, cy, 0, cx + r * 0.3, cy, r * 0.6);
+    blueGrad.addColorStop(0, "rgba(77,166,255,0.32)");
+    blueGrad.addColorStop(1, "rgba(77,166,255,0.10)");
+    ctx.fillStyle = blueGrad;
     ctx.fill();
 
     // 中心环
     ctx.beginPath();
     ctx.arc(cx, cy, r * 0.35, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(0,0,0,0.12)";
+    ctx.strokeStyle = "rgba(255,255,255,0.28)";
     ctx.lineWidth = 2;
     ctx.stroke();
 
