@@ -121,6 +121,7 @@ export abstract class GameEngine {
     {
       all: StoryboardCommand[];
       byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>>;
+      triggers: import("@/types").StoryboardTriggerCommand[];
     }
   >();
   protected showStoryboard = true;
@@ -163,18 +164,24 @@ export abstract class GameEngine {
     this.prepareStoryboardCommands();
   }
 
-  /** 预先展开并排序 storyboard 命令，避免每帧重复计算 */
+  /** 预先展开并排序 storyboard 命令，避免每帧重复计算；触发器保留运行时处理 */
   private prepareStoryboardCommands(): void {
     for (const s of this.beatmap.storyboard || []) {
       const all = this.flattenStoryboardCommands(s.commands);
-      all.sort((a, b) => a.startTime - b.startTime);
-      const byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>> = {};
+      const triggers: import("@/types").StoryboardTriggerCommand[] = [];
+      const normal: StoryboardCommand[] = [];
       for (const c of all) {
+        if (c.type === "T") triggers.push(c);
+        else normal.push(c);
+      }
+      normal.sort((a, b) => a.startTime - b.startTime);
+      const byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>> = {};
+      for (const c of normal) {
         const arr = byType[c.type] || [];
         arr.push(c);
         byType[c.type] = arr;
       }
-      this.storyboardFlat.set(s, { all, byType });
+      this.storyboardFlat.set(s, { all: normal, byType, triggers });
     }
   }
 
@@ -1193,9 +1200,80 @@ export abstract class GameEngine {
 
   // ===== Storyboard 渲染 =====
 
-  /** 把循环/触发器命令再展开（parser 已展开过，这里兜底并排序） */
+  /** 把循环/触发器命令再展开（parser 已展开顶层循环，这里兜底触发器内的循环） */
   private flattenStoryboardCommands(commands: StoryboardCommand[]): StoryboardCommand[] {
-    return commands;
+    const out: StoryboardCommand[] = [];
+    for (const c of commands) {
+      if (c.type === "L") {
+        const loopDuration =
+          c.commands.length > 0
+            ? Math.max(1, ...c.commands.map((cmd) => Math.max(cmd.endTime, cmd.startTime)))
+            : 1;
+        for (let i = 0; i < c.loopCount; i++) {
+          const base = i * loopDuration;
+          out.push(
+            ...this.flattenStoryboardCommands(
+              c.commands.map((cmd) => ({
+                ...cmd,
+                startTime: base + cmd.startTime,
+                endTime: base + cmd.endTime,
+              })),
+            ),
+          );
+        }
+      } else if (c.type === "T") {
+        // 保留触发器结构，运行时根据血量判断
+        out.push(c);
+      } else {
+        out.push(c);
+      }
+    }
+    return out;
+  }
+
+  /** 根据当前血量判断触发器是否生效（支持 Passing / Failing） */
+  private isTriggerActive(trigger: import("@/types").StoryboardTriggerCommand, health: number): boolean {
+    const name = trigger.triggerName.trim().toLowerCase();
+    if (name === "passing") return health > 0;
+    if (name === "failing") return health <= 0;
+    // 其他触发器（如 HitSound）暂不支持，默认不触发以避免错误显示
+    return false;
+  }
+
+  /** 获取当前血量下生效的命令列表（含触发器内命令） */
+  private getActiveStoryboardCommands(
+    sprite: StoryboardSprite,
+    health: number,
+  ): {
+    all: StoryboardCommand[];
+    byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>>;
+  } {
+    const cached = this.storyboardFlat.get(sprite);
+    if (!cached) return { all: [], byType: {} };
+    const activeTriggers = cached.triggers.filter((t) => this.isTriggerActive(t, health));
+    if (activeTriggers.length === 0) return cached;
+
+    const triggerCommands: StoryboardCommand[] = [];
+    for (const t of activeTriggers) {
+      // 触发器内命令时间是相对于触发器 startTime 的，需要平移；同时展开内部循环
+      const base = t.startTime;
+      const flattened = this.flattenStoryboardCommands(t.commands);
+      for (const c of flattened) {
+        triggerCommands.push({
+          ...c,
+          startTime: base + c.startTime,
+          endTime: base + c.endTime,
+        });
+      }
+    }
+    const all = [...cached.all, ...triggerCommands].sort((a, b) => a.startTime - b.startTime);
+    const byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>> = {};
+    for (const c of all) {
+      const arr = byType[c.type] || [];
+      arr.push(c);
+      byType[c.type] = arr;
+    }
+    return { all, byType };
   }
 
   private lastCommandBefore<T extends StoryboardCommand["type"]>(
@@ -1304,6 +1382,7 @@ export abstract class GameEngine {
   private evaluateStoryboardSprite(
     sprite: StoryboardSprite,
     time: number,
+    health: number,
   ): {
     x: number;
     y: number;
@@ -1318,8 +1397,8 @@ export abstract class GameEngine {
     flipV: boolean;
     additive: boolean;
   } {
-    const cached = this.storyboardFlat.get(sprite);
-    if (!cached) {
+    const cached = this.getActiveStoryboardCommands(sprite, health);
+    if (cached.all.length === 0) {
       return {
         x: sprite.x,
         y: sprite.y,
@@ -1544,7 +1623,7 @@ export abstract class GameEngine {
 
     for (const sprite of sprites) {
       if (!layers.includes(sprite.layer)) continue;
-      const state = this.evaluateStoryboardSprite(sprite, time);
+      const state = this.evaluateStoryboardSprite(sprite, time, this.score.health);
       if (state.alpha <= 0.001) continue;
       const img = this.getStoryboardImage(sprite, time);
       if (!img || !img.complete || img.naturalWidth === 0) continue;

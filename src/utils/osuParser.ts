@@ -389,8 +389,9 @@ const flattenCommands = (
         out.push(...flattenCommands(c.commands, loopBase + i * loopDuration));
       }
     } else if (c.type === "T") {
-      // 触发器简单按绝对时间展开（忽略触发条件）
-      out.push(...flattenCommands(c.commands, baseTime + c.startTime));
+      // 触发器依赖运行时条件（血量/音效等），当前无法准确判断，
+      // 直接展开会导致大量元素在不该出现时显示，因此暂不展开。
+      continue;
     } else {
       const shifted = { ...c, startTime: baseTime + c.startTime, endTime: baseTime + c.endTime };
       out.push(shifted);
