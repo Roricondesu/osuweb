@@ -3,10 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "@/store/useGameStore";
 import { createEngine, type GameEngine, type ScoreState } from "@/engine";
 import { GlassButton } from "@/components/glass/GlassButton";
-import { RotateCcw, ArrowLeft, Pause, Play, Menu, X } from "lucide-react";
+import { RotateCcw, ArrowLeft, Pause, Play, Menu, X, Maximize, Minimize } from "lucide-react";
 import type { GameMode, Replay } from "@/types";
 import { MODE_LABEL } from "@/types";
 import { useOrientation } from "@/hooks/useOrientation";
+import { useFullscreen } from "@/hooks/useFullscreen";
 import type { LyricLine } from "@/utils/neteaseLyrics";
 import { fetchLyrics } from "@/utils/lyricsProvider";
 import { getReplaysForBeatmap, saveReplay } from "@/utils/replayStorage";
@@ -40,6 +41,7 @@ export default function Game() {
   const lyricsSource = useGameStore((s) => s.settings.lyricsSource);
   const updateRuntime = useGameStore((s) => s.updateRuntime);
   const endGame = useGameStore((s) => s.endGame);
+  const { toggle: toggleFullscreen, active: isFullscreen } = useFullscreen();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -384,6 +386,29 @@ export default function Game() {
                 <Pause size={18} fill="currentColor" />
               </button>
             )}
+            <button
+              onClick={() => {
+                toggleFullscreen();
+                setMenuOpen(false);
+              }}
+              aria-label={isFullscreen ? "退出全屏" : "进入全屏"}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                border: "none",
+                background: "rgba(0,0,0,0.4)",
+                color: "#fff",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+              }}
+            >
+              {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+            </button>
             <button
               onClick={() => navigate(-1)}
               aria-label="退出"

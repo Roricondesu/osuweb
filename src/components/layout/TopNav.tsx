@@ -2,8 +2,9 @@ import React from "react";
 import { useGameStore } from "@/store/useGameStore";
 import { useTheme } from "@/hooks/useTheme";
 import { useLocation } from "react-router-dom";
-import { Home, Search, Settings, Music2, HardDrive } from "lucide-react";
+import { Home, Search, Settings, Music2, HardDrive, Maximize, Minimize } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useFullscreen } from "@/hooks/useFullscreen";
 
 const NAV_ITEMS = [
   { to: "/", icon: Home, label: "首页" },
@@ -16,6 +17,7 @@ export const TopNav: React.FC = () => {
   useTheme();
   const theme = useGameStore((s) => s.settings.theme);
   const location = useLocation();
+  const { toggle, active } = useFullscreen();
   // 游戏页面隐藏导航
   if (location.pathname.startsWith("/game")) return null;
 
@@ -88,6 +90,25 @@ export const TopNav: React.FC = () => {
             );
           })}
         </nav>
+        <button
+          onClick={toggle}
+          aria-label={active ? "退出全屏" : "进入全屏"}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 12,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: active ? "var(--accent-soft)" : "transparent",
+            color: active ? "var(--accent)" : "var(--text-secondary)",
+            border: "none",
+            cursor: "pointer",
+            transition: "background 0.2s ease, color 0.2s ease",
+          }}
+        >
+          {active ? <Minimize size={18} /> : <Maximize size={18} />}
+        </button>
       </div>
     </header>
   );

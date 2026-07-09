@@ -347,6 +347,7 @@ export interface Settings {
   showStoryboard: boolean;
   backgroundDim: number; // 0-1，背景变暗强度
   forceLandscape: boolean; // 游戏内强制横屏
+  fullscreen: boolean; // 启动/退出全屏
 
   // 光标 / Auto
   showCursorTrail: boolean; // 显示光标拖尾
@@ -375,6 +376,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showStoryboard: true,
   backgroundDim: 0.68,
   forceLandscape: false,
+  fullscreen: false,
   showLyrics: true,
   lyricsSource: "auto",
   showCursorTrail: true,

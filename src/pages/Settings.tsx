@@ -1,9 +1,27 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { useGameStore } from "@/store/useGameStore";
 import { GlassSwitch, GlassSlider } from "@/components/glass";
-import { Moon, Volume2, Clock, Palette, Info, Gamepad2, Search, Download, Image, Music, Activity } from "lucide-react";
+import {
+  Moon,
+  Volume2,
+  Clock,
+  Palette,
+  Info,
+  Gamepad2,
+  Search,
+  Download,
+  Image,
+  Music,
+  Activity,
+  ChevronDown,
+  Maximize,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 import type { Settings } from "@/types";
+import { DEFAULT_SETTINGS } from "@/types";
 import { checkApiHealth, type ApiHealthResult } from "@/utils/apiHealth";
+import { deleteReplay, loadReplays } from "@/utils/replayStorage";
 
 const ACCENTS = [
   { key: "#0a84ff", label: "蓝" },
@@ -14,21 +32,40 @@ const ACCENTS = [
   { key: "#ff66aa", label: "粉" },
 ];
 
-const Section: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode; delay?: number }> = ({
-  icon,
-  title,
-  children,
-  delay = 1,
-}) => (
+const Section: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+  delay?: number;
+  open?: boolean;
+  onToggle?: () => void;
+}> = ({ icon, title, children, delay = 1, open = true, onToggle }) => (
   <section className={`animate-enter animate-enter-${delay}`}>
     <div className="solid-card p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <span style={{ color: "var(--text-secondary)" }}>{icon}</span>
-        <h2 className="text-base font-semibold md:text-lg" style={{ color: "var(--text-primary)" }}>
-          {title}
-        </h2>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="mb-4 flex w-full items-center justify-between"
+        style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
+      >
+        <div className="flex items-center gap-2">
+          <span style={{ color: "var(--text-secondary)" }}>{icon}</span>
+          <h2 className="text-base font-semibold md:text-lg" style={{ color: "var(--text-primary)" }}>
+            {title}
+          </h2>
+        </div>
+        <ChevronDown
+          size={18}
+          style={{
+            color: "var(--text-secondary)",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+        />
+      </button>
+      <div className={`collapsible-content ${open ? "open" : ""}`}>
+        <div className="collapsible-inner">{children}</div>
       </div>
-      {children}
     </div>
   </section>
 );
@@ -39,6 +76,41 @@ export default function Settings() {
   const scheme = settings.theme === "dark" ? "dark" : "light";
   const [health, setHealth] = React.useState<ApiHealthResult | null>(null);
   const [checking, setChecking] = React.useState(false);
+  const [openSections, setOpenSections] = useState<Set<string>>(
+    () =>
+      new Set([
+        "appearance",
+        "audio",
+        "timing",
+        "game",
+        "search",
+        "network",
+        "download",
+        "display",
+        "lyrics",
+        "advanced",
+        "about",
+      ]),
+  );
+
+  const toggleSection = useCallback((id: string) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const resetSettings = useCallback(() => {
+    (Object.keys(DEFAULT_SETTINGS) as Array<keyof Settings>).forEach((key) => {
+      updateSetting(key, DEFAULT_SETTINGS[key]);
+    });
+  }, [updateSetting]);
+
+  const clearReplays = useCallback(() => {
+    loadReplays().forEach((r) => deleteReplay(r.id));
+  }, []);
 
   const runCheck = async () => {
     setChecking(true);
@@ -53,7 +125,7 @@ export default function Settings() {
 
   return (
     <div className="page-shell space-y-4">
-      <Section icon={<Moon size={18} />} title="外观" delay={1}>
+      <Section icon={<Moon size={18} />} title="外观" delay={1} open={openSections.has("appearance")} onToggle={() => toggleSection("appearance")}>
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
@@ -101,7 +173,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section icon={<Volume2 size={18} />} title="音量" delay={2}>
+      <Section icon={<Volume2 size={18} />} title="音量" delay={2} open={openSections.has("audio")} onToggle={() => toggleSection("audio")}>
         <div>
           <div className="mb-1 flex items-center justify-between text-sm">
             <span style={{ color: "var(--text-primary)" }}>音乐音量</span>
@@ -121,7 +193,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section icon={<Clock size={18} />} title="判定偏移" delay={3}>
+      <Section icon={<Clock size={18} />} title="判定偏移" delay={3} open={openSections.has("timing")} onToggle={() => toggleSection("timing")}>
         <div>
           <div className="mb-1 flex items-center justify-between text-sm">
             <span style={{ color: "var(--text-primary)" }}>音频偏移（ms）</span>
@@ -145,7 +217,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section icon={<Gamepad2 size={18} />} title="游戏" delay={4}>
+      <Section icon={<Gamepad2 size={18} />} title="游戏" delay={4} open={openSections.has("game")} onToggle={() => toggleSection("game")}>
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
@@ -253,7 +325,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section icon={<Search size={18} />} title="搜索" delay={5}>
+      <Section icon={<Search size={18} />} title="搜索" delay={5} open={openSections.has("search")} onToggle={() => toggleSection("search")}>
         <div className="flex flex-col gap-4">
           <div>
             <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>搜索源</div>
@@ -292,7 +364,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section icon={<Activity size={18} />} title="连接检测" delay={5}>
+      <Section icon={<Activity size={18} />} title="连接检测" delay={5} open={openSections.has("network")} onToggle={() => toggleSection("network")}>
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div>
@@ -336,7 +408,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section icon={<Download size={18} />} title="下载" delay={6}>
+      <Section icon={<Download size={18} />} title="下载" delay={6} open={openSections.has("download")} onToggle={() => toggleSection("download")}>
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>下载完整谱面包</div>
@@ -351,8 +423,21 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section icon={<Image size={18} />} title="画面" delay={7}>
+      <Section icon={<Image size={18} />} title="画面" delay={7} open={openSections.has("display")} onToggle={() => toggleSection("display")}>
         <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>全屏模式</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>切换浏览器全屏，等同 F11</div>
+            </div>
+            <GlassSwitch
+              checked={settings.fullscreen}
+              onCheckedChange={(c) => updateSetting("fullscreen", c)}
+              scheme={scheme}
+              ariaLabel="全屏模式"
+            />
+          </div>
+
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示 Storyboard</div>
@@ -399,7 +484,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section icon={<Music size={18} />} title="歌词" delay={8}>
+      <Section icon={<Music size={18} />} title="歌词" delay={8} open={openSections.has("lyrics")} onToggle={() => toggleSection("lyrics")}>
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
@@ -438,7 +523,50 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section icon={<Info size={18} />} title="关于" delay={9}>
+      <Section icon={<RotateCcw size={18} />} title="高级" delay={9} open={openSections.has("advanced")} onToggle={() => toggleSection("advanced")}>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>恢复默认设置</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>将所有选项重置为初始值</div>
+            </div>
+            <button
+              onClick={resetSettings}
+              className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95"
+              style={{
+                border: "1px solid var(--accent)",
+                color: "var(--accent)",
+                background: "var(--accent-soft)",
+                cursor: "pointer",
+              }}
+            >
+              重置
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>清除本地回放</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>删除所有已保存的游戏回放</div>
+            </div>
+            <button
+              onClick={clearReplays}
+              className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95"
+              style={{
+                border: "1px solid #ff375f",
+                color: "#ff375f",
+                background: "rgba(255, 55, 95, 0.12)",
+                cursor: "pointer",
+              }}
+            >
+              <Trash2 size={12} style={{ display: "inline-block", verticalAlign: "middle", marginRight: 4 }} />
+              清除
+            </button>
+          </div>
+        </div>
+      </Section>
+
+      <Section icon={<Info size={18} />} title="关于" delay={10} open={openSections.has("about")} onToggle={() => toggleSection("about")}>
         <div className="space-y-2 text-sm" style={{ color: "var(--text-secondary)" }}>
           <p>
             <strong style={{ color: "var(--text-primary)" }}>osu! game</strong> · 移动端节奏游戏

@@ -100,7 +100,30 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 .page-transition {
-  animation: page-fade-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: page-fade-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-enter,
+  .page-transition {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 可折叠区块 */
+.collapsible-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.collapsible-content.open {
+  grid-template-rows: 1fr;
+}
+.collapsible-inner {
+  overflow: hidden;
 }
 
 @keyframes spin-slow {
