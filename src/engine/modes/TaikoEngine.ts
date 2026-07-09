@@ -20,6 +20,9 @@ const MODE_COLOR = "#ff9100";
 export class TaikoEngine extends GameEngine {
   private judgePos = 0;
   private crossPos = 0;
+  // 同一侧连续输入的最小间隔，防止一次物理按键被事件系统触发多次
+  private readonly HIT_COOLDOWN = 40;
+  private lastHitTime: [number, number] = [-Infinity, -Infinity];
 
   constructor(opts: EngineOptions) {
     super(opts);
@@ -29,6 +32,7 @@ export class TaikoEngine extends GameEngine {
   protected resetState(): void {
     super.resetState();
     this.computeLayout();
+    this.lastHitTime = [-Infinity, -Infinity];
   }
 
   protected onLayoutChange(): void { this.computeLayout(); }
@@ -40,11 +44,11 @@ export class TaikoEngine extends GameEngine {
     this.crossPos = this.isLandscape ? height / 2 : height * 0.28;
   }
 
+  // osu!taiko 音色规则：whistle(1)/clap(4)=katsu（蓝），normal/finish=don（红）
+  // finish(2) 表示大音符，需要同时或单下命中
   private isBlue(obj: HitObject): boolean {
     const hs = obj.hitSound || 0;
-    if (hs & 2) return true;
-    if (hs & 4) return true;
-    return !!obj.newCombo;
+    return (hs & 1) !== 0 || (hs & 4) !== 0;
   }
 
   private isBig(obj: HitObject): boolean {
@@ -279,18 +283,28 @@ export class TaikoEngine extends GameEngine {
   private tryHit(blue: boolean): void {
     if (this.status !== "playing") return;
     const time = this.currentTime;
+    const side = blue ? 1 : 0;
+
+    // 1. 冷却：同侧在 40ms 内只能触发一次判定
+    if (time - this.lastHitTime[side] < this.HIT_COOLDOWN) return;
+
+    // 2. 命中目标：普通音符必须颜色匹配；大音符任意一侧都可命中
     const best = this.findHitTarget(
       time,
-      (obj) => this.isBlue(obj) === blue,
+      (obj) => !obj.judged && (this.isBig(obj) || this.isBlue(obj) === blue),
       (obj) => Math.abs(time - obj.time),
     );
-    if (best) {
-      const j = this.judgeHit(best, time);
-      this.spawnHitEffect(this.judgePos, this.crossPos, j, time);
-    }
+    if (!best) return;
+
+    // 3. 必须落在实际判定窗口内，防止一次点击误判远处的音符
+    if (Math.abs(time - best.time) > this.windows["50"]) return;
+
+    this.lastHitTime[side] = time;
+    const j = this.judgeHit(best, time);
+    this.spawnHitEffect(this.judgePos, this.crossPos, j, time);
   }
 
-  public onPointerDown(x: number, _y: number): void {
+  protected handlePointerDown(x: number, _y: number): void {
     if (this.status !== "playing") return;
     // 屏幕左半边 / 虚拟鼓左半边 = Don，右半边 = Katsu
     this.tryHit(x > this.ctx.width / 2);
@@ -298,13 +312,13 @@ export class TaikoEngine extends GameEngine {
     this.pressCursor(this.currentTime);
   }
 
-  public onPointerMove = (): void => {};
-  public onPointerUp = (): void => {};
+  protected handlePointerMove = (): void => {};
+  protected handlePointerUp = (): void => {};
 
-  public onKeyDown(key: string): void {
+  protected handleKeyDown(key: string): void {
     const k = key.toLowerCase();
     if (k === "d" || k === "f") this.tryHit(false);
     else if (k === "k" || k === "j") this.tryHit(true);
   }
-  public onKeyUp = (): void => {};
+  protected handleKeyUp = (): void => {};
 }

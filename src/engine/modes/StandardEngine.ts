@@ -685,7 +685,7 @@ export class StandardEngine extends GameEngine {
     });
   }
 
-  public onPointerDown(x: number, y: number): void {
+  protected handlePointerDown(x: number, y: number): void {
     if (this.status !== "playing") return;
     const time = this.currentTime;
     this.pressCursor(time);
@@ -720,20 +720,20 @@ export class StandardEngine extends GameEngine {
     }
   }
 
-  public onPointerMove = (x: number, y: number): void => {
+  protected handlePointerMove = (x: number, y: number): void => {
     this.lastPointer = { x, y };
   };
 
-  public onPointerUp = (): void => {
+  protected handlePointerUp = (): void => {
     this.lastPointer = null;
   };
 
-  public onKeyDown(key: string): void {
+  protected handleKeyDown(key: string): void {
     if (key === "x" || key === "X" || key === "z" || key === "Z" || key === " ") {
-      if (this.lastPointer) this.onPointerDown(this.lastPointer.x, this.lastPointer.y);
-      else this.onPointerDown(this.ctx.width / 2, this.ctx.height / 2);
+      if (this.lastPointer) this.handlePointerDown(this.lastPointer.x, this.lastPointer.y);
+      else this.handlePointerDown(this.ctx.width / 2, this.ctx.height / 2);
     }
   }
 
-  public onKeyUp = (): void => {};
+  protected handleKeyUp = (): void => {};
 }

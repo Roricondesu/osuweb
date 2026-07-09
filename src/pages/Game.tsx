@@ -4,11 +4,12 @@ import { useGameStore } from "@/store/useGameStore";
 import { createEngine, type GameEngine, type ScoreState } from "@/engine";
 import { GlassButton } from "@/components/glass/GlassButton";
 import { RotateCcw, ArrowLeft, Pause, Play, Menu, X } from "lucide-react";
-import type { GameMode } from "@/types";
+import type { GameMode, Replay } from "@/types";
 import { MODE_LABEL } from "@/types";
 import { useOrientation } from "@/hooks/useOrientation";
 import type { LyricLine } from "@/utils/neteaseLyrics";
 import { fetchLyrics } from "@/utils/lyricsProvider";
+import { getReplaysForBeatmap, saveReplay } from "@/utils/replayStorage";
 
 type Phase = "loading" | "ready" | "playing" | "paused" | "finished";
 
@@ -49,6 +50,9 @@ export default function Game() {
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [availableReplays, setAvailableReplays] = useState<Replay[]>([]);
+  const [selectedReplay, setSelectedReplay] = useState<Replay | null>(null);
+  const [justSavedReplay, setJustSavedReplay] = useState(false);
 
   // 加载歌词（优先使用下载时预加载的，没有则实时拉取）
   useEffect(() => {
@@ -63,6 +67,19 @@ export default function Game() {
     });
     return () => { cancelled = true; };
   }, [set, showLyrics, lyricsSource]);
+
+  // 加载该谱面已有的回放
+  useEffect(() => {
+    if (!set || !beatmap) {
+      setAvailableReplays([]);
+      setSelectedReplay(null);
+      return;
+    }
+    const replays = getReplaysForBeatmap(set.setId, beatmap.id);
+    setAvailableReplays(replays);
+    setSelectedReplay(null);
+    setJustSavedReplay(false);
+  }, [set, beatmap]);
 
   // 加载谱面 + 创建引擎
   useEffect(() => {
@@ -109,6 +126,7 @@ export default function Game() {
         autoCursorSpeed,
         autoCircleMode,
         hitSoundVolume,
+        replay: selectedReplay ?? undefined,
         callbacks: {
           onScoreUpdate: (s) => {
             setScore({ ...s });
@@ -125,6 +143,23 @@ export default function Game() {
             setScore({ ...s });
             setPhase("finished");
             endGame();
+            // 非回放模式下自动保存本次回放
+            const engine = engineRef.current;
+            if (engine && !engine.getIsReplay() && set && beatmap) {
+              const replay: Replay = {
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                setId: set.setId,
+                beatmapId: beatmap.id,
+                mode: gameMode,
+                version: beatmap.version,
+                createdAt: Date.now(),
+                events: engine.getReplayEvents(),
+                score: engine.buildReplayScore(),
+              };
+              saveReplay(replay);
+              setJustSavedReplay(true);
+              setAvailableReplays(getReplaysForBeatmap(set.setId, beatmap.id));
+            }
           },
         },
       });
@@ -141,7 +176,7 @@ export default function Game() {
     };
     // 引擎创建依赖较多，避免音量/offset 等运行时可调设置导致整引擎重建
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume]);
+  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume, selectedReplay]);
 
   // 同步音量
   useEffect(() => {
@@ -261,7 +296,7 @@ export default function Game() {
 
   // 结算页
   if (phase === "finished" && score) {
-    return <ResultScreen score={score} onRetry={handleRestart} onBack={() => navigate(-1)} mode={gameMode} />;
+    return <ResultScreen score={score} onRetry={handleRestart} onBack={() => navigate(-1)} mode={gameMode} justSaved={justSavedReplay} />;
   }
 
   return (
@@ -400,13 +435,39 @@ export default function Game() {
             </h2>
             {phase === "ready" && (
               <p className="mt-2 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
-                点击开始后立即播放音频
+                {selectedReplay ? "回放模式：将按录制输入自动游玩" : "点击开始后立即播放音频"}
               </p>
             )}
           </div>
+          {phase === "ready" && availableReplays.length > 0 && (
+            <select
+              value={selectedReplay?.id || ""}
+              onChange={(e) => {
+                const id = e.target.value;
+                setSelectedReplay(id ? availableReplays.find((r) => r.id === id) || null : null);
+              }}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.2)",
+                background: "rgba(0,0,0,0.4)",
+                color: "#fff",
+                fontSize: 14,
+                outline: "none",
+                minWidth: 220,
+              }}
+            >
+              <option value="">新游戏</option>
+              {availableReplays.map((r) => (
+                <option key={r.id} value={r.id}>
+                  回放 {new Date(r.createdAt).toLocaleString()} · {r.score.accuracy.toFixed(2)}%
+                </option>
+              ))}
+            </select>
+          )}
           <GlassButton onClick={phase === "ready" ? handleStart : handleResume} accent style={{ padding: "14px 28px", fontSize: 16 }}>
             <Play size={18} fill="currentColor" />
-            {phase === "ready" ? "开始游戏" : "继续"}
+            {phase === "ready" ? (selectedReplay ? "播放回放" : "开始游戏") : "继续"}
           </GlassButton>
           {phase === "paused" && (
             <GlassButton onClick={handleRestart} style={{ padding: "10px 20px" }}>
@@ -425,7 +486,8 @@ const ResultScreen: React.FC<{
   mode: GameMode;
   onRetry: () => void;
   onBack: () => void;
-}> = ({ score, mode, onRetry, onBack }) => {
+  justSaved?: boolean;
+}> = ({ score, mode, onRetry, onBack, justSaved }) => {
   const total =
     score.judgements["300"] +
     score.judgements["100"] +
@@ -448,6 +510,11 @@ const ResultScreen: React.FC<{
           <h1 className="mt-2 text-3xl font-bold md:text-4xl" style={{ color: "var(--accent)" }}>
             完成！
           </h1>
+          {justSaved && (
+            <p className="mt-2 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+              回放已自动保存
+            </p>
+          )}
 
           {/* 评级 */}
           <div

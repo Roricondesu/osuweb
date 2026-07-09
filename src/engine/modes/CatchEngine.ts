@@ -340,25 +340,25 @@ export class CatchEngine extends GameEngine {
     ctx.restore();
   }
 
-  public onPointerDown(x: number, y: number): void {
+  protected handlePointerDown(x: number, y: number): void {
     if (this.status !== "playing") return;
     this.pointerDown = true;
     const max = this.isLandscape ? this.ctx.height : this.ctx.width;
     this.targetPos = clamp(this.pointerToPlate(x, y), 0, max);
   }
-  public onPointerMove = (x: number, y: number): void => {
+  protected handlePointerMove = (x: number, y: number): void => {
     if (this.status !== "playing" || !this.pointerDown) return;
     const max = this.isLandscape ? this.ctx.height : this.ctx.width;
     this.targetPos = clamp(this.pointerToPlate(x, y), 0, max);
   };
-  public onPointerUp = (): void => { this.pointerDown = false; };
+  protected handlePointerUp = (): void => { this.pointerDown = false; };
 
-  public onKeyDown(key: string): void {
+  protected handleKeyDown(key: string): void {
     const k = key.toLowerCase();
     if (k === "arrowleft" || k === "a") this.leftHeld = true;
     else if (k === "arrowright" || k === "d") this.rightHeld = true;
   }
-  public onKeyUp = (key: string): void => {
+  protected handleKeyUp = (key: string): void => {
     const k = key.toLowerCase();
     if (k === "arrowleft" || k === "a") this.leftHeld = false;
     else if (k === "arrowright" || k === "d") this.rightHeld = false;

@@ -263,6 +263,34 @@ export interface HitObject {
 
 export type Judgement = "300" | "100" | "50" | "miss";
 
+export interface ReplayEvent {
+  time: number;
+  type: "down" | "up" | "keydown" | "keyup";
+  x?: number;
+  y?: number;
+  key?: string;
+}
+
+export interface ReplayScore {
+  score: number;
+  accuracy: number;
+  combo: number;
+  maxCombo: number;
+  health: number;
+  counts: Record<Judgement, number>;
+}
+
+export interface Replay {
+  id: string;
+  setId: number;
+  beatmapId: number;
+  mode: GameMode;
+  version: string;
+  createdAt: number;
+  events: ReplayEvent[];
+  score: ReplayScore;
+}
+
 /** 已下载并解压的谱面包 */
 export interface LoadedBeatmapSet {
   setId: number;

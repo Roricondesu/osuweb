@@ -5,7 +5,7 @@
  *  - 调用子类的 update / render / onInput
  *  - 维护分数状态（通过 Judger）
  */
-import type { ParsedBeatmap, HitObject, Judgement, StoryboardSprite, StoryboardCommand } from "@/types";
+import type { ParsedBeatmap, HitObject, Judgement, StoryboardSprite, StoryboardCommand, Replay, ReplayEvent, ReplayScore } from "@/types";
 import type { LyricLine } from "@/utils/neteaseLyrics";
 import {
   createInitialScore,
@@ -60,6 +60,7 @@ export interface EngineOptions {
   autoCursorSpeed?: number;
   autoCircleMode?: boolean;
   hitSoundVolume?: number;
+  replay?: Replay;
 }
 
 export abstract class GameEngine {
@@ -106,6 +107,11 @@ export abstract class GameEngine {
   protected hitSoundVolume = 0.6;
   protected hitSoundAudios: Map<string, HTMLAudioElement> = new Map();
   protected hitSoundUrlCache: Map<string, string | null> = new Map();
+
+  // 回放
+  protected isReplay = false;
+  protected replayEvents: ReplayEvent[] = [];
+  protected replayIndex = 0;
   // 每个 URL 保留少量音频实例，避免连续播放同一音效时互相中断
   protected hitSoundAudioPool: Map<string, HTMLAudioElement[]> = new Map();
   protected hitSoundPoolIndex: Map<string, number> = new Map();
@@ -159,6 +165,11 @@ export abstract class GameEngine {
     this.autoCursorSpeed = opts.autoCursorSpeed ?? 1;
     this.autoCircleMode = opts.autoCircleMode ?? false;
     this.hitSoundVolume = opts.hitSoundVolume ?? 0.6;
+    if (opts.replay) {
+      this.isReplay = true;
+      this.replayEvents = [...opts.replay.events].sort((a, b) => a.time - b.time);
+      this.replayIndex = 0;
+    }
     if (opts.lyrics) this.lyrics = opts.lyrics;
     if (opts.backgroundUrl) this.loadBackground(opts.backgroundUrl);
     if (opts.assetUrls) {
@@ -390,6 +401,18 @@ export abstract class GameEngine {
     const dt = this.lastFrameAt ? Math.min((now - this.lastFrameAt) / 1000, 0.05) : 0;
     this.lastFrameAt = now;
     const time = this.getCurrentTime();
+
+    // 回放模式：按时间注入已录制的输入事件
+    if (this.isReplay) {
+      while (
+        this.replayIndex < this.replayEvents.length &&
+        this.replayEvents[this.replayIndex].time <= time
+      ) {
+        this.applyReplayEvent(this.replayEvents[this.replayIndex]);
+        this.replayIndex++;
+      }
+    }
+
     this.update(time);
     this.smoothCursor(dt, time);
 
@@ -665,29 +688,46 @@ export abstract class GameEngine {
     this.judgePopups = this.judgePopups.filter((p) => time - p.time < 600);
   }
 
-  /** 绘制命中爆点（带颜色和发光） */
+  /** 绘制命中爆点 - 空心渐变圆环 */
   protected drawHitEffects(time: number): void {
     const { ctx } = this.ctx;
     const colorMap: Record<Judgement, string> = {
-      "300": "#facc15",
+      "300": "#ff9ecf",
       "100": "#38bdf8",
       "50": "#4ade80",
       miss: "#ff375f",
     };
     for (const e of this.hitEffects) {
       const age = time - e.time;
+      if (age > 420) continue;
       const t = age / 420;
       const alpha = 1 - t;
-      const r = 12 + t * 44;
+      const r = 16 + t * 60;
       const color = colorMap[e.judgement];
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 16;
+
+      // 外环 - 空心
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(2, 10 * (1 - t));
       ctx.beginPath();
       ctx.arc(e.x, e.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 内环残影
+      ctx.globalAlpha = alpha * 0.45;
+      ctx.lineWidth = Math.max(1, 4 * (1 - t));
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, r * 0.55, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 中心微光点
+      ctx.globalAlpha = alpha * 0.35;
       ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 4 * (1 - t), 0, Math.PI * 2);
       ctx.fill();
+
       ctx.restore();
     }
   }
@@ -715,7 +755,7 @@ export abstract class GameEngine {
   }
 
   /** 绘制背景图 */
-  protected drawBackground(): void {
+  protected drawBackgroundImage(): void {
     const { ctx, width, height } = this.ctx;
     if (this.backgroundImage && this.backgroundLoaded) {
       ctx.save();
@@ -727,7 +767,11 @@ export abstract class GameEngine {
       ctx.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
       ctx.restore();
     }
-    // 整体变暗遮罩
+  }
+
+  /** 绘制整体变暗遮罩（覆盖在 Storyboard 之上） */
+  protected drawDimOverlay(): void {
+    const { ctx, width, height } = this.ctx;
     ctx.save();
     ctx.fillStyle = `rgba(0,0,0,${this.backgroundDim})`;
     ctx.fillRect(0, 0, width, height);
@@ -1176,6 +1220,10 @@ export abstract class GameEngine {
     this.activeIndex = 0;
     this.hitEffects = [];
     this.judgePopups = [];
+    if (!this.isReplay) {
+      this.replayEvents = [];
+    }
+    this.replayIndex = 0;
     this.cursorX = -100;
     this.cursorY = -100;
     this.cursorTargetX = -100;
@@ -1208,24 +1256,94 @@ export abstract class GameEngine {
     }
   }
 
+  /** 回放相关 */
+  public getIsReplay(): boolean {
+    return this.isReplay;
+  }
+
+  public recordReplayEvent(ev: ReplayEvent): void {
+    if (!this.isReplay) {
+      this.replayEvents.push(ev);
+    }
+  }
+
+  public getReplayEvents(): ReplayEvent[] {
+    return [...this.replayEvents];
+  }
+
+  public buildReplayScore(): ReplayScore {
+    return {
+      score: this.score.score,
+      accuracy: this.score.accuracy,
+      combo: this.score.combo,
+      maxCombo: this.score.maxCombo,
+      health: this.score.health,
+      counts: { ...this.score.judgements },
+    };
+  }
+
+  private applyReplayEvent(ev: ReplayEvent): void {
+    switch (ev.type) {
+      case "down":
+        this.handlePointerDown(ev.x ?? 0, ev.y ?? 0);
+        break;
+      case "up":
+        this.handlePointerUp(ev.x ?? 0, ev.y ?? 0);
+        break;
+      case "keydown":
+        this.handleKeyDown(ev.key ?? "");
+        break;
+      case "keyup":
+        this.handleKeyUp(ev.key ?? "");
+        break;
+    }
+  }
+
   /** 输入：按下（子类必须实现） */
-  public abstract onPointerDown(x: number, y: number): void;
+  public onPointerDown(x: number, y: number): void {
+    if (this.isReplay) return;
+    this.recordReplayEvent({ time: this.currentTime, type: "down", x, y });
+    this.handlePointerDown(x, y);
+  }
+
+  protected abstract handlePointerDown(x: number, y: number): void;
 
   /** 输入：移动（子类可选实现） */
-  public onPointerMove = (x: number, y: number): void => {
-    this.setCursorPos(x, y);
-  };
+  public onPointerMove(x: number, y: number): void {
+    if (this.isReplay) return;
+    this.handlePointerMove(x, y);
+  }
+
+  protected handlePointerMove(_x: number, _y: number): void {
+    this.setCursorPos(_x, _y);
+  }
 
   /** 输入：抬起（子类可选实现） */
-  public onPointerUp = (x: number, y: number): void => {
-    this.setCursorPos(x, y);
-  };
+  public onPointerUp(x: number, y: number): void {
+    if (this.isReplay) return;
+    this.recordReplayEvent({ time: this.currentTime, type: "up", x, y });
+    this.handlePointerUp(x, y);
+  }
+
+  protected handlePointerUp(_x: number, _y: number): void {}
 
   /** 输入：按键（子类可选实现） */
-  public onKeyDown(_key: string): void {}
+  public onKeyDown(key: string): void {
+    if (this.isReplay) return;
+    this.recordReplayEvent({ time: this.currentTime, type: "keydown", key });
+    this.handleKeyDown(key);
+  }
+
+  protected handleKeyDown(_key: string): void {}
 
   /** 输入：抬键（子类可选实现） */
-  public onKeyUp = (_key: string): void => {};
+  public onKeyUp(key: string): void {
+    if (this.isReplay) return;
+    this.recordReplayEvent({ time: this.currentTime, type: "keyup", key });
+    this.handleKeyUp(key);
+  }
+
+  protected handleKeyUp(_key: string): void {}
 
   // ===== Storyboard 渲染 =====
 
@@ -1750,8 +1868,10 @@ export abstract class GameEngine {
   /** 标准背景+Storyboard流程，子类 render() 应先调用此方法 */
   protected renderBackground(time: number): void {
     clear(this.ctx);
-    this.drawBackground();
+    // 背景图在最底层，Storyboard 在背景图之上、暗化遮罩之下
+    this.drawBackgroundImage();
     this.drawStoryboardAll(time);
+    this.drawDimOverlay();
   }
 
   /** 标准前景流程，子类 render() 末尾应调用此方法 */

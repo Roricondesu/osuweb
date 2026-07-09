@@ -250,28 +250,28 @@ export class ManiaEngine extends GameEngine {
     }
   }
 
-  public onPointerDown(x: number): void {
+  protected handlePointerDown(x: number, _y: number): void {
     if (this.status !== "playing") return;
     const col = Math.floor((x - this.startX) / this.colWidth);
     if (col < 0 || col >= this.cols) return;
     this.heldCols.add(col);
     this.tryHit(col);
   }
-  public onPointerMove = (): void => {};
-  public onPointerUp = (x: number): void => {
+  protected handlePointerMove = (): void => {};
+  protected handlePointerUp = (x: number): void => {
     const col = Math.floor((x - this.startX) / this.colWidth);
     if (col < 0 || col >= this.cols) return;
     this.releaseCol(col, this.currentTime);
   };
 
-  public onKeyDown(key: string): void {
+  protected handleKeyDown(key: string): void {
     const k = key.toLowerCase();
     const idx = this.keyMap.findIndex((m) => m.toLowerCase() === k);
     if (idx < 0) return;
     this.heldCols.add(idx);
     this.tryHit(idx);
   }
-  public onKeyUp = (key: string): void => {
+  protected handleKeyUp = (key: string): void => {
     const k = key.toLowerCase();
     const idx = this.keyMap.findIndex((m) => m.toLowerCase() === k);
     if (idx >= 0) this.releaseCol(idx, this.currentTime);
