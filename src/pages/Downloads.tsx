@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useGameStore } from "@/store/useGameStore";
 import { GlassButton } from "@/components/glass/GlassButton";
 import { ModeBadge } from "@/components/common";
-import { Trash2, Play, Music2, HardDrive, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Trash2, Play, Music2, HardDrive, AlertCircle, ChevronDown, ChevronUp, Upload } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { GameMode, Beatmap, LoadedBeatmapSet } from "@/types";
 import { MODE_FROM_ID } from "@/types";
@@ -15,9 +15,34 @@ export default function Downloads() {
   const loadDownloads = useGameStore((s) => s.loadDownloads);
   const deleteDownload = useGameStore((s) => s.deleteDownload);
   const clearDownloads = useGameStore((s) => s.clearDownloads);
+  const importBeatmapFile = useGameStore((s) => s.importBeatmapFile);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [coverError, setCoverError] = useState<Set<number>>(new Set());
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const handleImportFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const loaded = await importBeatmapFile(file);
+      if (loaded) {
+        setImportMsg({ text: `已导入：${loaded.title}`, ok: true });
+      } else {
+        setImportMsg({ text: "导入失败，请检查文件格式", ok: false });
+      }
+    } catch {
+      setImportMsg({ text: "导入失败", ok: false });
+    }
+    setImporting(false);
+    // 清空 input 以便重复导入同一文件
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setTimeout(() => setImportMsg(null), 3000);
+  }, [importBeatmapFile]);
 
   useEffect(() => {
     loadDownloads().finally(() => setLoading(false));
@@ -81,15 +106,24 @@ export default function Downloads() {
               下载管理
             </h1>
           </div>
-          {items.length > 0 && (
+          <div style={{ display: "flex", gap: 8 }}>
             <GlassButton
-              onClick={handleClear}
-              style={{ background: "rgba(255,55,95,0.15)", color: "#ff375f" }}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
             >
-              <Trash2 size={14} style={{ marginRight: 6 }} />
-              清空全部
+              <Upload size={14} style={{ marginRight: 6 }} />
+              {importing ? "导入中…" : "导入谱面"}
             </GlassButton>
-          )}
+            {items.length > 0 && (
+              <GlassButton
+                onClick={handleClear}
+                style={{ background: "rgba(255,55,95,0.15)", color: "#ff375f" }}
+              >
+                <Trash2 size={14} style={{ marginRight: 6 }} />
+                清空全部
+              </GlassButton>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -267,6 +301,35 @@ export default function Downloads() {
           <span>下载数据保存在浏览器 IndexedDB 中，清理浏览器数据会丢失。</span>
         </div>
       </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".osz,.osk"
+        style={{ display: "none" }}
+        onChange={handleImportFile}
+      />
+      {importMsg && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            padding: "10px 20px",
+            borderRadius: 12,
+            background: importMsg.ok ? "rgba(74,222,128,0.9)" : "rgba(255,55,95,0.9)",
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 600,
+            zIndex: 100,
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+          }}
+        >
+          {importMsg.text}
+        </div>
+      )}
     </div>
   );
 }

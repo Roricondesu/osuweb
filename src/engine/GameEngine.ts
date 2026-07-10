@@ -33,6 +33,7 @@ interface JudgePopup {
   y: number;
   time: number;
   scale: number;
+  judgement: Judgement;
 }
 
 export interface EngineCallbacks {
@@ -60,6 +61,7 @@ export interface EngineOptions {
   autoCursorSpeed?: number;
   autoCircleMode?: boolean;
   hitSoundVolume?: number;
+  approachMultiplier?: number;
   replay?: Replay;
 }
 
@@ -121,6 +123,9 @@ export abstract class GameEngine {
   protected backgroundImage: HTMLImageElement | null = null;
   protected backgroundLoaded = false;
   protected assetUrls: Record<string, string> = {};
+  // 谱面自带皮肤纹理
+  protected skinTextures: Map<string, HTMLImageElement> = new Map();
+  protected skinLoaded = false;
   protected storyboardImages: Map<string, HTMLImageElement> = new Map();
   protected storyboardLoaded = false;
   protected storyboardFlat = new Map<
@@ -138,6 +143,7 @@ export abstract class GameEngine {
   >();
   protected showStoryboard = true;
   protected backgroundDim = 0.68;
+  protected approachMultiplier = 1.5;
   protected showLyrics = true;
   protected lyrics: LyricLine[] = [];
   private lastFrameAt = 0;
@@ -164,6 +170,7 @@ export abstract class GameEngine {
     this.showCursor = opts.showCursor ?? false;
     this.showStoryboard = opts.showStoryboard ?? true;
     this.backgroundDim = opts.backgroundDim ?? 0.68;
+    this.approachMultiplier = opts.approachMultiplier ?? 1.5;
     this.showLyrics = opts.showLyrics ?? true;
     this.showCursorTrail = opts.showCursorTrail ?? true;
     this.showCursorPress = opts.showCursorPress ?? true;
@@ -180,6 +187,7 @@ export abstract class GameEngine {
     if (opts.assetUrls) {
       this.assetUrls = opts.assetUrls;
       this.loadStoryboardImages();
+      this.loadSkinTextures();
     }
     this.prepareStoryboardCommands();
   }
@@ -272,6 +280,52 @@ export abstract class GameEngine {
       img.src = url;
       this.storyboardImages.set(url, img);
     }
+  }
+
+  /** 加载谱面自带的皮肤纹理 */
+  private loadSkinTextures(): void {
+    const skinFiles = [
+      "hitcircle.png",
+      "hitcircleoverlay.png",
+      "approachcircle.png",
+      "hit300.png",
+      "hit300g.png",
+      "hit100.png",
+      "hit100k.png",
+      "hit50.png",
+      "hit50k.png",
+      "hit0.png",
+      "hit0k.png",
+      "sliderb0.png",
+      "sliderfollowcircle.png",
+      "reversearrow.png",
+      "followpoint.png",
+    ];
+    let loaded = 0;
+    let needed = 0;
+    for (const name of skinFiles) {
+      const url = this.findAssetUrl(name);
+      if (!url) continue;
+      needed++;
+      const img = new Image();
+      if (!url.startsWith("blob:")) img.crossOrigin = "anonymous";
+      img.onload = () => {
+        this.skinTextures.set(name.toLowerCase(), img);
+        loaded++;
+        if (loaded >= needed) this.skinLoaded = true;
+      };
+      img.onerror = () => {
+        loaded++;
+        if (loaded >= needed) this.skinLoaded = true;
+      };
+      img.src = url;
+    }
+    if (needed === 0) this.skinLoaded = true;
+  }
+
+  /** 获取皮肤纹理，不存在返回 null */
+  protected getSkinTexture(name: string): HTMLImageElement | null {
+    return this.skinTextures.get(name.toLowerCase()) || null;
   }
 
   private collectStoryboardImageUrls(sprite: StoryboardSprite): string[] {
@@ -765,6 +819,7 @@ export abstract class GameEngine {
       y,
       time,
       scale: info.scale,
+      judgement,
     });
   }
 
@@ -821,6 +876,12 @@ export abstract class GameEngine {
   /** 绘制判定文字（在传入位置弹出，向上漂移） */
   protected drawJudgePopups(time: number): void {
     const { ctx } = this.ctx;
+    const skinMap: Record<Judgement, string> = {
+      "300": "hit300.png",
+      "100": "hit100.png",
+      "50": "hit50.png",
+      miss: "hit0.png",
+    };
     for (const p of this.judgePopups) {
       const age = time - p.time;
       const t = age / 600;
@@ -831,11 +892,17 @@ export abstract class GameEngine {
       ctx.globalAlpha = alpha;
       ctx.translate(p.x, p.y + drift);
       ctx.scale(scale, scale);
-      ctx.font = `bold 24px ${GAME_FONT}`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = p.color;
-      ctx.fillText(p.text, 0, 0);
+      const skin = this.getSkinTexture(skinMap[p.judgement]);
+      if (skin) {
+        const size = 48;
+        ctx.drawImage(skin, -size / 2, -size / 2, size, size);
+      } else {
+        ctx.font = `bold 24px ${GAME_FONT}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = p.color;
+        ctx.fillText(p.text, 0, 0);
+      }
       ctx.restore();
     }
   }

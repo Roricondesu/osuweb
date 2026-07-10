@@ -468,6 +468,27 @@ export default function Settings() {
               ariaLabel="背景变暗"
             />
           </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <span style={{ color: "var(--text-primary)" }}>引导线提前</span>
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                ×{settings.approachMultiplier.toFixed(1)}
+              </span>
+            </div>
+            <p className="mb-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+              调大后引导线（引导圈）更早出现，1.0 为标准
+            </p>
+            <GlassSlider
+              value={settings.approachMultiplier}
+              min={1.0}
+              max={2.5}
+              step={0.1}
+              onChange={(v) => updateSetting("approachMultiplier", v)}
+              scheme={scheme}
+              ariaLabel="引导线提前"
+            />
+          </div>
         </div>
       </Section>
 

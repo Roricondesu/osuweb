@@ -46,7 +46,7 @@ export class StandardEngine extends GameEngine {
 
   constructor(opts: EngineOptions) {
     super(opts);
-    this.preempt = arToPreempt(opts.beatmap.ar);
+    this.preempt = arToPreempt(opts.beatmap.ar) * this.approachMultiplier;
     this.r = csToRadius(opts.beatmap.cs);
     this.precomputeObjects();
     this.onLayoutChange();
@@ -457,24 +457,57 @@ export class StandardEngine extends GameEngine {
     const approachT = clamp(1 - timeUntil / this.preempt, 0, 1);
     const color = c.comboColor;
 
-    // approach circle
+    // approach circle - 优先使用皮肤纹理
     if (approachT < 1) {
       const ar = r * (4 - 3 * approachT);
-      drawRing(this.ctx, p.x, p.y, ar, hexToRgba(color, 0.65), 2);
+      const approachSkin = this.getSkinTexture("approachcircle.png");
+      if (approachSkin) {
+        const { ctx } = this.ctx;
+        ctx.save();
+        ctx.globalAlpha = 0.85;
+        const size = ar * 2;
+        ctx.drawImage(approachSkin, p.x - size / 2, p.y - size / 2, size, size);
+        ctx.restore();
+      } else {
+        drawRing(this.ctx, p.x, p.y, ar, hexToRgba(color, 0.65), 2);
+      }
     }
 
-    // 主体圆 - 半透明毛玻璃感
-    drawGlassCircle(this.ctx, p.x, p.y, r, hexToRgba(color, GLASS_ALPHA), "rgba(255,255,255,0.7)", 2);
-    // 内圈
-    drawCircle(this.ctx, p.x, p.y, r * 0.55, hexToRgba(color, 0.7));
-
-    // combo 数字
-    drawText(this.ctx, String(c.comboNumber), p.x, p.y, {
-      font: `800 ${Math.max(12, Math.round(r * 0.9))}px ${GAME_FONT}`,
-      fillStyle: "rgba(255,255,255,0.95)",
-      align: "center",
-      baseline: "middle",
-    });
+    // 主体圆
+    const hitCircleSkin = this.getSkinTexture("hitcircle.png");
+    const overlaySkin = this.getSkinTexture("hitcircleoverlay.png");
+    if (hitCircleSkin) {
+      const { ctx } = this.ctx;
+      const size = r * 2;
+      // 先绘制底色圆（tint 为 combo 颜色）
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.drawImage(hitCircleSkin, p.x - size / 2, p.y - size / 2, size, size);
+      ctx.restore();
+      // 叠加 overlay
+      if (overlaySkin) {
+        ctx.save();
+        ctx.drawImage(overlaySkin, p.x - size / 2, p.y - size / 2, size, size);
+        ctx.restore();
+      }
+      // combo 数字
+      drawText(this.ctx, String(c.comboNumber), p.x, p.y, {
+        font: `800 ${Math.max(12, Math.round(r * 0.9))}px ${GAME_FONT}`,
+        fillStyle: "rgba(255,255,255,0.95)",
+        align: "center",
+        baseline: "middle",
+      });
+    } else {
+      // 原始 Canvas 绘制
+      drawGlassCircle(this.ctx, p.x, p.y, r, hexToRgba(color, GLASS_ALPHA), "rgba(255,255,255,0.7)", 2);
+      drawCircle(this.ctx, p.x, p.y, r * 0.55, hexToRgba(color, 0.7));
+      drawText(this.ctx, String(c.comboNumber), p.x, p.y, {
+        font: `800 ${Math.max(12, Math.round(r * 0.9))}px ${GAME_FONT}`,
+        fillStyle: "rgba(255,255,255,0.95)",
+        align: "center",
+        baseline: "middle",
+      });
+    }
   }
 
   private drawSlider(obj: HitObject, idx: number, time: number): void {
@@ -558,8 +591,16 @@ export class StandardEngine extends GameEngine {
     }
 
     // 头部圆
-    drawGlassCircle(this.ctx, pts[0].x, pts[0].y, r, hexToRgba(color, GLASS_ALPHA), "rgba(255,255,255,0.85)", 2);
-    drawCircle(this.ctx, pts[0].x, pts[0].y, r * 0.55, hexToRgba(color, 0.55));
+    const hitCircleSkin = this.getSkinTexture("hitcircle.png");
+    const overlaySkin = this.getSkinTexture("hitcircleoverlay.png");
+    if (hitCircleSkin) {
+      const size = r * 2;
+      ctx.drawImage(hitCircleSkin, pts[0].x - size / 2, pts[0].y - size / 2, size, size);
+      if (overlaySkin) ctx.drawImage(overlaySkin, pts[0].x - size / 2, pts[0].y - size / 2, size, size);
+    } else {
+      drawGlassCircle(this.ctx, pts[0].x, pts[0].y, r, hexToRgba(color, GLASS_ALPHA), "rgba(255,255,255,0.85)", 2);
+      drawCircle(this.ctx, pts[0].x, pts[0].y, r * 0.55, hexToRgba(color, 0.55));
+    }
     drawText(this.ctx, String(c.comboNumber), pts[0].x, pts[0].y, {
       font: `800 ${Math.max(12, Math.round(r * 0.8))}px ${GAME_FONT}`,
       fillStyle: "rgba(255,255,255,0.95)",
@@ -581,11 +622,20 @@ export class StandardEngine extends GameEngine {
       const approachT = clamp(1 - timeUntil / this.preempt, 0, 1);
       if (approachT < 1) {
         const ar = r * (3.8 - 2.8 * approachT);
-        ctx.save();
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 10;
-        drawRing(this.ctx, pts[0].x, pts[0].y, ar, hexToRgba(color, 0.7), 2.5);
-        ctx.restore();
+        const approachSkin = this.getSkinTexture("approachcircle.png");
+        if (approachSkin) {
+          ctx.save();
+          ctx.globalAlpha = 0.85;
+          const size = ar * 2;
+          ctx.drawImage(approachSkin, pts[0].x - size / 2, pts[0].y - size / 2, size, size);
+          ctx.restore();
+        } else {
+          ctx.save();
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 10;
+          drawRing(this.ctx, pts[0].x, pts[0].y, ar, hexToRgba(color, 0.7), 2.5);
+          ctx.restore();
+        }
       }
     }
 

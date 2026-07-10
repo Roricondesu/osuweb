@@ -178,3 +178,59 @@ export const extractOsz = async (
     downloadedAt: Date.now(),
   };
 };
+
+/** 从 ArrayBuffer 导入 .osz 文件，元数据从 .osu 文件中提取 */
+export const extractOszFromFile = async (data: ArrayBuffer): Promise<LoadedBeatmapSet> => {
+  const zip = await JSZip.loadAsync(data);
+  // 从 .osu 文件提取元数据
+  const fileNames = Object.keys(zip.files);
+  const osuFiles = fileNames.filter((n) => n.toLowerCase().endsWith(".osu"));
+
+  let title = "导入谱面";
+  let artist = "Unknown";
+  let setId = Date.now(); // 使用时间戳作为唯一 ID
+  let cover = "";
+
+  // 从第一个 .osu 文件提取元数据
+  for (const name of osuFiles) {
+    const file = zip.files[name];
+    if (file.dir) continue;
+    try {
+      const text = await file.async("text");
+      const p = parseOsu(text);
+      if (p.title) title = p.titleUnicode || p.title;
+      if (p.artist) artist = p.artistUnicode || p.artist;
+      if (p.beatmapSetId && p.beatmapSetId > 0) setId = p.beatmapSetId;
+      break;
+    } catch {
+      // 跳过损坏的 .osu
+    }
+  }
+
+  // 使用空 beatmaps 数组，让 extractBeatmapSet 自行从 .osu 文件构造
+  const result = await extractBeatmapSet(zip, {
+    id: setId,
+    title,
+    artist,
+    cover,
+    beatmaps: [],
+  });
+
+  // 如果没有 cover URL，使用 backgroundUrl
+  if (!cover && result.backgroundUrl) {
+    cover = result.backgroundUrl;
+  }
+
+  return {
+    setId,
+    title,
+    artist,
+    cover: cover || result.backgroundUrl || "",
+    audioUrl: result.audioUrl,
+    backgroundUrl: result.backgroundUrl,
+    assetUrls: result.assetUrls,
+    beatmaps: result.beatmaps,
+    hasStoryboard: result.hasStoryboard,
+    downloadedAt: Date.now(),
+  };
+};

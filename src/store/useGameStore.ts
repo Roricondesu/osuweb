@@ -17,7 +17,7 @@ import {
   searchSayobot,
   fetchSayobotFeatured,
 } from "@/api/osuDirect";
-import { extractOsz } from "@/utils/oszLoader";
+import { extractOsz, extractOszFromFile } from "@/utils/oszLoader";
 import { saveDownload, loadAllDownloads, deleteDownload, clearAllDownloads } from "@/utils/indexedDb";
 import { fetchLyrics } from "@/utils/lyricsProvider";
 
@@ -62,6 +62,7 @@ interface GameState {
   deleteDownload: (setId: number) => Promise<void>;
   clearDownloads: () => Promise<void>;
   loadDownloads: () => Promise<void>;
+  importBeatmapFile: (file: File) => Promise<LoadedBeatmapSet | null>;
 
   // 游戏
   runtime: GameRuntime;
@@ -222,6 +223,21 @@ export const useGameStore = create<GameState>()(
         } catch (e) {
           // IndexedDB 不可用时不阻断应用
           console.warn("加载本地下载失败", e);
+        }
+      },
+      importBeatmapFile: async (file) => {
+        try {
+          const buf = await file.arrayBuffer();
+          const loaded = await extractOszFromFile(buf);
+          // 如果已存在同 ID 的谱面，用新导入的覆盖
+          set((s) => ({
+            downloaded: new Map(s.downloaded).set(loaded.setId, loaded),
+          }));
+          await saveDownload(loaded);
+          return loaded;
+        } catch (e) {
+          console.error("导入谱面失败", e);
+          return null;
         }
       },
 

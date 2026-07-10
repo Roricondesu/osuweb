@@ -346,6 +346,8 @@ export interface Settings {
   // 画面
   showStoryboard: boolean;
   backgroundDim: number; // 0-1，背景变暗强度
+  /** 引导线提前倍率（1.0=标准，1.5=提前50%出现） */
+  approachMultiplier: number;
   forceLandscape: boolean; // 游戏内强制横屏
   fullscreen: boolean; // 启动/退出全屏
 
@@ -374,6 +376,7 @@ export const DEFAULT_SETTINGS: Settings = {
   downloadFullPackage: false,
   showStoryboard: true,
   backgroundDim: 0.68,
+  approachMultiplier: 1.5,
   forceLandscape: false,
   fullscreen: false,
   showLyrics: true,

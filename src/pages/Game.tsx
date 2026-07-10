@@ -38,6 +38,7 @@ export default function Game() {
   const autoCursorSpeed = useGameStore((s) => s.settings.autoCursorSpeed);
   const autoCircleMode = useGameStore((s) => s.settings.autoCircleMode);
   const hitSoundVolume = useGameStore((s) => s.settings.hitSoundVolume);
+  const approachMultiplier = useGameStore((s) => s.settings.approachMultiplier);
   const updateRuntime = useGameStore((s) => s.updateRuntime);
   const endGame = useGameStore((s) => s.endGame);
   const { toggle: toggleFullscreen, active: isFullscreen } = useFullscreen();
@@ -129,6 +130,7 @@ export default function Game() {
         autoCursorSpeed,
         autoCircleMode,
         hitSoundVolume,
+        approachMultiplier,
         replay: selectedReplay ?? undefined,
         callbacks: {
           onScoreUpdate: (s) => {
@@ -180,7 +182,7 @@ export default function Game() {
     };
     // 引擎创建依赖较多，避免音量/offset 等运行时可调设置导致整引擎重建
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume, selectedReplay]);
+  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume, approachMultiplier, selectedReplay]);
 
   // 同步音量
   useEffect(() => {
