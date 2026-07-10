@@ -76,147 +76,103 @@ export default function Downloads() {
 
   return (
     <div
-      style={{
-        minHeight: "100vh",
-        paddingTop: "calc(56px + env(safe-area-inset-top, 0px))",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        paddingLeft: 16,
-        paddingRight: 16,
-      }}
+      className="min-h-screen px-3 pb-[env(safe-area-inset-bottom,0px)] sm:px-4"
+      style={{ paddingTop: "calc(56px + env(safe-area-inset-top, 0px))" }}
     >
-      <div style={{ maxWidth: 800, margin: "0 auto", padding: "24px 0" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 20,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div className="mx-auto max-w-3xl py-4 sm:py-6">
+        {/* 页头：移动端按钮换行，桌面端同行 */}
+        <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
             <HardDrive size={22} style={{ color: "var(--accent)" }} />
-            <h1
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: "var(--text-primary)",
-                margin: 0,
-              }}
-            >
+            <h1 className="text-xl font-extrabold sm:text-2xl" style={{ color: "var(--text-primary)" }}>
               下载管理
             </h1>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="flex flex-wrap gap-2">
             <GlassButton
               onClick={() => fileInputRef.current?.click()}
               disabled={importing}
             >
-              <Upload size={14} style={{ marginRight: 6 }} />
-              {importing ? "导入中…" : "导入谱面"}
+              <Upload size={14} className="mr-1.5" />
+              <span className="hidden sm:inline">{importing ? "导入中…" : "导入谱面"}</span>
+              <span className="sm:hidden">{importing ? "…" : "导入"}</span>
             </GlassButton>
             {items.length > 0 && (
               <GlassButton
                 onClick={handleClear}
                 style={{ background: "rgba(255,55,95,0.15)", color: "#ff375f" }}
               >
-                <Trash2 size={14} style={{ marginRight: 6 }} />
-                清空全部
+                <Trash2 size={14} className="mr-1.5" />
+                <span className="hidden sm:inline">清空全部</span>
+                <span className="sm:hidden">清空</span>
               </GlassButton>
             )}
           </div>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: 60, color: "var(--text-secondary)" }}>
+          <div className="py-12 text-center sm:py-16" style={{ color: "var(--text-secondary)" }}>
             加载中…
           </div>
         ) : items.length === 0 ? (
           <div
+            className="flex flex-col items-center py-10 text-center sm:py-16"
             style={{
-              textAlign: "center",
-              padding: 80,
               color: "var(--text-secondary)",
               background: "var(--glass)",
-              borderRadius: 20,
+              borderRadius: 18,
               border: "1px solid var(--border)",
             }}
           >
-            <Music2 size={40} style={{ marginBottom: 12, opacity: 0.5 }} />
-            <div style={{ fontSize: 15 }}>暂无本地下载</div>
-            <div style={{ fontSize: 12, marginTop: 6, opacity: 0.7 }}>
-              去搜索页下载谱面吧
-            </div>
+            <Music2 size={36} className="mb-3 opacity-50 sm:size-10" />
+            <div className="text-sm sm:text-base">暂无本地下载</div>
+            <div className="mt-1.5 text-xs opacity-70">去搜索页下载谱面吧</div>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="flex flex-col gap-3">
             {items.map((set) => {
               const isExpanded = expanded.has(set.setId);
               const coverSrc = coverError.has(set.setId) ? (set.backgroundUrl || set.cover) : set.cover;
               return (
               <div
                 key={set.setId}
+                className="flex flex-col gap-3 rounded-2xl p-3 sm:gap-3 sm:p-4"
                 style={{
                   background: "var(--glass)",
                   border: "1px solid var(--border)",
-                  borderRadius: 18,
-                  padding: 16,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 12,
                 }}
               >
-                <div style={{ display: "flex", gap: 14 }}>
+                <div className="flex gap-3">
                   <img
                     src={coverSrc}
                     alt="cover"
                     onError={() => {
                       setCoverError((prev) => new Set(prev).add(set.setId));
                     }}
-                    style={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: 12,
-                      objectFit: "cover",
-                      background: "var(--glass-hover)",
-                    }}
+                    className="h-14 w-14 shrink-0 rounded-xl object-cover sm:h-16 sm:w-16"
+                    style={{ background: "var(--glass-hover)" }}
                   />
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="min-w-0 flex-1">
                     <div
-                      style={{
-                        fontSize: 16,
-                        fontWeight: 700,
-                        color: "var(--text-primary)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
+                      className="truncate text-sm font-bold sm:text-base"
+                      style={{ color: "var(--text-primary)" }}
                     >
                       {set.title}
                     </div>
                     <div
-                      style={{
-                        fontSize: 13,
-                        color: "var(--text-secondary)",
-                        marginTop: 4,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
+                      className="mt-1 truncate text-xs sm:text-sm"
+                      style={{ color: "var(--text-secondary)" }}
                     >
                       {set.artist}
                     </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "var(--text-tertiary)",
-                        marginTop: 6,
-                      }}
-                    >
-                      {set.beatmaps.length} 个难度 · 下载于{" "}
-                      {new Date(set.downloadedAt).toLocaleString()}
+                    <div className="mt-1.5 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                      {set.beatmaps.length} 个难度 ·{" "}
+                      <span className="hidden sm:inline">下载于 </span>
+                      <span className="sm:hidden">· </span>
+                      {new Date(set.downloadedAt).toLocaleDateString()}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 6, alignSelf: "flex-start" }}>
+                  <div className="flex shrink-0 gap-1.5 self-start sm:gap-2">
                     <GlassButton
                       onClick={() => toggleExpand(set.setId)}
                       style={{ background: "var(--surface-elevated)", color: "var(--text-secondary)" }}
@@ -237,35 +193,20 @@ export default function Downloads() {
                 </div>
 
                 {isExpanded && (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 8,
-                  }}
-                >
+                <div className="flex flex-col gap-2">
                   {set.beatmaps.map((b) => {
                     const mode = MODE_FROM_NUM[b.mode] || "standard";
                     return (
                       <div
                         key={b.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "10px 12px",
-                          background: "var(--glass-hover)",
-                          borderRadius: 12,
-                        }}
+                        className="flex items-center justify-between gap-2 rounded-xl px-3 py-2.5"
+                        style={{ background: "var(--glass-hover)" }}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div className="flex min-w-0 items-center gap-2.5">
                           <ModeBadge mode={mode} />
                           <span
-                            style={{
-                              fontSize: 13,
-                              color: "var(--text-primary)",
-                              fontWeight: 600,
-                            }}
+                            className="truncate text-xs font-semibold sm:text-sm"
+                            style={{ color: "var(--text-primary)" }}
                           >
                             {b.version}
                           </span>
@@ -273,8 +214,8 @@ export default function Downloads() {
                         <GlassButton
                           onClick={() => handlePlay(set, b)}
                         >
-                          <Play size={14} style={{ marginRight: 5 }} />
-                          开始
+                          <Play size={14} className="mr-1" />
+                          <span className="hidden sm:inline">开始</span>
                         </GlassButton>
                       </div>
                     );
@@ -288,16 +229,10 @@ export default function Downloads() {
         )}
 
         <div
-          style={{
-            marginTop: 24,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 12,
-            color: "var(--text-tertiary)",
-          }}
+          className="mt-6 flex items-center gap-2 text-xs"
+          style={{ color: "var(--text-tertiary)" }}
         >
-          <AlertCircle size={14} />
+          <AlertCircle size={14} className="shrink-0" />
           <span>下载数据保存在浏览器 IndexedDB 中，清理浏览器数据会丢失。</span>
         </div>
       </div>
@@ -310,18 +245,10 @@ export default function Downloads() {
       />
       {importMsg && (
         <div
+          className="fixed bottom-5 left-1/2 z-[100] -translate-x-1/2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
           style={{
-            position: "fixed",
             bottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)",
-            left: "50%",
-            transform: "translateX(-50%)",
-            padding: "10px 20px",
-            borderRadius: 12,
             background: importMsg.ok ? "rgba(74,222,128,0.9)" : "rgba(255,55,95,0.9)",
-            color: "#fff",
-            fontSize: 13,
-            fontWeight: 600,
-            zIndex: 100,
             backdropFilter: "blur(8px)",
             WebkitBackdropFilter: "blur(8px)",
             boxShadow: "0 4px 16px rgba(0,0,0,0.2)",

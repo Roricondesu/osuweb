@@ -694,7 +694,7 @@ export default function Settings() {
           </div>
 
           {health && (
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
               {[
                 { key: "osuDirect", label: "osu.direct 搜索" },
                 { key: "sayobotSearch", label: "Sayobot 搜索" },

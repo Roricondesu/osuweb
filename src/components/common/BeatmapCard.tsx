@@ -100,7 +100,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         </div>
       </div>
 
-      <div style={{ padding: 12 }}>
+      <div className="p-2.5 sm:p-3">
         <div
           style={{
             fontSize: 14,

@@ -11,7 +11,7 @@ export interface GlassButtonProps
 
 export const GlassButton = React.forwardRef<HTMLButtonElement, GlassButtonProps>(
   (
-    { scheme = "dark", active = false, round = false, accent = false, children, style, ...rest },
+    { scheme = "dark", active = false, round = false, accent = false, children, style, className, ...rest },
     ref,
   ) => {
     const isDark = scheme === "dark";
@@ -33,6 +33,7 @@ export const GlassButton = React.forwardRef<HTMLButtonElement, GlassButtonProps>
       <button
         ref={ref}
         type="button"
+        className={className}
         {...rest}
         style={{
           border: "none",

@@ -23,12 +23,9 @@ export const TopNav: React.FC = () => {
 
   return (
     <header
+      className="fixed left-1/2 top-2 z-50 -translate-x-1/2"
       style={{
-        position: "fixed",
         top: "calc(env(safe-area-inset-top, 0px) + 8px)",
-        left: "50%",
-        transform: "translateX(-50%)",
-        zIndex: 50,
         width: "min(calc(100% - 24px), 720px)",
         borderRadius: 18,
         background: theme === "dark" ? "rgba(9,9,12,0.62)" : "rgba(232,234,239,0.62)",
@@ -38,73 +35,52 @@ export const TopNav: React.FC = () => {
         boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "8px 14px",
-        }}
-      >
+      <div className="flex items-center justify-between px-3 py-2 sm:px-4">
         <Link
           to="/"
+          className="flex items-center gap-2 no-underline"
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
             color: "var(--accent)",
             fontWeight: 700,
             fontSize: 17,
             letterSpacing: "-0.02em",
-            textDecoration: "none",
           }}
         >
-          <Music2 size={20} />
+          <Music2 size={20} className="shrink-0" />
           <span>osu!web</span>
         </Link>
 
-        <nav style={{ display: "flex", gap: 4 }}>
+        {/* 导航：移动端紧凑图标（带文字标签），桌面端图标+文字 */}
+        <nav className="flex items-center gap-1">
           {NAV_ITEMS.map((item) => {
-            const active = location.pathname === item.to;
+            const isActive = location.pathname === item.to;
             const Icon = item.icon;
             return (
               <Link
                 key={item.to}
                 to={item.to}
                 aria-label={item.label}
+                className="flex h-10 items-center gap-1.5 rounded-xl px-2.5 no-underline transition-colors sm:gap-2 sm:px-3"
                 style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 10,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: active ? "var(--accent-soft)" : "transparent",
-                  color: active ? "var(--accent)" : "var(--text-secondary)",
-                  textDecoration: "none",
-                  transition: "background 0.2s ease",
+                  background: isActive ? "var(--accent-soft)" : "transparent",
+                  color: isActive ? "var(--accent)" : "var(--text-secondary)",
                 }}
               >
-                <Icon size={18} />
+                <Icon size={18} className="shrink-0" />
+                <span className="text-xs font-medium sm:text-sm">{item.label}</span>
               </Link>
             );
           })}
         </nav>
+
         <button
           onClick={toggle}
           aria-label={active ? "退出全屏" : "进入全屏"}
+          className="flex h-10 w-10 items-center justify-center rounded-xl border-none transition-colors"
           style={{
-            width: 34,
-            height: 34,
-            borderRadius: 10,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
             background: active ? "var(--accent-soft)" : "transparent",
             color: active ? "var(--accent)" : "var(--text-secondary)",
-            border: "none",
             cursor: "pointer",
-            transition: "background 0.2s ease, color 0.2s ease",
           }}
         >
           {active ? <Minimize size={18} /> : <Maximize size={18} />}

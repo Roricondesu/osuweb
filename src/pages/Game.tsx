@@ -648,21 +648,19 @@ const ResultScreen: React.FC<{
 
           {/* 评级 */}
           <div
-            className="mx-auto my-6 flex items-center justify-center"
+            className="mx-auto my-4 flex h-24 w-24 items-center justify-center sm:my-6 sm:h-28 sm:w-28"
             style={{
-              width: 120,
-              height: 120,
               borderRadius: "50%",
               background: "var(--accent-soft)",
               border: "3px solid var(--accent)",
             }}
           >
-            <span style={{ fontSize: 56, fontWeight: 800, color: "var(--accent)" }}>{rank}</span>
+            <span className="text-5xl font-extrabold sm:text-6xl" style={{ color: "var(--accent)" }}>{rank}</span>
           </div>
         </div>
 
         {/* 主要数据 */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
           <Stat label="分数" value={Math.round(score.score).toLocaleString()} />
           <Stat label="准确率" value={`${score.accuracy.toFixed(2)}%`} />
           <Stat label="最大连击" value={`${score.maxCombo}x`} />
@@ -670,24 +668,24 @@ const ResultScreen: React.FC<{
         </div>
 
         {/* 判定明细 */}
-        <div className="mt-6 grid grid-cols-4 gap-2">
+        <div className="mt-5 grid grid-cols-4 gap-1.5 sm:mt-6 sm:gap-2">
           <Judgement label="300" count={score.judgements["300"]} color="#66cc44" />
           <Judgement label="100" count={score.judgements["100"]} color="#0a84ff" />
           <Judgement label="50" count={score.judgements["50"]} color="#ff9100" />
           <Judgement label="Miss" count={score.judgements.miss} color="#ff375f" />
         </div>
 
-        {/* 操作 */}
-        <div className="mt-8 flex gap-3">
-          <GlassButton onClick={onBack} style={{ flex: 1 }}>
+        {/* 操作：移动端纵向排列，桌面端横向 */}
+        <div className="mt-6 flex flex-col gap-2.5 sm:mt-8 sm:flex-row sm:gap-3">
+          <GlassButton onClick={onBack} className="w-full sm:flex-1">
             <ArrowLeft size={14} /> 返回
           </GlassButton>
           {canWatchReplay && onWatchReplay && (
-            <GlassButton onClick={onWatchReplay} style={{ flex: 1 }}>
+            <GlassButton onClick={onWatchReplay} className="w-full sm:flex-1">
               <Eye size={14} /> 查看回放
             </GlassButton>
           )}
-          <GlassButton onClick={onRetry} accent style={{ flex: 1 }}>
+          <GlassButton onClick={onRetry} accent className="w-full sm:flex-1">
             <RotateCcw size={14} /> 再来一次
           </GlassButton>
         </div>
