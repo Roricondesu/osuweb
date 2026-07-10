@@ -6,6 +6,7 @@
  *  - 维护分数状态（通过 Judger）
  */
 import type { ParsedBeatmap, HitObject, Judgement, StoryboardSprite, StoryboardCommand, Replay, ReplayEvent, ReplayScore, ModType } from "@/types";
+import { MOD_LABEL, MOD_COLOR } from "@/types";
 import type { LyricLine } from "@/utils/lrclibLyrics";
 import {
   createInitialScore,
@@ -2339,5 +2340,34 @@ export abstract class GameEngine {
     ctx.roundRect(barX, barY, barW * hpRatio, barH, 3);
     ctx.fill();
     ctx.restore();
+
+    // Mod 标识（在左上角模块下方）
+    if (this.mods.length > 0) {
+      const modY = barY + barH + 10;
+      let modX = left;
+      ctx.save();
+      ctx.textBaseline = "top";
+      ctx.textAlign = "left";
+      ctx.font = `700 11px ${GAME_FONT}`;
+      for (const mod of this.mods) {
+        const label = MOD_LABEL[mod];
+        const w = ctx.measureText(label).width + 16;
+        // 背景胶囊
+        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        ctx.beginPath();
+        ctx.roundRect(modX, modY, w, 20, 6);
+        ctx.fill();
+        // 文字（Mod 专属颜色）
+        ctx.fillStyle = MOD_COLOR[mod];
+        ctx.fillText(label, modX + 8, modY + 4);
+        modX += w + 5;
+        // 超出画块宽度则换行
+        if (modX > left + 300) {
+          modX = left;
+          break;
+        }
+      }
+      ctx.restore();
+    }
   }
 }

@@ -5,7 +5,7 @@ import { createEngine, type GameEngine, type ScoreState } from "@/engine";
 import { GlassButton } from "@/components/glass/GlassButton";
 import { RotateCcw, ArrowLeft, Pause, Play, Menu, X, Maximize, Minimize, Eye } from "lucide-react";
 import type { GameMode, Replay } from "@/types";
-import { MODE_LABEL, MOD_LABEL, MOD_COLOR } from "@/types";
+import { MODE_LABEL } from "@/types";
 import { useOrientation } from "@/hooks/useOrientation";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import type { LyricLine } from "@/utils/lyricsProvider";
@@ -401,44 +401,6 @@ export default function Game() {
           }}
         >
           <Eye size={14} /> 回放中
-        </div>
-      )}
-
-      {/* Mod 标识 */}
-      {mods.length > 0 && phase === "playing" && (
-        <div
-          style={{
-            position: "absolute",
-            top: "env(safe-area-inset-top, 0px)",
-            right: 12,
-            paddingTop: 12,
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 4,
-            justifyContent: "flex-end",
-            pointerEvents: "none",
-            zIndex: 10,
-            marginTop: 4,
-            maxWidth: "60%",
-          }}
-        >
-          {mods.map((mod) => (
-            <span
-              key={mod}
-              style={{
-                padding: "3px 8px",
-                borderRadius: 8,
-                background: "rgba(0,0,0,0.4)",
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
-                color: MOD_COLOR[mod],
-                fontSize: 11,
-                fontWeight: 700,
-              }}
-            >
-              {MOD_LABEL[mod]}
-            </span>
-          ))}
         </div>
       )}
 
