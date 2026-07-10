@@ -77,7 +77,7 @@ export default function Downloads() {
   return (
     <div
       className="min-h-screen px-3 pb-[env(safe-area-inset-bottom,0px)] sm:px-4"
-      style={{ paddingTop: "calc(56px + env(safe-area-inset-top, 0px))" }}
+      style={{ paddingTop: "calc(80px + env(safe-area-inset-top, 0px))" }}
     >
       <div className="mx-auto max-w-3xl py-4 sm:py-6">
         {/* 页头：移动端按钮换行，桌面端同行 */}
