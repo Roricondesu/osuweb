@@ -402,6 +402,9 @@ export abstract class GameEngine {
       "hit0k.png",
       "sliderb0.png",
       "sliderfollowcircle.png",
+      "slidertrack.png",
+      "sliderborder.png",
+      "sliderscorepoint.png",
       "reversearrow.png",
       "followpoint.png",
     ];
@@ -433,14 +436,46 @@ export abstract class GameEngine {
     return this.customSkinTextures.get(key) || this.skinTextures.get(key) || null;
   }
 
+  /**
+   * 将白色皮肤纹理按 combo 颜色着色后绘制。
+   * 原理：先用 source-over 画一层颜色矩形（source-atop 裁剪到纹理 alpha），
+   * 再用 multiply 叠加纹理本身。等价于把白色纹理 tint 成指定颜色。
+   * 适用于 sliderb0 / slidertrack 等本应跟随 combo 颜色的元素。
+   */
+  protected drawTintedTexture(
+    img: HTMLImageElement,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    tint: string,
+  ): void {
+    const { ctx } = this.ctx;
+    ctx.save();
+    // 离屏画到临时 canvas 再合成会精确但开销大；这里用 source-atop 近似：
+    // 1. 先画纹理（source-over）
+    ctx.globalCompositeOperation = "source-over";
+    ctx.drawImage(img, x, y, w, h);
+    // 2. 在纹理 alpha 范围内叠加颜色（source-atop 保持透明区域）
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.fillStyle = tint;
+    ctx.fillRect(x, y, w, h);
+    // 3. 再叠加一次纹理用 multiply 增强细节（保留纹理明暗）
+    ctx.globalCompositeOperation = "multiply";
+    ctx.drawImage(img, x, y, w, h);
+    ctx.restore();
+  }
+
   /** 加载自定义皮肤纹理 */
   private loadCustomSkinTextures(): void {
     const skinFiles = [
       "hitcircle.png", "hitcircleoverlay.png", "approachcircle.png",
       "hit300.png", "hit300g.png", "hit100.png", "hit100k.png",
       "hit50.png", "hit50k.png", "hit0.png", "hit0k.png",
-      "sliderb0.png", "sliderfollowcircle.png", "reversearrow.png",
-      "followpoint.png", "cursor.png", "cursortrail.png", "cursormiddle.png",
+      "sliderb0.png", "sliderfollowcircle.png",
+      "slidertrack.png", "sliderborder.png", "sliderscorepoint.png",
+      "reversearrow.png", "followpoint.png",
+      "cursor.png", "cursortrail.png", "cursormiddle.png",
     ];
     const findCustomUrl = (name: string): string | undefined => {
       const norm = name.replace(/\\/g, "/");

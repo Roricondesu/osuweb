@@ -672,7 +672,7 @@ export class StandardEngine extends GameEngine {
     }
 
     // 绘制整条路径（闭路复用）
-    const drawPath = (lineWidth: number, strokeStyle: string, glow = false) => {
+    const drawPath = (lineWidth: number, strokeStyle: string | CanvasGradient | CanvasPattern, glow = false) => {
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -689,12 +689,63 @@ export class StandardEngine extends GameEngine {
       ctx.restore();
     };
 
-    // 外圈（主题色弱发光，替代之前的黑色边框）
-    drawPath(r * 2.45, hexToRgba(color, 0.22), true);
-    // 底色轨道
-    drawPath(r * 2.0, hexToRgba(color, 0.28));
-    // 内芯轨道
-    drawPath(r * 1.55, hexToRgba(color, 0.55));
+    // 皮肤纹理：slidertrack（轨道底色，需 tint combo 颜色）、sliderborder（轨道边框）
+    const sliderTrackSkin = this.getSkinTexture("slidertrack.png");
+    const sliderBorderSkin = this.getSkinTexture("sliderborder.png");
+
+    if (sliderTrackSkin) {
+      // 使用皮肤纹理作为轨道描边图案
+      // 纹理通常是 64x64 平铺，缩放到圆圈直径大小
+      const trackSize = r * 2;
+      const off = document.createElement("canvas");
+      off.width = trackSize;
+      off.height = trackSize;
+      const octx = off.getContext("2d");
+      if (octx) {
+        // 先画纹理，再用 source-atop tint combo 颜色
+        octx.globalCompositeOperation = "source-over";
+        octx.drawImage(sliderTrackSkin, 0, 0, trackSize, trackSize);
+        octx.globalCompositeOperation = "source-atop";
+        octx.fillStyle = color;
+        octx.fillRect(0, 0, trackSize, trackSize);
+        octx.globalCompositeOperation = "multiply";
+        octx.drawImage(sliderTrackSkin, 0, 0, trackSize, trackSize);
+      }
+      const pattern = ctx.createPattern(off, "repeat");
+      if (pattern) {
+        drawPath(r * 2.0, pattern);
+      } else {
+        drawPath(r * 2.0, hexToRgba(color, 0.28));
+      }
+      // 边框
+      if (sliderBorderSkin) {
+        const bPattern = ctx.createPattern(sliderBorderSkin, "repeat");
+        if (bPattern) {
+          ctx.save();
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+          ctx.lineWidth = r * 2.2;
+          ctx.strokeStyle = bPattern;
+          ctx.globalCompositeOperation = "destination-over";
+          ctx.stroke();
+          ctx.restore();
+        }
+      } else {
+        // 无边框纹理：画一层弱发光外圈
+        drawPath(r * 2.2, hexToRgba(color, 0.4));
+      }
+    } else {
+      // 无皮肤纹理：原始 Canvas 原语绘制
+      // 外圈（主题色弱发光，替代之前的黑色边框）
+      drawPath(r * 2.45, hexToRgba(color, 0.22), true);
+      // 底色轨道
+      drawPath(r * 2.0, hexToRgba(color, 0.28));
+      // 内芯轨道
+      drawPath(r * 1.55, hexToRgba(color, 0.55));
+    }
 
     // 已滑过部分高亮（沿实际路径）
     if (ballPos) {
@@ -722,12 +773,12 @@ export class StandardEngine extends GameEngine {
       ctx.restore();
     }
 
-    // 头部圆
+    // 头部圆：使用 hitcircle 皮肤纹理（tint combo 颜色），与普通圆圈一致
     const hitCircleSkin = this.getSkinTexture("hitcircle.png");
     const overlaySkin = this.getSkinTexture("hitcircleoverlay.png");
     if (hitCircleSkin) {
       const size = r * 2;
-      ctx.drawImage(hitCircleSkin, pts[0].x - size / 2, pts[0].y - size / 2, size, size);
+      this.drawTintedTexture(hitCircleSkin, pts[0].x - size / 2, pts[0].y - size / 2, size, size, color);
       if (overlaySkin) ctx.drawImage(overlaySkin, pts[0].x - size / 2, pts[0].y - size / 2, size, size);
     } else {
       drawGlassCircle(this.ctx, pts[0].x, pts[0].y, r, hexToRgba(color, GLASS_ALPHA), "rgba(255,255,255,0.85)", 2);
@@ -742,9 +793,15 @@ export class StandardEngine extends GameEngine {
       });
     }
 
-    // 尾部圆
+    // 尾部圆：使用 hitcircle 皮肤纹理（tint combo 颜色），无皮肤则 Canvas 原语
     const tail = pts[pts.length - 1];
-    drawGlassCircle(this.ctx, tail.x, tail.y, r * 0.82, hexToRgba(color, 0.28), "rgba(255,255,255,0.45)", 1.5);
+    if (hitCircleSkin) {
+      const size = r * 2 * 0.82;
+      this.drawTintedTexture(hitCircleSkin, tail.x - size / 2, tail.y - size / 2, size, size, color);
+      if (overlaySkin) ctx.drawImage(overlaySkin, tail.x - size / 2, tail.y - size / 2, size, size);
+    } else {
+      drawGlassCircle(this.ctx, tail.x, tail.y, r * 0.82, hexToRgba(color, 0.28), "rgba(255,255,255,0.45)", 1.5);
+    }
 
     // 反向箭头（多 slide 时在尾部）
     if (slides > 1 && !ended) {
@@ -778,20 +835,31 @@ export class StandardEngine extends GameEngine {
       const { x: bx, y: by } = ballPos;
       const sliderBallSkin = this.getSkinTexture("sliderb0.png");
       if (sliderBallSkin) {
-        // 使用皮肤滑条球
+        // 使用皮肤滑条球（tint combo 颜色，osu! 默认 sliderb0 为白色需着色）
         const size = r * 1.4;
         ctx.save();
         ctx.shadowColor = color;
         ctx.shadowBlur = 14;
-        ctx.drawImage(sliderBallSkin, bx - size / 2, by - size / 2, size, size);
+        // 先 tint 再绘制：sliderb0 通常白色，叠加 combo 色
+        this.drawTintedTexture(sliderBallSkin, bx - size / 2, by - size / 2, size, size, color);
         ctx.restore();
-        // 跟随圈
+        // 跟随圈（不需要 tint，本身是亮色环）
         const followSkin = this.getSkinTexture("sliderfollowcircle.png");
         if (followSkin) {
           const fs = r * 2.8;
           ctx.drawImage(followSkin, bx - fs / 2, by - fs / 2, fs, fs);
+        } else {
+          // 无跟随圈皮肤：绘制半透明圆环
+          ctx.save();
+          ctx.strokeStyle = hexToRgba("#fff", 0.5);
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(bx, by, r * 1.4, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
         }
       } else {
+        // 无滑条球皮肤：原始 Canvas 绘制
         // 外发光
         ctx.save();
         ctx.beginPath();
