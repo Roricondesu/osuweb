@@ -76,6 +76,13 @@ export interface EngineOptions {
   mods?: ModType[];
   useBeatmapSkin?: boolean;
   customSkinAssetUrls?: Record<string, string>;
+  // 默认皮肤自定义属性
+  customComboColors?: string[];
+  useCustomComboColors?: boolean;
+  circleBorderWidth?: number;
+  sliderBorderWidth?: number;
+  sliderBallScale?: number;
+  hitCircleScale?: number;
 }
 
 export abstract class GameEngine {
@@ -171,6 +178,13 @@ export abstract class GameEngine {
   protected customSkinAssetUrls: Record<string, string> = {};
   // 自定义皮肤纹理（优先于谱面皮肤）
   protected customSkinTextures: Map<string, HTMLImageElement> = new Map();
+  // 默认皮肤自定义属性
+  protected customComboColors: string[] = [];
+  protected useCustomComboColors = false;
+  protected circleBorderWidth = 1;
+  protected sliderBorderWidth = 1;
+  protected sliderBallScale = 1;
+  protected hitCircleScale = 1;
   // Mod 调整后的有效难度值
   protected effectiveAR = 0;
   protected effectiveCS = 0;
@@ -228,8 +242,15 @@ export abstract class GameEngine {
     this.useBeatmapSkin = opts.useBeatmapSkin ?? true;
     if (opts.customSkinAssetUrls) {
       this.customSkinAssetUrls = opts.customSkinAssetUrls;
-      this.loadCustomSkinTextures();
     }
+    // 默认皮肤自定义属性
+    this.useCustomComboColors = opts.useCustomComboColors ?? false;
+    this.customComboColors = opts.customComboColors ?? [];
+    this.circleBorderWidth = opts.circleBorderWidth ?? 1;
+    this.sliderBorderWidth = opts.sliderBorderWidth ?? 1;
+    this.sliderBallScale = opts.sliderBallScale ?? 1;
+    this.hitCircleScale = opts.hitCircleScale ?? 1;
+    this.loadCustomSkinTextures();
     this.showLyrics = opts.showLyrics ?? true;
     this.showCursorTrail = opts.showCursorTrail ?? true;
     this.showCursorPress = opts.showCursorPress ?? true;

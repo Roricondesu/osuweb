@@ -304,6 +304,11 @@ export class TaikoEngine extends GameEngine {
     this.spawnHitEffect(this.judgePos, this.crossPos, j, time);
   }
 
+  /** Taiko 覆盖：始终播放对应颜色的合成音效，不依赖谱面 hitSound flags */
+  protected playHitSound(obj: HitObject): void {
+    this.playDefaultHitSound(this.isBlue(obj));
+  }
+
   protected handlePointerDown(x: number, _y: number): void {
     if (this.status !== "playing") return;
     // 屏幕左半边 / 虚拟鼓左半边 = Don，右半边 = Katsu

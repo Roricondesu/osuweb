@@ -504,6 +504,131 @@ export default function Settings() {
               </p>
             )}
           </div>
+
+          {/* 默认皮肤自定义属性 */}
+          <div className="mt-2 border-t pt-4" style={{ borderColor: "var(--border)" }}>
+            <div className="mb-3 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+              默认皮肤自定义
+            </div>
+
+            {/* 自定义 combo 颜色 */}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>自定义 Combo 颜色</div>
+                <div className="text-xs" style={{ color: "var(--text-secondary)" }}>覆盖默认 8 色 combo 配色</div>
+              </div>
+              <GlassSwitch
+                checked={settings.useCustomComboColors}
+                onCheckedChange={(c) => updateSetting("useCustomComboColors", c)}
+                scheme={scheme}
+                ariaLabel="自定义 Combo 颜色"
+              />
+            </div>
+            {settings.useCustomComboColors && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {settings.customComboColors.map((color, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <input
+                      type="color"
+                      value={color}
+                      onChange={(e) => {
+                        const next = [...settings.customComboColors];
+                        next[i] = e.target.value;
+                        updateSetting("customComboColors", next);
+                      }}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        border: "1px solid var(--border)",
+                        borderRadius: 8,
+                        cursor: "pointer",
+                        background: "transparent",
+                      }}
+                    />
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    if (settings.customComboColors.length < 8) {
+                      updateSetting("customComboColors", [...settings.customComboColors, "#ffffff"]);
+                    }
+                  }}
+                  disabled={settings.customComboColors.length >= 8}
+                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium transition-transform active:scale-95 disabled:opacity-40"
+                  style={{ border: "1px solid var(--border)", color: "var(--text-primary)", cursor: "pointer" }}
+                >
+                  + 添加
+                </button>
+                <button
+                  onClick={() => updateSetting("customComboColors", ["#f472b6", "#38bdf8", "#4ade80", "#fbbf24", "#a78bfa", "#fb7185", "#22d3ee", "#facc15"])}
+                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium transition-transform active:scale-95"
+                  style={{ border: "1px solid var(--border)", color: "var(--text-primary)", cursor: "pointer" }}
+                >
+                  重置
+                </button>
+              </div>
+            )}
+
+            <div className="mt-4">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>圆圈缩放</span>
+                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{settings.hitCircleScale.toFixed(2)}x</span>
+              </div>
+              <GlassSlider
+                min={0.5}
+                max={2}
+                step={0.05}
+                value={settings.hitCircleScale}
+                onChange={(v) => updateSetting("hitCircleScale", v)}
+                scheme={scheme}
+              />
+            </div>
+
+            <div className="mt-4">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>圆圈边框宽度</span>
+                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{settings.circleBorderWidth.toFixed(2)}x</span>
+              </div>
+              <GlassSlider
+                min={0.5}
+                max={3}
+                step={0.05}
+                value={settings.circleBorderWidth}
+                onChange={(v) => updateSetting("circleBorderWidth", v)}
+                scheme={scheme}
+              />
+            </div>
+
+            <div className="mt-4">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>滑条边框宽度</span>
+                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{settings.sliderBorderWidth.toFixed(2)}x</span>
+              </div>
+              <GlassSlider
+                min={0.5}
+                max={3}
+                step={0.05}
+                value={settings.sliderBorderWidth}
+                onChange={(v) => updateSetting("sliderBorderWidth", v)}
+                scheme={scheme}
+              />
+            </div>
+
+            <div className="mt-4">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>滑条球缩放</span>
+                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{settings.sliderBallScale.toFixed(2)}x</span>
+              </div>
+              <GlassSlider
+                min={0.5}
+                max={2}
+                step={0.05}
+                value={settings.sliderBallScale}
+                onChange={(v) => updateSetting("sliderBallScale", v)}
+                scheme={scheme}
+              />
+            </div>
+          </div>
         </div>
       </Section>
 

@@ -407,6 +407,13 @@ export interface Settings {
   useBeatmapSkin: boolean; // 使用谱面自带皮肤
   useCustomSkin: boolean; // 使用自定义导入皮肤
   customSkinAssetUrls?: Record<string, string>; // 自定义皮肤资源
+  // 默认皮肤自定义属性
+  customComboColors: string[]; // 自定义 combo 颜色（覆盖默认 8 色）
+  useCustomComboColors: boolean; // 是否启用自定义 combo 颜色
+  circleBorderWidth: number; // 圆圈边框宽度倍率 0.5-3
+  sliderBorderWidth: number; // 滑条边框宽度倍率 0.5-3
+  sliderBallScale: number; // 滑条球缩放 0.5-2
+  hitCircleScale: number; // 打击圈整体缩放 0.5-2
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -442,4 +449,10 @@ export const DEFAULT_SETTINGS: Settings = {
   mods: [],
   useBeatmapSkin: true,
   useCustomSkin: false,
+  customComboColors: ["#f472b6", "#38bdf8", "#4ade80", "#fbbf24", "#a78bfa", "#fb7185", "#22d3ee", "#facc15"],
+  useCustomComboColors: false,
+  circleBorderWidth: 1,
+  sliderBorderWidth: 1,
+  sliderBallScale: 1,
+  hitCircleScale: 1,
 };

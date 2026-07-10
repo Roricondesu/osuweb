@@ -52,8 +52,10 @@ export class StandardEngine extends GameEngine {
     this.preempt = arToPreempt(this.effectiveAR);
     this.r = csToRadius(this.effectiveCS);
     this.guideLineTime = this.preempt * this.approachMultiplier;
-    // 使用谱面自定义 combo 颜色（如有），否则用默认
-    if (opts.beatmap.comboColors && opts.beatmap.comboColors.length > 0) {
+    // combo 颜色优先级：用户自定义 > 谱面自带 > 默认 8 色
+    if (this.useCustomComboColors && this.customComboColors.length > 0) {
+      this.comboColors = this.customComboColors;
+    } else if (opts.beatmap.comboColors && opts.beatmap.comboColors.length > 0) {
       this.comboColors = opts.beatmap.comboColors;
     }
     this.precomputeObjects();
@@ -561,7 +563,7 @@ export class StandardEngine extends GameEngine {
   private drawCircle(obj: HitObject, idx: number, time: number): void {
     const c = this.cached[idx];
     const p = this.toCanvas(obj.x, obj.y);
-    const r = this.radius;
+    const r = this.radius * this.hitCircleScale;
     const timeUntil = obj.time - time;
     const approachT = clamp(1 - timeUntil / this.preempt, 0, 1);
     const color = c.comboColor;
@@ -606,16 +608,11 @@ export class StandardEngine extends GameEngine {
     const overlaySkin = this.getSkinTexture("hitcircleoverlay.png");
     if (hitCircleSkin) {
       const size = r * 2;
-      // 先绘制底色圆（tint 为 combo 颜色）
-      ctx.save();
-      ctx.globalCompositeOperation = "source-over";
-      ctx.drawImage(hitCircleSkin, p.x - size / 2, p.y - size / 2, size, size);
-      ctx.restore();
-      // 叠加 overlay
+      // hitcircle.png tint combo 颜色（osu! 默认白色，需着色）
+      this.drawTintedTexture(hitCircleSkin, p.x - size / 2, p.y - size / 2, size, size, color);
+      // 叠加 overlay（保持原色，通常是边框/高光）
       if (overlaySkin) {
-        ctx.save();
         ctx.drawImage(overlaySkin, p.x - size / 2, p.y - size / 2, size, size);
-        ctx.restore();
       }
       // combo 数字
       if (this.showComboNumbers) {
@@ -690,7 +687,8 @@ export class StandardEngine extends GameEngine {
     };
 
     // 皮肤纹理：slidertrack（轨道底色，需 tint combo 颜色）、sliderborder（轨道边框）
-    const sliderTrackSkin = this.getSkinTexture("slidertrack.png");
+    // osu! 原版：有 slidertrack 用它，否则回退 hitcircle.png 作为轨道底色
+    const sliderTrackSkin = this.getSkinTexture("slidertrack.png") || this.getSkinTexture("hitcircle.png");
     const sliderBorderSkin = this.getSkinTexture("sliderborder.png");
 
     if (sliderTrackSkin) {
@@ -717,7 +715,7 @@ export class StandardEngine extends GameEngine {
       } else {
         drawPath(r * 2.0, hexToRgba(color, 0.28));
       }
-      // 边框
+      // 边框：有 sliderborder 用纹理，否则用 combo 色实线描边（osu! 默认边框）
       if (sliderBorderSkin) {
         const bPattern = ctx.createPattern(sliderBorderSkin, "repeat");
         if (bPattern) {
@@ -727,18 +725,28 @@ export class StandardEngine extends GameEngine {
           ctx.beginPath();
           ctx.moveTo(pts[0].x, pts[0].y);
           for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-          ctx.lineWidth = r * 2.2;
+          ctx.lineWidth = r * 2.2 * this.sliderBorderWidth;
           ctx.strokeStyle = bPattern;
           ctx.globalCompositeOperation = "destination-over";
           ctx.stroke();
           ctx.restore();
         }
       } else {
-        // 无边框纹理：画一层弱发光外圈
-        drawPath(r * 2.2, hexToRgba(color, 0.4));
+        // 无边框纹理：combo 色外圈描边（destination-over 画在轨道下方）
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.lineWidth = r * 2.2 * this.sliderBorderWidth;
+        ctx.strokeStyle = color;
+        ctx.globalCompositeOperation = "destination-over";
+        ctx.stroke();
+        ctx.restore();
       }
     } else {
-      // 无皮肤纹理：原始 Canvas 原语绘制
+      // 无任何皮肤纹理：原始 Canvas 原语绘制
       // 外圈（主题色弱发光，替代之前的黑色边框）
       drawPath(r * 2.45, hexToRgba(color, 0.22), true);
       // 底色轨道
@@ -836,7 +844,7 @@ export class StandardEngine extends GameEngine {
       const sliderBallSkin = this.getSkinTexture("sliderb0.png");
       if (sliderBallSkin) {
         // 使用皮肤滑条球（tint combo 颜色，osu! 默认 sliderb0 为白色需着色）
-        const size = r * 1.4;
+        const size = r * 1.4 * this.sliderBallScale;
         ctx.save();
         ctx.shadowColor = color;
         ctx.shadowBlur = 14;

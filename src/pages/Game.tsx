@@ -52,6 +52,12 @@ export default function Game() {
   const useBeatmapSkin = useGameStore((s) => s.settings.useBeatmapSkin);
   const useCustomSkin = useGameStore((s) => s.settings.useCustomSkin);
   const customSkinAssetUrls = useGameStore((s) => s.settings.customSkinAssetUrls);
+  const customComboColors = useGameStore((s) => s.settings.customComboColors);
+  const useCustomComboColors = useGameStore((s) => s.settings.useCustomComboColors);
+  const circleBorderWidth = useGameStore((s) => s.settings.circleBorderWidth);
+  const sliderBorderWidth = useGameStore((s) => s.settings.sliderBorderWidth);
+  const sliderBallScale = useGameStore((s) => s.settings.sliderBallScale);
+  const hitCircleScale = useGameStore((s) => s.settings.hitCircleScale);
   const updateRuntime = useGameStore((s) => s.updateRuntime);
   const endGame = useGameStore((s) => s.endGame);
   const { toggle: toggleFullscreen, active: isFullscreen } = useFullscreen();
@@ -156,6 +162,12 @@ export default function Game() {
         mods,
         useBeatmapSkin,
         customSkinAssetUrls: useCustomSkin ? customSkinAssetUrls : undefined,
+        customComboColors,
+        useCustomComboColors,
+        circleBorderWidth,
+        sliderBorderWidth,
+        sliderBallScale,
+        hitCircleScale,
         replay: selectedReplay ?? undefined,
         callbacks: {
           onScoreUpdate: (s) => {
@@ -207,7 +219,7 @@ export default function Game() {
     };
     // 引擎创建依赖较多，避免音量/offset 等运行时可调设置导致整引擎重建
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume, approachMultiplier, backgroundBlur, showFollowPoints, showApproachCircles, showComboNumbers, showHitEffects, showFPS, hudScale, cursorSize, playbackRate, mods, useBeatmapSkin, useCustomSkin, customSkinAssetUrls, selectedReplay]);
+  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume, approachMultiplier, backgroundBlur, showFollowPoints, showApproachCircles, showComboNumbers, showHitEffects, showFPS, hudScale, cursorSize, playbackRate, mods, useBeatmapSkin, useCustomSkin, customSkinAssetUrls, customComboColors, useCustomComboColors, circleBorderWidth, sliderBorderWidth, sliderBallScale, hitCircleScale, selectedReplay]);
 
   // 同步音量
   useEffect(() => {
