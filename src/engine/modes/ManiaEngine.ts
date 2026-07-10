@@ -7,7 +7,7 @@
  */
 import type { HitObject, ParsedBeatmap } from "@/types";
 import { GameEngine } from "../GameEngine";
-import { drawRect, drawText, clamp, hexToRgba, GAME_FONT } from "../renderer/Canvas2D";
+import { drawRect, drawText, clamp, hexToRgba } from "../renderer/Canvas2D";
 
 const APPROACH_TIME = 1600;
 const JUDGE_LINE_OFFSET = 60;
@@ -143,6 +143,11 @@ export class ManiaEngine extends GameEngine {
       if (y < -70) continue;
       const x = this.colX(col);
       const color = COL_COLORS[col % COL_COLORS.length];
+      // 按列奇偶选取 mania 皮肤音符纹理（白键/蓝键）
+      const noteSkin = this.getSkinTexture(col % 2 === 0 ? "mania-note1.png" : "mania-note2.png");
+      const holdBodySkin = this.getSkinTexture(col % 2 === 0 ? "mania-note1L.png" : "mania-note2L.png");
+      const holdTailSkin = this.getSkinTexture(col % 2 === 0 ? "mania-note1T.png" : "mania-note2T.png");
+      const noteW = this.colWidth * 0.8;
       if (obj.type === "hold" && obj.endTime) {
         const headY = this.noteY(obj.time, time);
         const tailY = this.noteY(obj.endTime, time);
@@ -150,16 +155,30 @@ export class ManiaEngine extends GameEngine {
         const bottom = Math.min(headY, this.judgeY);
         const h = bottom - top;
         if (h > 0) {
-          drawRect(this.ctx, x - this.colWidth * 0.4, top, this.colWidth * 0.8, h, color, 4);
+          if (holdBodySkin) {
+            // 长条体：拉伸皮肤纹理覆盖整条，tint 列色
+            this.drawTintedTexture(holdBodySkin, x - noteW / 2, top, noteW, h, color);
+          } else {
+            drawRect(this.ctx, x - noteW / 2, top, noteW, h, color, 4);
+          }
+          // 尾部
+          if (holdTailSkin) {
+            this.drawTintedTexture(holdTailSkin, x - noteW / 2, top - noteW * 0.4, noteW, noteW * 0.8, color);
+          }
           // 头部高亮
-          drawRect(this.ctx, x - this.colWidth * 0.4, bottom - 10, this.colWidth * 0.8, 10, "#fff", 4);
+          drawRect(this.ctx, x - noteW / 2, bottom - 10, noteW, 10, "#fff", 4);
         }
       } else {
         const alpha = clamp(1 - (this.judgeY - y) / (this.judgeY - 10), 0.6, 1);
         this.ctx.ctx.save();
         this.ctx.ctx.globalAlpha = alpha;
-        drawRect(this.ctx, x - this.colWidth * 0.4, y - 12, this.colWidth * 0.8, 24, color, 4);
-        drawRect(this.ctx, x - this.colWidth * 0.4, y - 12, this.colWidth * 0.8, 6, "#fff", 4);
+        if (noteSkin) {
+          const noteH = 24;
+          this.drawTintedTexture(noteSkin, x - noteW / 2, y - noteH / 2, noteW, noteH, color);
+        } else {
+          drawRect(this.ctx, x - noteW / 2, y - 12, noteW, 24, color, 4);
+          drawRect(this.ctx, x - noteW / 2, y - 12, noteW, 6, "#fff", 4);
+        }
         this.ctx.ctx.restore();
       }
     }
@@ -201,8 +220,9 @@ export class ManiaEngine extends GameEngine {
       ctx.roundRect(x + 8, py + 3, this.colWidth - 16, panelH * 0.35, [6, 6, 4, 4]);
       ctx.fill();
       drawText(this.ctx, this.keyMap[c] || "", x + this.colWidth / 2, py + panelH / 2 + 1, {
-        font: `800 12px ${GAME_FONT}`,
+        font: `800 12px ${this.fontStack}`,
         fillStyle: isHeld ? "#fff" : "rgba(255,255,255,0.55)",
+        perfectCenter: true,
       });
     }
   }

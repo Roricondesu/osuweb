@@ -106,14 +106,27 @@ export const drawText = (
     fillStyle?: string;
     align?: CanvasTextAlign;
     baseline?: CanvasTextBaseline;
+    /** 完全视觉居中：用 actualBoundingBoxAscent/Descent 计算真实字形中心，消除 middle 基线的 em-box 偏移 */
+    perfectCenter?: boolean;
   } = {},
 ) => {
   const { ctx } = c;
   ctx.font = opts.font || `14px ${GAME_FONT}`;
   ctx.fillStyle = opts.fillStyle || "#fff";
   ctx.textAlign = opts.align || "center";
-  ctx.textBaseline = opts.baseline || "middle";
-  ctx.fillText(text, x, y);
+  if (opts.perfectCenter) {
+    // 用 alphabetic 基线 + 实测字形上下边界，让真实视觉中心对齐 y
+    ctx.textBaseline = "alphabetic";
+    const m = ctx.measureText(text);
+    const ascent = m.actualBoundingBoxAscent || 0;
+    const descent = m.actualBoundingBoxDescent || 0;
+    // 视觉中心在 baseline + (descent - ascent) / 2，要让其等于 y：
+    const baselineY = y + (ascent - descent) / 2;
+    ctx.fillText(text, x, baselineY);
+  } else {
+    ctx.textBaseline = opts.baseline || "middle";
+    ctx.fillText(text, x, y);
+  }
 };
 
 /** hex → rgba */

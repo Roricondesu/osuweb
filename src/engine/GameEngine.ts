@@ -178,6 +178,9 @@ export abstract class GameEngine {
   protected customSkinAssetUrls: Record<string, string> = {};
   // 自定义皮肤纹理（优先于谱面皮肤）
   protected customSkinTextures: Map<string, HTMLImageElement> = new Map();
+  // 皮肤字体（若皮肤包内含 default.ttf 等字体则加载，渲染时优先使用）
+  protected skinFontFamily = "";
+  protected skinFontLoaded = false;
   // 默认皮肤自定义属性
   protected customComboColors: string[] = [];
   protected useCustomComboColors = false;
@@ -251,6 +254,7 @@ export abstract class GameEngine {
     this.sliderBallScale = opts.sliderBallScale ?? 1;
     this.hitCircleScale = opts.hitCircleScale ?? 1;
     this.loadCustomSkinTextures();
+    this.loadSkinFonts();
     this.showLyrics = opts.showLyrics ?? true;
     this.showCursorTrail = opts.showCursorTrail ?? true;
     this.showCursorPress = opts.showCursorPress ?? true;
@@ -428,6 +432,48 @@ export abstract class GameEngine {
       "sliderscorepoint.png",
       "reversearrow.png",
       "followpoint.png",
+      // Taiko 模式皮肤纹理
+      "taikohitcircle.png",
+      "taikohitcircleoverlay.png",
+      "taikobigcircle.png",
+      "taikobigcircleoverlay.png",
+      "taikobigcirclefInner.png",
+      "taikohit.png",
+      "taikohit300.png",
+      "taikohit100.png",
+      "taikohit0.png",
+      "taiko-flower-group.png",
+      "taiko-gata.png",
+      "taiko-drum-outer.png",
+      "taiko-drum-inner.png",
+      "taiko-slider.png",
+      "taiko-slider-fail.png",
+      "pippidon.png",
+      "pippidons.png",
+      "taiko-fail-group.png",
+      "taiko-pass-group.png",
+      // Catch 模式水果皮肤纹理
+      "fruit-apple.png",
+      "fruit-grapes.png",
+      "fruit-orange.png",
+      "fruit-pear.png",
+      "fruit-bananas.png",
+      "fruit-drop.png",
+      "fruit-ryuta.png",
+      // Mania 模式音符皮肤纹理
+      "mania-note1.png",
+      "mania-note2.png",
+      "mania-note1L.png",
+      "mania-note1T.png",
+      "mania-note2L.png",
+      "mania-note2T.png",
+      "mania-stage-light.png",
+      "mania-stage-left.png",
+      "mania-stage-right.png",
+      "mania-key1.png",
+      "mania-key2.png",
+      "mania-key1D.png",
+      "mania-key2D.png",
     ];
     let loaded = 0;
     let needed = 0;
@@ -500,6 +546,23 @@ export abstract class GameEngine {
       "slidertrack.png", "sliderborder.png", "sliderscorepoint.png",
       "reversearrow.png", "followpoint.png",
       "cursor.png", "cursortrail.png", "cursormiddle.png",
+      // Taiko 模式皮肤纹理
+      "taikohitcircle.png", "taikohitcircleoverlay.png",
+      "taikobigcircle.png", "taikobigcircleoverlay.png", "taikobigcirclefInner.png",
+      "taikohit.png", "taikohit300.png", "taikohit100.png", "taikohit0.png",
+      "taiko-flower-group.png", "taiko-gata.png",
+      "taiko-drum-outer.png", "taiko-drum-inner.png",
+      "taiko-slider.png", "taiko-slider-fail.png",
+      "pippidon.png", "pippidons.png",
+      "taiko-fail-group.png", "taiko-pass-group.png",
+      // Catch 模式水果皮肤纹理
+      "fruit-apple.png", "fruit-grapes.png", "fruit-orange.png",
+      "fruit-pear.png", "fruit-bananas.png", "fruit-drop.png", "fruit-ryuta.png",
+      // Mania 模式音符皮肤纹理
+      "mania-note1.png", "mania-note2.png",
+      "mania-note1L.png", "mania-note1T.png", "mania-note2L.png", "mania-note2T.png",
+      "mania-stage-light.png", "mania-stage-left.png", "mania-stage-right.png",
+      "mania-key1.png", "mania-key2.png", "mania-key1D.png", "mania-key2D.png",
     ];
     const findCustomUrl = (name: string): string | undefined => {
       const norm = name.replace(/\\/g, "/");
@@ -521,6 +584,57 @@ export abstract class GameEngine {
       img.onerror = () => {};
       img.src = url;
     }
+  }
+
+  /** 加载皮肤字体（.ttf/.otf/.woff）。自定义皮肤优先，其次谱面自带。
+   *  osu! 皮肤常用 default.ttf 作为默认字体，加载后注册为 'osu-skin-font'。 */
+  private loadSkinFonts(): void {
+    const fontExts = [".ttf", ".otf", ".woff", ".woff2"];
+    // 候选文件名（按优先级）：default.ttf 通常是皮肤默认字体
+    const preferredNames = ["default.ttf", "default.woff", "default.woff2", "default.otf"];
+    const findByExt = (urls: Record<string, string>): string | undefined => {
+      // 先找 default.*
+      for (const name of preferredNames) {
+        const lower = name.toLowerCase();
+        for (const [k, v] of Object.entries(urls)) {
+          const base = k.replace(/\\/g, "/").split("/").pop() || k;
+          if (base.toLowerCase() === lower) return v;
+        }
+      }
+      // 再找任意字体文件
+      for (const [k, v] of Object.entries(urls)) {
+        const lower = k.toLowerCase();
+        if (fontExts.some((e) => lower.endsWith(e))) return v;
+      }
+      return undefined;
+    };
+    const fontUrl =
+      (Object.keys(this.customSkinAssetUrls).length > 0 && findByExt(this.customSkinAssetUrls)) ||
+      (this.useBeatmapSkin ? findByExt(this.assetUrls) : undefined);
+    if (!fontUrl) return;
+    const family = "osu-skin-font";
+    try {
+      const face = new FontFace(family, `url(${JSON.stringify(fontUrl)})`, { display: "swap" });
+      face.load().then(
+        () => {
+          (document.fonts as FontFaceSet).add(face);
+          this.skinFontFamily = family;
+          this.skinFontLoaded = true;
+        },
+        () => {
+          // 字体加载失败：静默回退到默认字体
+        },
+      );
+    } catch {
+      // FontFace 不支持时忽略
+    }
+  }
+
+  /** 返回应使用的字体：皮肤字体优先，否则默认游戏字体 */
+  protected get fontStack(): string {
+    return this.skinFontLoaded && this.skinFontFamily
+      ? `"${this.skinFontFamily}", ${GAME_FONT}`
+      : GAME_FONT;
   }
 
   private collectStoryboardImageUrls(sprite: StoryboardSprite): string[] {
@@ -2368,14 +2482,14 @@ export abstract class GameEngine {
     const accText = `${this.score.accuracy.toFixed(2)}%`;
 
     ctx.save();
-    ctx.font = `700 20px ${GAME_FONT}`;
+    ctx.font = `700 20px ${this.fontStack}`;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     ctx.fillStyle = "rgba(255,255,255,0.95)";
     ctx.shadowColor = "rgba(0,0,0,0.5)";
     ctx.shadowBlur = 4;
     ctx.fillText(scoreText, left, top + 18);
-    ctx.font = `700 14px ${GAME_FONT}`;
+    ctx.font = `700 14px ${this.fontStack}`;
     ctx.fillStyle = opts.comboColor;
     ctx.fillText(comboText, left, top + 42);
     ctx.fillStyle = "rgba(255,255,255,0.8)";

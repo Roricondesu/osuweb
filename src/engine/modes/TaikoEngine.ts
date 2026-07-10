@@ -7,7 +7,7 @@
  */
 import type { HitObject } from "@/types";
 import { GameEngine, type EngineOptions } from "../GameEngine";
-import { drawRect, drawText, drawRing, clamp, GAME_FONT } from "../renderer/Canvas2D";
+import { drawRect, drawText, drawRing, clamp } from "../renderer/Canvas2D";
 
 const NOTE_R = 36;
 const APPROACH_TIME = 1500;
@@ -122,13 +122,23 @@ export class TaikoEngine extends GameEngine {
   }
 
   private drawTrack(): void {
-    const { width } = this.ctx;
+    const { ctx, width } = this.ctx;
     const trackY = this.crossPos - NOTE_R - 10;
     const trackH = (NOTE_R + 10) * 2;
-    drawRect(this.ctx, 0, trackY, width, trackH, "rgba(255,255,255,0.04)", 0);
-    this.ctx.ctx.strokeStyle = "rgba(255,255,255,0.1)";
-    this.ctx.ctx.lineWidth = 1;
-    this.ctx.ctx.strokeRect(0, trackY, width, trackH);
+    // taiko-gata 作为轨道背景（若皮肤提供）
+    const gata = this.getSkinTexture("taiko-gata.png");
+    if (gata) {
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      // 平铺拉伸覆盖整条轨道
+      ctx.drawImage(gata, 0, trackY, width, trackH);
+      ctx.restore();
+    } else {
+      drawRect(this.ctx, 0, trackY, width, trackH, "rgba(255,255,255,0.04)", 0);
+    }
+    ctx.strokeStyle = "rgba(255,255,255,0.1)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0, trackY, width, trackH);
   }
 
   /** 判定圈：空心圆环，可看到后方飞来的音符 */
@@ -159,7 +169,7 @@ export class TaikoEngine extends GameEngine {
     ctx.restore();
   }
 
-  /** 底部虚拟太鼓 - 毛玻璃风格 */
+  /** 底部虚拟太鼓 - 毛玻璃风格；若皮肤提供 taiko-drum-outer/inner 则使用皮肤纹理 */
   private drawVirtualDrum(): void {
     const { ctx, width, height } = this.ctx;
     const cx = width / 2;
@@ -173,60 +183,77 @@ export class TaikoEngine extends GameEngine {
     ctx.fillStyle = "rgba(0,0,0,0.18)";
     ctx.fill();
 
-    // 鼓身外圈（毛玻璃边框）
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = "rgba(255,255,255,0.35)";
-    ctx.stroke();
+    // 皮肤纹理：taiko-drum-outer（左红 Don 半）+ taiko-drum-inner（右蓝 Katsu 半）
+    const drumOuter = this.getSkinTexture("taiko-drum-outer.png");
+    const drumInner = this.getSkinTexture("taiko-drum-inner.png");
+    if (drumOuter || drumInner) {
+      const size = r * 2;
+      // 裁剪为圆形再绘制两半
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.clip();
+      if (drumOuter) ctx.drawImage(drumOuter, cx - r, cy - r, size, size);
+      if (drumInner) ctx.drawImage(drumInner, cx - r, cy - r, size, size);
+      ctx.restore();
+    } else {
+      // 鼓身外圈（毛玻璃边框）
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.stroke();
 
-    // 鼓身毛玻璃底色
-    ctx.beginPath();
-    ctx.arc(cx, cy, r - 2, 0, Math.PI * 2);
-    const baseGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r - 2);
-    baseGrad.addColorStop(0, "rgba(255,255,255,0.18)");
-    baseGrad.addColorStop(1, "rgba(255,255,255,0.06)");
-    ctx.fillStyle = baseGrad;
-    ctx.fill();
+      // 鼓身毛玻璃底色
+      ctx.beginPath();
+      ctx.arc(cx, cy, r - 2, 0, Math.PI * 2);
+      const baseGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r - 2);
+      baseGrad.addColorStop(0, "rgba(255,255,255,0.18)");
+      baseGrad.addColorStop(1, "rgba(255,255,255,0.06)");
+      ctx.fillStyle = baseGrad;
+      ctx.fill();
 
-    // 左红（Don）右蓝（Katsu）分区 - 毛玻璃色块
-    ctx.beginPath();
-    ctx.arc(cx, cy, r - 7, Math.PI / 2, -Math.PI / 2);
-    const redGrad = ctx.createRadialGradient(cx - r * 0.3, cy, 0, cx - r * 0.3, cy, r * 0.6);
-    redGrad.addColorStop(0, "rgba(255,94,94,0.32)");
-    redGrad.addColorStop(1, "rgba(255,94,94,0.10)");
-    ctx.fillStyle = redGrad;
-    ctx.fill();
+      // 左红（Don）右蓝（Katsu）分区 - 毛玻璃色块
+      ctx.beginPath();
+      ctx.arc(cx, cy, r - 7, Math.PI / 2, -Math.PI / 2);
+      const redGrad = ctx.createRadialGradient(cx - r * 0.3, cy, 0, cx - r * 0.3, cy, r * 0.6);
+      redGrad.addColorStop(0, "rgba(255,94,94,0.32)");
+      redGrad.addColorStop(1, "rgba(255,94,94,0.10)");
+      ctx.fillStyle = redGrad;
+      ctx.fill();
 
-    ctx.beginPath();
-    ctx.arc(cx, cy, r - 7, -Math.PI / 2, Math.PI / 2);
-    const blueGrad = ctx.createRadialGradient(cx + r * 0.3, cy, 0, cx + r * 0.3, cy, r * 0.6);
-    blueGrad.addColorStop(0, "rgba(77,166,255,0.32)");
-    blueGrad.addColorStop(1, "rgba(77,166,255,0.10)");
-    ctx.fillStyle = blueGrad;
-    ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r - 7, -Math.PI / 2, Math.PI / 2);
+      const blueGrad = ctx.createRadialGradient(cx + r * 0.3, cy, 0, cx + r * 0.3, cy, r * 0.6);
+      blueGrad.addColorStop(0, "rgba(77,166,255,0.32)");
+      blueGrad.addColorStop(1, "rgba(77,166,255,0.10)");
+      ctx.fillStyle = blueGrad;
+      ctx.fill();
 
-    // 中心环
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.35, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(255,255,255,0.28)";
-    ctx.lineWidth = 2;
-    ctx.stroke();
+      // 中心环
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.35, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255,255,255,0.28)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
 
     // 标签
     drawText(this.ctx, "DON", cx - r * 0.55, cy, {
-      font: `900 12px ${GAME_FONT}`,
+      font: `900 12px ${this.fontStack}`,
       fillStyle: COLOR_RED,
+      perfectCenter: true,
     });
     drawText(this.ctx, "KAT", cx + r * 0.55, cy, {
-      font: `900 12px ${GAME_FONT}`,
+      font: `900 12px ${this.fontStack}`,
       fillStyle: COLOR_BLUE,
+      perfectCenter: true,
     });
 
     ctx.restore();
   }
 
-  /** 音符：带轻微毛玻璃实心的圆环 */
+  /** 音符：优先使用皮肤纹理（taikohitcircle / taikobigcircle），无皮肤则 Canvas 原语 */
   private drawNote(x: number, y: number, obj: HitObject, time: number): void {
     const blue = this.isBlue(obj);
     const big = this.isBig(obj);
@@ -238,44 +265,68 @@ export class TaikoEngine extends GameEngine {
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    // 毛玻璃实心填充（轻微半透明径向渐变）
-    ctx.beginPath();
-    ctx.arc(x, y, r - 2, 0, Math.PI * 2);
-    const grad = ctx.createRadialGradient(x, y, 0, x, y, r - 2);
-    grad.addColorStop(0, "rgba(255,255,255,0.22)");
-    grad.addColorStop(1, blue ? "rgba(77,166,255,0.12)" : "rgba(255,94,94,0.12)");
-    ctx.fillStyle = grad;
-    ctx.fill();
+    // 皮肤纹理：taikobigcircle 优先用于大音符，否则 taikohitcircle
+    const baseSkin = big
+      ? this.getSkinTexture("taikobigcircle.png") || this.getSkinTexture("taikohitcircle.png")
+      : this.getSkinTexture("taikohitcircle.png");
+    const overlaySkin = big
+      ? this.getSkinTexture("taikobigcircleoverlay.png") || this.getSkinTexture("taikohitcircleoverlay.png")
+      : this.getSkinTexture("taikohitcircleoverlay.png");
 
-    // 外圈
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = big ? 5 : 4;
-    ctx.stroke();
-
-    // 内圈装饰
-    ctx.beginPath();
-    ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.globalAlpha = alpha * 0.6;
-    ctx.stroke();
-
-    // 中心小圆点
-    ctx.globalAlpha = alpha;
-    ctx.beginPath();
-    ctx.arc(x, y, r * 0.18, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-
-    // 大音符金边
-    if (big) {
+    if (baseSkin) {
+      const size = r * 2;
+      // taikohitcircle 默认是红色，katsu（蓝）需 tint 蓝色
+      this.drawTintedTexture(baseSkin, x - size / 2, y - size / 2, size, size, color);
+      if (overlaySkin) ctx.drawImage(overlaySkin, x - size / 2, y - size / 2, size, size);
+      // 大音符金边
+      if (big) {
+        ctx.beginPath();
+        ctx.arc(x, y, r + 8, 0, Math.PI * 2);
+        ctx.strokeStyle = COLOR_GOLD;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    } else {
+      // 原始 Canvas 绘制
+      // 毛玻璃实心填充（轻微半透明径向渐变）
       ctx.beginPath();
-      ctx.arc(x, y, r + 8, 0, Math.PI * 2);
-      ctx.strokeStyle = COLOR_GOLD;
-      ctx.lineWidth = 3;
+      ctx.arc(x, y, r - 2, 0, Math.PI * 2);
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r - 2);
+      grad.addColorStop(0, "rgba(255,255,255,0.22)");
+      grad.addColorStop(1, blue ? "rgba(77,166,255,0.12)" : "rgba(255,94,94,0.12)");
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // 外圈
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = big ? 5 : 4;
       ctx.stroke();
+
+      // 内圈装饰
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = alpha * 0.6;
+      ctx.stroke();
+
+      // 中心小圆点
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.18, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+
+      // 大音符金边
+      if (big) {
+        ctx.beginPath();
+        ctx.arc(x, y, r + 8, 0, Math.PI * 2);
+        ctx.strokeStyle = COLOR_GOLD;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }

@@ -19,6 +19,7 @@ const IMAGE_EXT = [".jpg", ".jpeg", ".png", ".webp"];
 /** .osk 皮肤中需要提取的资源类型 */
 const SKIN_IMAGE_EXT = [".png", ".jpg", ".jpeg", ".webp"];
 const SKIN_AUDIO_EXT = [".wav", ".mp3", ".ogg"];
+const SKIN_FONT_EXT = [".ttf", ".otf", ".woff", ".woff2"];
 
 const lowerEndsWith = (name: string, exts: string[]): boolean => {
   const n = name.toLowerCase();
@@ -251,8 +252,12 @@ export const extractOsk = async (data: ArrayBuffer): Promise<Record<string, stri
     const file = zip.files[name];
     if (file.dir) continue;
     const lower = name.toLowerCase();
-    // 跳过 skin.ini 等非资源文件，只提取图片与音效
-    if (!lowerEndsWith(name, SKIN_IMAGE_EXT) && !lowerEndsWith(name, SKIN_AUDIO_EXT)) continue;
+    // 跳过 skin.ini 等非资源文件，只提取图片、音效与字体
+    if (
+      !lowerEndsWith(name, SKIN_IMAGE_EXT) &&
+      !lowerEndsWith(name, SKIN_AUDIO_EXT) &&
+      !lowerEndsWith(name, SKIN_FONT_EXT)
+    ) continue;
     try {
       const blob = await file.async("blob");
       const url = blobToUrl(blob);

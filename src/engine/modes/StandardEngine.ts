@@ -6,7 +6,7 @@
  */
 import type { HitObject } from "@/types";
 import { GameEngine, type EngineOptions } from "../GameEngine";
-import { drawCircle, drawRing, drawText, drawRect, drawGlassCircle, clamp, GAME_FONT, hexToRgba } from "../renderer/Canvas2D";
+import { drawCircle, drawRing, drawText, drawRect, drawGlassCircle, clamp, hexToRgba } from "../renderer/Canvas2D";
 
 const OSU_W = 512;
 const OSU_H = 384;
@@ -617,10 +617,10 @@ export class StandardEngine extends GameEngine {
       // combo 数字
       if (this.showComboNumbers) {
         drawText(this.ctx, String(c.comboNumber), p.x, p.y, {
-          font: `800 ${Math.max(12, Math.round(r * 0.9))}px ${GAME_FONT}`,
+          font: `800 ${Math.max(12, Math.round(r * 0.9))}px ${this.fontStack}`,
           fillStyle: "rgba(255,255,255,0.95)",
           align: "center",
-          baseline: "middle",
+          perfectCenter: true,
         });
       }
     } else {
@@ -629,10 +629,10 @@ export class StandardEngine extends GameEngine {
       drawCircle(this.ctx, p.x, p.y, r * 0.55, hexToRgba(color, 0.7));
       if (this.showComboNumbers) {
         drawText(this.ctx, String(c.comboNumber), p.x, p.y, {
-          font: `800 ${Math.max(12, Math.round(r * 0.9))}px ${GAME_FONT}`,
+          font: `800 ${Math.max(12, Math.round(r * 0.9))}px ${this.fontStack}`,
           fillStyle: "rgba(255,255,255,0.95)",
           align: "center",
-          baseline: "middle",
+          perfectCenter: true,
         });
       }
     }
@@ -734,10 +734,10 @@ export class StandardEngine extends GameEngine {
     }
     if (this.showComboNumbers) {
       drawText(this.ctx, String(c.comboNumber), pts[0].x, pts[0].y, {
-        font: `800 ${Math.max(12, Math.round(r * 0.8))}px ${GAME_FONT}`,
+        font: `800 ${Math.max(12, Math.round(r * 0.8))}px ${this.fontStack}`,
         fillStyle: "rgba(255,255,255,0.95)",
         align: "center",
-        baseline: "middle",
+        perfectCenter: true,
       });
     }
 
@@ -906,10 +906,10 @@ export class StandardEngine extends GameEngine {
     }
 
     drawText(this.ctx, "SPIN", cx, cy, {
-      font: `900 20px ${GAME_FONT}`,
+      font: `900 20px ${this.fontStack}`,
       fillStyle: "rgba(255,255,255,0.55)",
       align: "center",
-      baseline: "middle",
+      perfectCenter: true,
     });
   }
 

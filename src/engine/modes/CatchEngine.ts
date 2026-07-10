@@ -290,29 +290,42 @@ export class CatchEngine extends GameEngine {
   private drawFruit(x: number, y: number, idx: number, time: number): void {
     const c = this.cached[idx];
     const { ctx } = this.ctx;
+    // 按形状选取皮肤纹理（若皮肤提供）
+    const shapeToTex: Record<string, string> = {
+      circle: "fruit-apple.png",
+      triangle: "fruit-pear.png",
+      diamond: "fruit-grapes.png",
+      drop: "fruit-orange.png",
+    };
+    const fruitSkin = this.getSkinTexture(shapeToTex[c.shape] || "fruit-apple.png");
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate((time / 500) % (Math.PI * 2));
-    ctx.fillStyle = c.color;
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    if (c.shape === "circle") {
-      ctx.arc(0, 0, FRUIT_R, 0, Math.PI * 2);
-    } else if (c.shape === "triangle") {
-      for (let i = 0; i < 3; i++) {
-        const a = -Math.PI / 2 + i * (Math.PI * 2 / 3);
-        const px = Math.cos(a) * FRUIT_R;
-        const py = Math.sin(a) * FRUIT_R;
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-    } else if (c.shape === "diamond") {
-      ctx.moveTo(0, -FRUIT_R); ctx.lineTo(FRUIT_R, 0); ctx.lineTo(0, FRUIT_R); ctx.lineTo(-FRUIT_R, 0); ctx.closePath();
+    if (fruitSkin) {
+      const size = FRUIT_R * 2;
+      this.drawTintedTexture(fruitSkin, -size / 2, -size / 2, size, size, c.color);
     } else {
-      ctx.arc(0, 0, FRUIT_R, 0, Math.PI * 2);
+      ctx.fillStyle = c.color;
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if (c.shape === "circle") {
+        ctx.arc(0, 0, FRUIT_R, 0, Math.PI * 2);
+      } else if (c.shape === "triangle") {
+        for (let i = 0; i < 3; i++) {
+          const a = -Math.PI / 2 + i * (Math.PI * 2 / 3);
+          const px = Math.cos(a) * FRUIT_R;
+          const py = Math.sin(a) * FRUIT_R;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+      } else if (c.shape === "diamond") {
+        ctx.moveTo(0, -FRUIT_R); ctx.lineTo(FRUIT_R, 0); ctx.lineTo(0, FRUIT_R); ctx.lineTo(-FRUIT_R, 0); ctx.closePath();
+      } else {
+        ctx.arc(0, 0, FRUIT_R, 0, Math.PI * 2);
+      }
+      ctx.fill(); ctx.stroke();
     }
-    ctx.fill(); ctx.stroke();
     ctx.restore();
   }
 
