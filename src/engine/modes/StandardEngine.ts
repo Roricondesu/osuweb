@@ -693,7 +693,7 @@ export class StandardEngine extends GameEngine {
     // 这样得到一条带 combo 色边框、深色填充的连续轨道，干净无碎裂。
     const borderW = r * 2.0 * this.sliderBorderWidth;
     drawPath(borderW, color);
-    drawPath(borderW * 0.78, hexToRgba("#000000", 0.35));
+    drawPath(borderW * 0.9, hexToRgba("#000000", 0.35));
 
     // 已滑过部分高亮（沿实际路径）
     if (ballPos) {
