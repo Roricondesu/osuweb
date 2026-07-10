@@ -62,6 +62,15 @@ export interface EngineOptions {
   autoCircleMode?: boolean;
   hitSoundVolume?: number;
   approachMultiplier?: number;
+  backgroundBlur?: number;
+  showFollowPoints?: boolean;
+  showApproachCircles?: boolean;
+  showComboNumbers?: boolean;
+  showHitEffects?: boolean;
+  showFPS?: boolean;
+  hudScale?: number;
+  cursorSize?: number;
+  playbackRate?: number;
   replay?: Replay;
 }
 
@@ -144,6 +153,15 @@ export abstract class GameEngine {
   protected showStoryboard = true;
   protected backgroundDim = 0.68;
   protected approachMultiplier = 1.5;
+  protected backgroundBlur = 0;
+  protected showFollowPoints = true;
+  protected showApproachCircles = true;
+  protected showComboNumbers = true;
+  protected showHitEffects = true;
+  protected showFPS = true;
+  protected hudScale = 1;
+  protected cursorSize = 1;
+  protected playbackRate = 1;
   protected showLyrics = true;
   protected lyrics: LyricLine[] = [];
   private lastFrameAt = 0;
@@ -171,6 +189,15 @@ export abstract class GameEngine {
     this.showStoryboard = opts.showStoryboard ?? true;
     this.backgroundDim = opts.backgroundDim ?? 0.68;
     this.approachMultiplier = opts.approachMultiplier ?? 1.5;
+    this.backgroundBlur = opts.backgroundBlur ?? 0;
+    this.showFollowPoints = opts.showFollowPoints ?? true;
+    this.showApproachCircles = opts.showApproachCircles ?? true;
+    this.showComboNumbers = opts.showComboNumbers ?? true;
+    this.showHitEffects = opts.showHitEffects ?? true;
+    this.showFPS = opts.showFPS ?? true;
+    this.hudScale = opts.hudScale ?? 1;
+    this.cursorSize = opts.cursorSize ?? 1;
+    this.playbackRate = opts.playbackRate ?? 1;
     this.showLyrics = opts.showLyrics ?? true;
     this.showCursorTrail = opts.showCursorTrail ?? true;
     this.showCursorPress = opts.showCursorPress ?? true;
@@ -395,6 +422,7 @@ export abstract class GameEngine {
     if (this.status !== "idle") return;
     this.status = "playing";
     this.audio.volume = 1;
+    this.audio.playbackRate = this.playbackRate;
     try {
       this.audio.currentTime = 0;
     } catch {
@@ -422,6 +450,7 @@ export abstract class GameEngine {
   resume(): void {
     if (this.status !== "paused") return;
     this.status = "playing";
+    this.audio.playbackRate = this.playbackRate;
     this.audio.play().catch(() => {});
     this.lastFrameAt = 0;
     this.fpsFrameCount = 0;
@@ -438,6 +467,7 @@ export abstract class GameEngine {
       // 忽略音频未就绪时的设置异常
     }
     this.status = "playing";
+    this.audio.playbackRate = this.playbackRate;
     this.audio.play().catch(() => {});
     this.lastFrameAt = 0;
     this.fpsFrameCount = 0;
@@ -831,6 +861,7 @@ export abstract class GameEngine {
 
   /** 绘制命中爆点 - 空心渐变圆环 */
   protected drawHitEffects(time: number): void {
+    if (!this.showHitEffects) return;
     const { ctx } = this.ctx;
     const colorMap: Record<Judgement, string> = {
       "300": "#ff9ecf",
@@ -913,11 +944,15 @@ export abstract class GameEngine {
     if (this.backgroundImage && this.backgroundLoaded) {
       ctx.save();
       ctx.globalAlpha = 1 - this.backgroundDim;
+      if (this.backgroundBlur > 0) {
+        ctx.filter = `blur(${this.backgroundBlur}px)`;
+      }
       const img = this.backgroundImage;
       const scale = Math.max(width / img.width, height / img.height);
       const dw = img.width * scale;
       const dh = img.height * scale;
       ctx.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
+      ctx.filter = "none";
       ctx.restore();
     }
   }
@@ -2070,6 +2105,7 @@ export abstract class GameEngine {
 
   /** 右下角 FPS 显示 */
   protected drawFPS(): void {
+    if (!this.showFPS) return;
     const { ctx, width, height } = this.ctx;
     ctx.save();
     ctx.font = `700 12px ${GAME_FONT}`;

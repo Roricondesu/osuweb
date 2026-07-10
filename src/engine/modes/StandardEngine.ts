@@ -38,6 +38,7 @@ export class StandardEngine extends GameEngine {
   private offsetX = 0;
   private offsetY = 0;
   private preempt = 1200;
+  private guideLineTime = 1800;
   private r = CIRCLE_BASE_R;
   private spinnerRotation = 0;
   private lastPointer: { x: number; y: number } | null = null;
@@ -46,7 +47,8 @@ export class StandardEngine extends GameEngine {
 
   constructor(opts: EngineOptions) {
     super(opts);
-    this.preempt = arToPreempt(opts.beatmap.ar) * this.approachMultiplier;
+    this.preempt = arToPreempt(opts.beatmap.ar);
+    this.guideLineTime = this.preempt * this.approachMultiplier;
     this.r = csToRadius(opts.beatmap.cs);
     this.precomputeObjects();
     this.onLayoutChange();
@@ -397,6 +399,7 @@ export class StandardEngine extends GameEngine {
 
   /** 引导线：在上一物件与下一目标之间显示实线，两端透明度渐变，带整体淡入淡出 */
   private drawGuideLine(time: number): void {
+    if (!this.showFollowPoints) return;
     const objs = this.beatmap.hitObjects;
     if (objs.length < 2) return;
 
@@ -406,7 +409,7 @@ export class StandardEngine extends GameEngine {
       const obj = objs[i];
       if (obj.judged) continue;
       const dt = obj.time - time;
-      if (dt > 0 && dt <= this.preempt) {
+      if (dt > 0 && dt <= this.guideLineTime) {
         nextIdx = i;
         break;
       }
@@ -425,8 +428,8 @@ export class StandardEngine extends GameEngine {
 
     const dt = next.time - time;
     // 整体淡入淡出
-    const fadeIn = 1 - clamp((dt - this.preempt * 0.5) / (this.preempt * 0.4), 0, 1);
-    const fadeOut = clamp(dt / (this.preempt * 0.4), 0, 1);
+    const fadeIn = 1 - clamp((dt - this.guideLineTime * 0.5) / (this.guideLineTime * 0.4), 0, 1);
+    const fadeOut = clamp(dt / (this.guideLineTime * 0.4), 0, 1);
     const globalAlpha = Math.min(fadeIn, fadeOut);
     if (globalAlpha <= 0.01) return;
 
@@ -458,7 +461,7 @@ export class StandardEngine extends GameEngine {
     const color = c.comboColor;
 
     // approach circle - 优先使用皮肤纹理
-    if (approachT < 1) {
+    if (approachT < 1 && this.showApproachCircles) {
       const ar = r * (4 - 3 * approachT);
       const approachSkin = this.getSkinTexture("approachcircle.png");
       if (approachSkin) {
@@ -491,22 +494,26 @@ export class StandardEngine extends GameEngine {
         ctx.restore();
       }
       // combo 数字
-      drawText(this.ctx, String(c.comboNumber), p.x, p.y, {
-        font: `800 ${Math.max(12, Math.round(r * 0.9))}px ${GAME_FONT}`,
-        fillStyle: "rgba(255,255,255,0.95)",
-        align: "center",
-        baseline: "middle",
-      });
+      if (this.showComboNumbers) {
+        drawText(this.ctx, String(c.comboNumber), p.x, p.y, {
+          font: `800 ${Math.max(12, Math.round(r * 0.9))}px ${GAME_FONT}`,
+          fillStyle: "rgba(255,255,255,0.95)",
+          align: "center",
+          baseline: "middle",
+        });
+      }
     } else {
       // 原始 Canvas 绘制
       drawGlassCircle(this.ctx, p.x, p.y, r, hexToRgba(color, GLASS_ALPHA), "rgba(255,255,255,0.7)", 2);
       drawCircle(this.ctx, p.x, p.y, r * 0.55, hexToRgba(color, 0.7));
-      drawText(this.ctx, String(c.comboNumber), p.x, p.y, {
-        font: `800 ${Math.max(12, Math.round(r * 0.9))}px ${GAME_FONT}`,
-        fillStyle: "rgba(255,255,255,0.95)",
-        align: "center",
-        baseline: "middle",
-      });
+      if (this.showComboNumbers) {
+        drawText(this.ctx, String(c.comboNumber), p.x, p.y, {
+          font: `800 ${Math.max(12, Math.round(r * 0.9))}px ${GAME_FONT}`,
+          fillStyle: "rgba(255,255,255,0.95)",
+          align: "center",
+          baseline: "middle",
+        });
+      }
     }
   }
 
@@ -601,12 +608,14 @@ export class StandardEngine extends GameEngine {
       drawGlassCircle(this.ctx, pts[0].x, pts[0].y, r, hexToRgba(color, GLASS_ALPHA), "rgba(255,255,255,0.85)", 2);
       drawCircle(this.ctx, pts[0].x, pts[0].y, r * 0.55, hexToRgba(color, 0.55));
     }
-    drawText(this.ctx, String(c.comboNumber), pts[0].x, pts[0].y, {
-      font: `800 ${Math.max(12, Math.round(r * 0.8))}px ${GAME_FONT}`,
-      fillStyle: "rgba(255,255,255,0.95)",
-      align: "center",
-      baseline: "middle",
-    });
+    if (this.showComboNumbers) {
+      drawText(this.ctx, String(c.comboNumber), pts[0].x, pts[0].y, {
+        font: `800 ${Math.max(12, Math.round(r * 0.8))}px ${GAME_FONT}`,
+        fillStyle: "rgba(255,255,255,0.95)",
+        align: "center",
+        baseline: "middle",
+      });
+    }
 
     // 尾部圆
     const tail = pts[pts.length - 1];
@@ -618,7 +627,7 @@ export class StandardEngine extends GameEngine {
     }
 
     // approach circle
-    if (timeUntil > 0) {
+    if (timeUntil > 0 && this.showApproachCircles) {
       const approachT = clamp(1 - timeUntil / this.preempt, 0, 1);
       if (approachT < 1) {
         const ar = r * (3.8 - 2.8 * approachT);

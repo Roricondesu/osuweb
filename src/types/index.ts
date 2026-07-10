@@ -338,30 +338,36 @@ export interface Settings {
 
   // 搜索 / 下载
   searchSource: "osu" | "sayobot";
-  /** 仅显示有 Storyboard 的谱面（仅对 osu.direct 有效） */
   storyboardOnly: boolean;
-  /** 下载完整谱面包（含视频/Storyboard 资源），否则用 sayobot mini */
   downloadFullPackage: boolean;
 
   // 画面
   showStoryboard: boolean;
-  backgroundDim: number; // 0-1，背景变暗强度
-  /** 引导线提前倍率（1.0=标准，1.5=提前50%出现） */
-  approachMultiplier: number;
-  forceLandscape: boolean; // 游戏内强制横屏
-  fullscreen: boolean; // 启动/退出全屏
+  backgroundDim: number; // 0-1
+  backgroundBlur: number; // 0-20，背景高斯模糊半径
+  approachMultiplier: number; // 引导线提前倍率 1.0-2.5
+  showFollowPoints: boolean; // 显示引导线
+  showApproachCircles: boolean; // 显示引导圈
+  showComboNumbers: boolean; // 显示连击数字
+  showHitEffects: boolean; // 显示击中特效
+  showFPS: boolean; // 显示 FPS
+  hudScale: number; // 0.8-1.5，HUD 缩放
+  forceLandscape: boolean;
+  fullscreen: boolean;
 
   // 光标 / Auto
-  showCursorTrail: boolean; // 显示光标拖尾
-  showCursorPress: boolean; // 显示光标按下反馈
-  autoCursorSpeed: number; // 0.5-2.0，auto 光标移动速度倍率
-  autoCircleMode: boolean; // Auto 匀速圆周移动模式
+  showCursorTrail: boolean;
+  showCursorPress: boolean;
+  cursorSize: number; // 0.5-2.0，光标大小倍率
+  autoCursorSpeed: number;
+  autoCircleMode: boolean;
 
   // 歌词
-  showLyrics: boolean; // 游戏内底部显示匹配歌词
+  showLyrics: boolean;
 
   // 音效
-  hitSoundVolume: number; // 0-1，谱面按键音音量
+  hitSoundVolume: number;
+  playbackRate: number; // 0.5-1.5，播放速度
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -376,13 +382,22 @@ export const DEFAULT_SETTINGS: Settings = {
   downloadFullPackage: false,
   showStoryboard: true,
   backgroundDim: 0.68,
+  backgroundBlur: 0,
   approachMultiplier: 1.5,
+  showFollowPoints: true,
+  showApproachCircles: true,
+  showComboNumbers: true,
+  showHitEffects: true,
+  showFPS: true,
+  hudScale: 1,
   forceLandscape: false,
   fullscreen: false,
-  showLyrics: true,
   showCursorTrail: true,
   showCursorPress: true,
+  cursorSize: 1,
   autoCursorSpeed: 1,
   autoCircleMode: false,
+  showLyrics: true,
   hitSoundVolume: 0.6,
+  playbackRate: 1,
 };

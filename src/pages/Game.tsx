@@ -39,6 +39,15 @@ export default function Game() {
   const autoCircleMode = useGameStore((s) => s.settings.autoCircleMode);
   const hitSoundVolume = useGameStore((s) => s.settings.hitSoundVolume);
   const approachMultiplier = useGameStore((s) => s.settings.approachMultiplier);
+  const backgroundBlur = useGameStore((s) => s.settings.backgroundBlur);
+  const showFollowPoints = useGameStore((s) => s.settings.showFollowPoints);
+  const showApproachCircles = useGameStore((s) => s.settings.showApproachCircles);
+  const showComboNumbers = useGameStore((s) => s.settings.showComboNumbers);
+  const showHitEffects = useGameStore((s) => s.settings.showHitEffects);
+  const showFPS = useGameStore((s) => s.settings.showFPS);
+  const hudScale = useGameStore((s) => s.settings.hudScale);
+  const cursorSize = useGameStore((s) => s.settings.cursorSize);
+  const playbackRate = useGameStore((s) => s.settings.playbackRate);
   const updateRuntime = useGameStore((s) => s.updateRuntime);
   const endGame = useGameStore((s) => s.endGame);
   const { toggle: toggleFullscreen, active: isFullscreen } = useFullscreen();
@@ -131,6 +140,15 @@ export default function Game() {
         autoCircleMode,
         hitSoundVolume,
         approachMultiplier,
+        backgroundBlur,
+        showFollowPoints,
+        showApproachCircles,
+        showComboNumbers,
+        showHitEffects,
+        showFPS,
+        hudScale,
+        cursorSize,
+        playbackRate,
         replay: selectedReplay ?? undefined,
         callbacks: {
           onScoreUpdate: (s) => {
@@ -182,7 +200,7 @@ export default function Game() {
     };
     // 引擎创建依赖较多，避免音量/offset 等运行时可调设置导致整引擎重建
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume, approachMultiplier, selectedReplay]);
+  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume, approachMultiplier, backgroundBlur, showFollowPoints, showApproachCircles, showComboNumbers, showHitEffects, showFPS, hudScale, cursorSize, playbackRate, selectedReplay]);
 
   // 同步音量
   useEffect(() => {

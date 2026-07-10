@@ -161,22 +161,42 @@ export default function Settings() {
       </Section>
 
       <Section icon={<Volume2 size={18} />} title="音量" delay={2} open={openSections.has("audio")} onToggle={() => toggleSection("audio")}>
-        <div>
-          <div className="mb-1 flex items-center justify-between text-sm">
-            <span style={{ color: "var(--text-primary)" }}>音乐音量</span>
-            <span style={{ color: "var(--accent)", fontWeight: 600 }}>
-              {Math.round(settings.volume * 100)}%
-            </span>
+        <div className="flex flex-col gap-4">
+          <div>
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <span style={{ color: "var(--text-primary)" }}>音乐音量</span>
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                {Math.round(settings.volume * 100)}%
+              </span>
+            </div>
+            <GlassSlider
+              value={settings.volume}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(v) => updateSetting("volume", v)}
+              scheme={scheme}
+              ariaLabel="音量"
+            />
           </div>
-          <GlassSlider
-            value={settings.volume}
-            min={0}
-            max={1}
-            step={0.01}
-            onChange={(v) => updateSetting("volume", v)}
-            scheme={scheme}
-            ariaLabel="音量"
-          />
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <span style={{ color: "var(--text-primary)" }}>播放速度</span>
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                ×{settings.playbackRate.toFixed(2)}
+              </span>
+            </div>
+            <GlassSlider
+              value={settings.playbackRate}
+              min={0.5}
+              max={1.5}
+              step={0.05}
+              onChange={(v) => updateSetting("playbackRate", v)}
+              scheme={scheme}
+              ariaLabel="播放速度"
+            />
+          </div>
         </div>
       </Section>
 
@@ -255,6 +275,24 @@ export default function Settings() {
               onCheckedChange={(c) => updateSetting("showCursorPress", c)}
               scheme={scheme}
               ariaLabel="光标按下反馈"
+            />
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <span style={{ color: "var(--text-primary)" }}>光标大小</span>
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                ×{settings.cursorSize.toFixed(1)}
+              </span>
+            </div>
+            <GlassSlider
+              value={settings.cursorSize}
+              min={0.5}
+              max={2}
+              step={0.1}
+              onChange={(v) => updateSetting("cursorSize", v)}
+              scheme={scheme}
+              ariaLabel="光标大小"
             />
           </div>
 
@@ -487,6 +525,102 @@ export default function Settings() {
               onChange={(v) => updateSetting("approachMultiplier", v)}
               scheme={scheme}
               ariaLabel="引导线提前"
+            />
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <span style={{ color: "var(--text-primary)" }}>背景模糊</span>
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                {Math.round(settings.backgroundBlur)}px
+              </span>
+            </div>
+            <GlassSlider
+              value={settings.backgroundBlur}
+              min={0}
+              max={20}
+              step={1}
+              onChange={(v) => updateSetting("backgroundBlur", v)}
+              scheme={scheme}
+              ariaLabel="背景模糊"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示引导线</div>
+            </div>
+            <GlassSwitch
+              checked={settings.showFollowPoints}
+              onCheckedChange={(c) => updateSetting("showFollowPoints", c)}
+              scheme={scheme}
+              ariaLabel="显示引导线"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示引导圈</div>
+            </div>
+            <GlassSwitch
+              checked={settings.showApproachCircles}
+              onCheckedChange={(c) => updateSetting("showApproachCircles", c)}
+              scheme={scheme}
+              ariaLabel="显示引导圈"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示连击数字</div>
+            </div>
+            <GlassSwitch
+              checked={settings.showComboNumbers}
+              onCheckedChange={(c) => updateSetting("showComboNumbers", c)}
+              scheme={scheme}
+              ariaLabel="显示连击数字"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示击中特效</div>
+            </div>
+            <GlassSwitch
+              checked={settings.showHitEffects}
+              onCheckedChange={(c) => updateSetting("showHitEffects", c)}
+              scheme={scheme}
+              ariaLabel="显示击中特效"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示 FPS</div>
+            </div>
+            <GlassSwitch
+              checked={settings.showFPS}
+              onCheckedChange={(c) => updateSetting("showFPS", c)}
+              scheme={scheme}
+              ariaLabel="显示 FPS"
+            />
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <span style={{ color: "var(--text-primary)" }}>HUD 缩放</span>
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                ×{settings.hudScale.toFixed(1)}
+              </span>
+            </div>
+            <GlassSlider
+              value={settings.hudScale}
+              min={0.8}
+              max={1.5}
+              step={0.1}
+              onChange={(v) => updateSetting("hudScale", v)}
+              scheme={scheme}
+              ariaLabel="HUD 缩放"
             />
           </div>
         </div>
