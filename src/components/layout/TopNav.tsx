@@ -25,15 +25,17 @@ export const TopNav: React.FC = () => {
     <header
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
+        top: "calc(env(safe-area-inset-top, 0px) + 8px)",
+        left: "50%",
+        transform: "translateX(-50%)",
         zIndex: 50,
-        paddingTop: "env(safe-area-inset-top, 0px)",
-        background: theme === "dark" ? "rgba(9,9,12,0.72)" : "rgba(232,234,239,0.72)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        borderBottom: "1px solid var(--border)",
+        width: "min(calc(100% - 24px), 720px)",
+        borderRadius: 18,
+        background: theme === "dark" ? "rgba(9,9,12,0.62)" : "rgba(232,234,239,0.62)",
+        backdropFilter: "blur(20px) saturate(180%)",
+        WebkitBackdropFilter: "blur(20px) saturate(180%)",
+        border: "1px solid var(--border)",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
       }}
     >
       <div
@@ -41,9 +43,7 @@ export const TopNav: React.FC = () => {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "12px 16px",
-          maxWidth: 1200,
-          margin: "0 auto",
+          padding: "8px 14px",
         }}
       >
         <Link
@@ -60,7 +60,7 @@ export const TopNav: React.FC = () => {
           }}
         >
           <Music2 size={20} />
-          <span>osu! game</span>
+          <span>osu!web</span>
         </Link>
 
         <nav style={{ display: "flex", gap: 4 }}>
@@ -73,9 +73,9 @@ export const TopNav: React.FC = () => {
                 to={item.to}
                 aria-label={item.label}
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 12,
+                  width: 34,
+                  height: 34,
+                  borderRadius: 10,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -94,9 +94,9 @@ export const TopNav: React.FC = () => {
           onClick={toggle}
           aria-label={active ? "退出全屏" : "进入全屏"}
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 12,
+            width: 34,
+            height: 34,
+            borderRadius: 10,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
