@@ -57,6 +57,9 @@ export interface EngineOptions {
   backgroundDim?: number;
   showLyrics?: boolean;
   lyrics?: LyricLine[];
+  lyricsEffect?: "none" | "fade" | "slide";
+  lyricsSize?: number;
+  spectatorMode?: boolean;
   showCursorTrail?: boolean;
   showCursorPress?: boolean;
   autoCursorSpeed?: number;
@@ -130,6 +133,7 @@ export abstract class GameEngine {
   protected hitSoundAudios: Map<string, HTMLAudioElement> = new Map();
   protected hitSoundUrlCache: Map<string, string | null> = new Map();
   protected audioCtx: AudioContext | null = null;
+  private audioUnlocked = false;
 
   // 回放
   protected isReplay = false;
@@ -203,12 +207,18 @@ export abstract class GameEngine {
   protected modAutopilot = false;
   protected showLyrics = true;
   protected lyrics: LyricLine[] = [];
+  protected lyricsEffect: "none" | "fade" | "slide" = "fade";
+  protected lyricsSize = 18;
+  protected spectatorMode = false;
   private lastFrameAt = 0;
   private fpsFrameCount = 0;
   private fpsLastUpdate = 0;
   protected fps = 0;
   // Storyboard 颜色着色用离屏 canvas（避免透明像素被背景/其他物件染色）
   private storyboardColorCanvas: HTMLCanvasElement | null = null;
+  // 歌词切换动画状态
+  private lastLyricText = "";
+  private lyricSwitchStartTime = 0;
 
   protected activeIndex = 0;
   protected hitEffects: HitEffect[] = [];
@@ -256,6 +266,9 @@ export abstract class GameEngine {
     this.loadCustomSkinTextures();
     this.loadSkinFonts();
     this.showLyrics = opts.showLyrics ?? true;
+    this.lyricsEffect = opts.lyricsEffect ?? "fade";
+    this.lyricsSize = opts.lyricsSize ?? 18;
+    this.spectatorMode = opts.spectatorMode ?? false;
     this.showCursorTrail = opts.showCursorTrail ?? true;
     this.showCursorPress = opts.showCursorPress ?? true;
     this.autoCursorSpeed = opts.autoCursorSpeed ?? 1;
@@ -713,6 +726,8 @@ export abstract class GameEngine {
     this.audio.play().catch(() => {
       // 自动播放可能被阻拦，等用户首次交互
     });
+    // 用户点击启动，统一解锁音频（Web Audio + HTMLAudio）
+    this.unlockAudio();
     this.startTime = performance.now();
     this.audioStartedAt = 0;
     this.initCursorPosition();
@@ -804,21 +819,28 @@ export abstract class GameEngine {
       }
     }
 
-    this.update(time);
-    this.smoothCursor(dt, time);
+    if (this.spectatorMode) {
+      // 观赏模式：只播放 Storyboard / 背景 / 歌词，不渲染游戏元素与判定
+      this.renderBackground(time);
+      this.drawLyrics(time);
+      this.drawFPS();
+    } else {
+      this.update(time);
+      this.smoothCursor(dt, time);
 
-    // 失败判定：血量归零且未启用 NoFail → 直接结束（失败）
-    if (this.score.health <= 0 && !this.modNoFail) {
-      this.finish();
-      return;
+      // 失败判定：血量归零且未启用 NoFail → 直接结束（失败）
+      if (this.score.health <= 0 && !this.modNoFail) {
+        this.finish();
+        return;
+      }
+
+      this.render();
+      this.drawLyrics(time);
+      this.updateCursorTrail(time);
+      this.drawCursor(time);
+      this.drawFPS();
+      this.callbacks.onScoreUpdate?.(this.score);
     }
-
-    this.render();
-    this.drawLyrics(time);
-    this.updateCursorTrail(time);
-    this.drawCursor(time);
-    this.drawFPS();
-    this.callbacks.onScoreUpdate?.(this.score);
 
     // 检查是否结束（所有 hitObjects 已处理 + 音频结束）
     if (this.isFinished(time)) {
@@ -1042,6 +1064,29 @@ export abstract class GameEngine {
       this.audioCtx.resume().catch(() => {});
     }
     return this.audioCtx;
+  }
+
+  /** 在用户手势中确保 AudioContext 已恢复（子类输入处理中调用） */
+  protected ensureAudio(): void {
+    const ctx = this.getAudioCtx();
+    if (ctx && ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+  }
+
+  /** 在用户手势中统一解锁 Web Audio + HTMLAudio，防止首次击打被浏览器自动播放策略拦截 */
+  protected unlockAudio(): void {
+    if (this.audioUnlocked) return;
+    this.audioUnlocked = true;
+    this.ensureAudio();
+    try {
+      const silent = new Audio(
+        "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAAAAAA==",
+      );
+      silent.play().catch(() => {});
+    } catch {
+      // 忽略不支持 data URL 的极端情况
+    }
   }
 
   /** 播放内置默认击打音效（Web Audio 合成，零延迟）
@@ -1397,21 +1442,45 @@ export abstract class GameEngine {
     }
   }
 
-  /** 绘制歌词，固定在屏幕底部 */
+  /** 绘制歌词，固定在屏幕底部，带切换动画 */
   protected drawLyrics(time: number): void {
     if (!this.showLyrics || this.lyrics.length === 0) return;
     const current = getCurrentLyric(this.lyrics, time);
     if (!current || !current.text) return;
     const { ctx, width, height } = this.ctx;
 
+    if (current.text !== this.lastLyricText) {
+      this.lastLyricText = current.text;
+      this.lyricSwitchStartTime = time;
+    }
+
+    const elapsed = time - this.lyricSwitchStartTime;
+    const duration = 350;
+    const progress = clamp(elapsed / duration, 0, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
+
+    let alpha = 1;
+    let yOffset = 0;
+    switch (this.lyricsEffect) {
+      case "fade":
+        alpha = ease;
+        break;
+      case "slide":
+        yOffset = (1 - ease) * 16;
+        break;
+      default:
+        alpha = 1;
+        yOffset = 0;
+    }
+
     ctx.save();
-    ctx.font = `600 18px ${GAME_FONT}`;
+    ctx.font = `600 ${this.lyricsSize}px ${GAME_FONT}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.shadowColor = "rgba(0,0,0,0.6)";
+    ctx.fillStyle = `rgba(255,255,255,${0.9 * alpha})`;
+    ctx.shadowColor = `rgba(0,0,0,${0.6 * alpha})`;
     ctx.shadowBlur = 6;
-    ctx.fillText(current.text, width / 2, height - 34);
+    ctx.fillText(current.text, width / 2, height - 34 + yOffset);
     ctx.restore();
   }
 
@@ -1830,6 +1899,8 @@ export abstract class GameEngine {
     this.cursorMoveStartY = -100;
     this.cursorLastTargetX = -100;
     this.cursorLastTargetY = -100;
+    this.lastLyricText = "";
+    this.lyricSwitchStartTime = 0;
   }
 
   /** 输入：设置光标位置（子类可重写） */

@@ -760,6 +760,19 @@ export default function Settings() {
 
           <div className="flex items-center justify-between">
             <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>观赏模式</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>只播放 Storyboard、背景与音频，隐藏音符与判定</div>
+            </div>
+            <GlassSwitch
+              checked={settings.spectatorMode}
+              onCheckedChange={(c) => updateSetting("spectatorMode", c)}
+              scheme={scheme}
+              ariaLabel="观赏模式"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
               <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>强制横屏</div>
               <div className="text-xs" style={{ color: "var(--text-secondary)" }}>游戏内强制使用横屏布局</div>
             </div>
@@ -920,6 +933,46 @@ export default function Settings() {
               onCheckedChange={(c) => updateSetting("showLyrics", c)}
               scheme={scheme}
               ariaLabel="显示歌词"
+            />
+          </div>
+
+          <div>
+            <div className="mb-2 text-sm font-medium" style={{ color: "var(--text-primary)" }}>歌词效果</div>
+            <div className="flex flex-wrap gap-2">
+              {(["none", "fade", "slide"] as const).map((effect) => {
+                const selected = settings.lyricsEffect === effect;
+                return (
+                  <button
+                    key={effect}
+                    onClick={() => updateSetting("lyricsEffect", effect)}
+                    className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95"
+                    style={{
+                      border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
+                      color: selected ? "#fff" : "var(--text-primary)",
+                      background: selected ? "var(--accent)" : "transparent",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {effect === "none" ? "无" : effect === "fade" ? "淡入" : "滑动"}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <span style={{ color: "var(--text-primary)" }}>歌词大小</span>
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>{settings.lyricsSize}px</span>
+            </div>
+            <GlassSlider
+              value={settings.lyricsSize}
+              min={12}
+              max={24}
+              step={1}
+              onChange={(v) => updateSetting("lyricsSize", v)}
+              scheme={scheme}
+              ariaLabel="歌词大小"
             />
           </div>
 

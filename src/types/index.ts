@@ -395,6 +395,11 @@ export interface Settings {
 
   // 歌词
   showLyrics: boolean;
+  lyricsEffect: "none" | "fade" | "slide";
+  lyricsSize: number;
+
+  // 观赏模式
+  spectatorMode: boolean;
 
   // 音效
   hitSoundVolume: number;
@@ -444,6 +449,9 @@ export const DEFAULT_SETTINGS: Settings = {
   autoCursorSpeed: 1,
   autoCircleMode: false,
   showLyrics: true,
+  lyricsEffect: "fade",
+  lyricsSize: 18,
+  spectatorMode: false,
   hitSoundVolume: 0.6,
   playbackRate: 1,
   mods: [],

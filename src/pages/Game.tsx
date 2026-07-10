@@ -33,6 +33,9 @@ export default function Game() {
   const showStoryboard = useGameStore((s) => s.settings.showStoryboard);
   const backgroundDim = useGameStore((s) => s.settings.backgroundDim);
   const showLyrics = useGameStore((s) => s.settings.showLyrics);
+  const lyricsEffect = useGameStore((s) => s.settings.lyricsEffect);
+  const lyricsSize = useGameStore((s) => s.settings.lyricsSize);
+  const spectatorMode = useGameStore((s) => s.settings.spectatorMode);
   const showCursorTrail = useGameStore((s) => s.settings.showCursorTrail);
   const showCursorPress = useGameStore((s) => s.settings.showCursorPress);
   const autoCursorSpeed = useGameStore((s) => s.settings.autoCursorSpeed);
@@ -143,6 +146,9 @@ export default function Game() {
         showStoryboard,
         backgroundDim,
         showLyrics,
+        lyricsEffect,
+        lyricsSize,
+        spectatorMode,
         lyrics,
         showCursorTrail,
         showCursorPress,
@@ -219,7 +225,7 @@ export default function Game() {
     };
     // 引擎创建依赖较多，避免音量/offset 等运行时可调设置导致整引擎重建
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume, approachMultiplier, backgroundBlur, showFollowPoints, showApproachCircles, showComboNumbers, showHitEffects, showFPS, hudScale, cursorSize, playbackRate, mods, useBeatmapSkin, useCustomSkin, customSkinAssetUrls, customComboColors, useCustomComboColors, circleBorderWidth, sliderBorderWidth, sliderBallScale, hitCircleScale, selectedReplay]);
+  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyricsEffect, lyricsSize, spectatorMode, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume, approachMultiplier, backgroundBlur, showFollowPoints, showApproachCircles, showComboNumbers, showHitEffects, showFPS, hudScale, cursorSize, playbackRate, mods, useBeatmapSkin, useCustomSkin, customSkinAssetUrls, customComboColors, useCustomComboColors, circleBorderWidth, sliderBorderWidth, sliderBallScale, hitCircleScale, selectedReplay]);
 
   // 同步音量
   useEffect(() => {

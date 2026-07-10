@@ -144,7 +144,7 @@ export class StandardEngine extends GameEngine {
 
   private computeLayout(): void {
     const { width, height } = this.ctx;
-    const padTop = 110, padBottom = 24, padX = 18;
+    const padTop = 90, padBottom = 24, padX = 18;
     if (this.isLandscape) {
       this.scale = Math.min((width - padX * 2) / OSU_W, (height - padTop - padBottom) / OSU_H);
       this.offsetX = (width - OSU_W * this.scale) / 2;
@@ -918,6 +918,7 @@ export class StandardEngine extends GameEngine {
 
   protected handlePointerDown(x: number, y: number): void {
     if (this.status !== "playing") return;
+    this.unlockAudio();
     const time = this.currentTime;
     this.pressCursor(time);
     let best: HitObject | null = null;

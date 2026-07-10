@@ -115,7 +115,7 @@ export class TaikoEngine extends GameEngine {
     }
 
     this.drawJudgeCircle();
-    this.drawVirtualDrum();
+    this.drawHitHint();
     this.drawHitEffects(time);
     this.drawJudgePopups(time);
     this.drawHUD({ comboColor: MODE_COLOR, modeLabel: "osu!taiko", modeColor: MODE_COLOR });
@@ -169,86 +169,33 @@ export class TaikoEngine extends GameEngine {
     ctx.restore();
   }
 
-  /** 底部虚拟太鼓 - 毛玻璃风格；若皮肤提供 taiko-drum-outer/inner 则使用皮肤纹理 */
-  private drawVirtualDrum(): void {
+  /** 底部击打提示：左蓝 KAT | 右红 DON */
+  private drawHitHint(): void {
     const { ctx, width, height } = this.ctx;
-    const cx = width / 2;
-    const cy = this.isLandscape ? height - 90 : height - 120;
-    const r = this.isLandscape ? 62 : 56;
+    const y = height - 26;
 
     ctx.save();
-    // 鼓身阴影
+    ctx.font = `700 12px ${this.fontStack}`;
+    ctx.textBaseline = "middle";
+
+    // 左蓝 KAT
+    ctx.textAlign = "right";
+    ctx.fillStyle = COLOR_BLUE;
+    ctx.globalAlpha = 0.85;
+    ctx.fillText("KAT", width / 2 - 10, y);
+
+    // 分隔线
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(cx + 4, cy + 4, r, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(0,0,0,0.18)";
-    ctx.fill();
+    ctx.moveTo(width / 2, y - 8);
+    ctx.lineTo(width / 2, y + 8);
+    ctx.stroke();
 
-    // 皮肤纹理：taiko-drum-outer（左红 Don 半）+ taiko-drum-inner（右蓝 Katsu 半）
-    const drumOuter = this.getSkinTexture("taiko-drum-outer.png");
-    const drumInner = this.getSkinTexture("taiko-drum-inner.png");
-    if (drumOuter || drumInner) {
-      const size = r * 2;
-      // 裁剪为圆形再绘制两半
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.clip();
-      if (drumOuter) ctx.drawImage(drumOuter, cx - r, cy - r, size, size);
-      if (drumInner) ctx.drawImage(drumInner, cx - r, cy - r, size, size);
-      ctx.restore();
-    } else {
-      // 鼓身外圈（毛玻璃边框）
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.lineWidth = 5;
-      ctx.strokeStyle = "rgba(255,255,255,0.35)";
-      ctx.stroke();
-
-      // 鼓身毛玻璃底色
-      ctx.beginPath();
-      ctx.arc(cx, cy, r - 2, 0, Math.PI * 2);
-      const baseGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r - 2);
-      baseGrad.addColorStop(0, "rgba(255,255,255,0.18)");
-      baseGrad.addColorStop(1, "rgba(255,255,255,0.06)");
-      ctx.fillStyle = baseGrad;
-      ctx.fill();
-
-      // 左红（Don）右蓝（Katsu）分区 - 毛玻璃色块
-      ctx.beginPath();
-      ctx.arc(cx, cy, r - 7, Math.PI / 2, -Math.PI / 2);
-      const redGrad = ctx.createRadialGradient(cx - r * 0.3, cy, 0, cx - r * 0.3, cy, r * 0.6);
-      redGrad.addColorStop(0, "rgba(255,94,94,0.32)");
-      redGrad.addColorStop(1, "rgba(255,94,94,0.10)");
-      ctx.fillStyle = redGrad;
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(cx, cy, r - 7, -Math.PI / 2, Math.PI / 2);
-      const blueGrad = ctx.createRadialGradient(cx + r * 0.3, cy, 0, cx + r * 0.3, cy, r * 0.6);
-      blueGrad.addColorStop(0, "rgba(77,166,255,0.32)");
-      blueGrad.addColorStop(1, "rgba(77,166,255,0.10)");
-      ctx.fillStyle = blueGrad;
-      ctx.fill();
-
-      // 中心环
-      ctx.beginPath();
-      ctx.arc(cx, cy, r * 0.35, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(255,255,255,0.28)";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-
-    // 标签
-    drawText(this.ctx, "DON", cx - r * 0.55, cy, {
-      font: `900 12px ${this.fontStack}`,
-      fillStyle: COLOR_RED,
-      perfectCenter: true,
-    });
-    drawText(this.ctx, "KAT", cx + r * 0.55, cy, {
-      font: `900 12px ${this.fontStack}`,
-      fillStyle: COLOR_BLUE,
-      perfectCenter: true,
-    });
+    // 右红 DON
+    ctx.textAlign = "left";
+    ctx.fillStyle = COLOR_RED;
+    ctx.fillText("DON", width / 2 + 10, y);
 
     ctx.restore();
   }
@@ -288,12 +235,12 @@ export class TaikoEngine extends GameEngine {
       }
     } else {
       // 原始 Canvas 绘制
-      // 毛玻璃实心填充（轻微半透明径向渐变）
+      // 毛玻璃实心填充（更高不透明度的径向渐变）
       ctx.beginPath();
       ctx.arc(x, y, r - 2, 0, Math.PI * 2);
       const grad = ctx.createRadialGradient(x, y, 0, x, y, r - 2);
-      grad.addColorStop(0, "rgba(255,255,255,0.22)");
-      grad.addColorStop(1, blue ? "rgba(77,166,255,0.12)" : "rgba(255,94,94,0.12)");
+      grad.addColorStop(0, blue ? "rgba(77,166,255,0.55)" : "rgba(255,94,94,0.55)");
+      grad.addColorStop(1, blue ? "rgba(77,166,255,0.25)" : "rgba(255,94,94,0.25)");
       ctx.fillStyle = grad;
       ctx.fill();
 
@@ -312,10 +259,10 @@ export class TaikoEngine extends GameEngine {
       ctx.globalAlpha = alpha * 0.6;
       ctx.stroke();
 
-      // 中心小圆点
-      ctx.globalAlpha = alpha;
+      // 中心小圆点（更高不透明度）
+      ctx.globalAlpha = Math.min(1, alpha + 0.25);
       ctx.beginPath();
-      ctx.arc(x, y, r * 0.18, 0, Math.PI * 2);
+      ctx.arc(x, y, r * 0.22, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
 
@@ -415,8 +362,10 @@ export class TaikoEngine extends GameEngine {
 
   protected handlePointerDown(x: number, _y: number): void {
     if (this.status !== "playing") return;
-    // 屏幕左半边 / 虚拟鼓左半边 = Don，右半边 = Katsu
-    this.tryHit(x > this.ctx.width / 2);
+    // 在用户手势中统一解锁音频，确保移动端 Web Audio / HTMLAudio 都能发声
+    this.unlockAudio();
+    // 屏幕左半边 = KAT（蓝），右半边 = DON（红）
+    this.tryHit(x < this.ctx.width / 2);
     // 按下反馈位置
     this.pressCursor(this.currentTime);
   }
@@ -426,8 +375,13 @@ export class TaikoEngine extends GameEngine {
 
   protected handleKeyDown(key: string): void {
     const k = key.toLowerCase();
-    if (k === "d" || k === "f") this.tryHit(false);
-    else if (k === "k" || k === "j") this.tryHit(true);
+    if (k === "d" || k === "f") {
+      this.unlockAudio();
+      this.tryHit(true); // 左手键 = KAT（蓝）
+    } else if (k === "k" || k === "j") {
+      this.unlockAudio();
+      this.tryHit(false); // 右手键 = DON（红）
+    }
   }
   protected handleKeyUp = (): void => {};
 }
