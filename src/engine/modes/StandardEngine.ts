@@ -12,7 +12,7 @@ const OSU_W = 512;
 const OSU_H = 384;
 const CIRCLE_BASE_R = 34;
 
-const COMBO_COLORS = ["#f472b6", "#38bdf8", "#4ade80", "#fbbf24", "#a78bfa", "#fb7185", "#22d3ee", "#facc15"];
+const DEFAULT_COMBO_COLORS = ["#f472b6", "#38bdf8", "#4ade80", "#fbbf24", "#a78bfa", "#fb7185", "#22d3ee", "#facc15"];
 const MODE_COLOR = "#f472b6";
 
 const GLASS_ALPHA = 0.45;
@@ -44,12 +44,18 @@ export class StandardEngine extends GameEngine {
   private lastPointer: { x: number; y: number } | null = null;
   private cached: CachedObj[] = [];
   private lastFocusIndex = -1;
+  private comboColors: string[] = DEFAULT_COMBO_COLORS;
 
   constructor(opts: EngineOptions) {
     super(opts);
-    this.preempt = arToPreempt(opts.beatmap.ar);
+    // 使用 Mod 调整后的有效 AR/CS
+    this.preempt = arToPreempt(this.effectiveAR);
+    this.r = csToRadius(this.effectiveCS);
     this.guideLineTime = this.preempt * this.approachMultiplier;
-    this.r = csToRadius(opts.beatmap.cs);
+    // 使用谱面自定义 combo 颜色（如有），否则用默认
+    if (opts.beatmap.comboColors && opts.beatmap.comboColors.length > 0) {
+      this.comboColors = opts.beatmap.comboColors;
+    }
     this.precomputeObjects();
     this.onLayoutChange();
   }
@@ -67,10 +73,10 @@ export class StandardEngine extends GameEngine {
     const objs = this.beatmap.hitObjects;
     this.cached = new Array(objs.length);
     let ci = 0, cn = 1;
-    let currentColor = COMBO_COLORS[0];
+    let currentColor = this.comboColors[0];
     for (let i = 0; i < objs.length; i++) {
       const obj = objs[i];
-      if (obj.newCombo) { ci = (ci + 1) % COMBO_COLORS.length; cn = 1; currentColor = COMBO_COLORS[ci]; }
+      if (obj.newCombo) { ci = (ci + 1) % this.comboColors.length; cn = 1; currentColor = this.comboColors[ci]; }
       obj._comboIndex = ci;
       obj._comboNumber = cn;
       const cache: CachedObj = {
@@ -460,27 +466,45 @@ export class StandardEngine extends GameEngine {
     const approachT = clamp(1 - timeUntil / this.preempt, 0, 1);
     const color = c.comboColor;
 
-    // approach circle - 优先使用皮肤纹理
-    if (approachT < 1 && this.showApproachCircles) {
+    // Hidden Mod：物件在引导圈收缩后期淡出，命中后完全消失
+    let hiddenAlpha = 1;
+    if (this.modHidden) {
+      if (approachT > 0.6) {
+        hiddenAlpha = clamp(1 - (approachT - 0.6) / 0.3, 0, 1);
+      }
+      if (timeUntil < 0) hiddenAlpha = 0;
+    }
+
+    // approach circle - 优先使用皮肤纹理；Hidden 下收缩过半后隐藏
+    if (approachT < 1 && this.showApproachCircles && !(this.modHidden && approachT > 0.5)) {
       const ar = r * (4 - 3 * approachT);
       const approachSkin = this.getSkinTexture("approachcircle.png");
       if (approachSkin) {
         const { ctx } = this.ctx;
         ctx.save();
-        ctx.globalAlpha = 0.85;
+        ctx.globalAlpha = 0.85 * hiddenAlpha;
         const size = ar * 2;
         ctx.drawImage(approachSkin, p.x - size / 2, p.y - size / 2, size, size);
         ctx.restore();
       } else {
+        const { ctx } = this.ctx;
+        ctx.save();
+        ctx.globalAlpha = hiddenAlpha;
         drawRing(this.ctx, p.x, p.y, ar, hexToRgba(color, 0.65), 2);
+        ctx.restore();
       }
     }
+
+    if (hiddenAlpha <= 0.01) return;
+
+    const { ctx } = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = hiddenAlpha;
 
     // 主体圆
     const hitCircleSkin = this.getSkinTexture("hitcircle.png");
     const overlaySkin = this.getSkinTexture("hitcircleoverlay.png");
     if (hitCircleSkin) {
-      const { ctx } = this.ctx;
       const size = r * 2;
       // 先绘制底色圆（tint 为 combo 颜色）
       ctx.save();
@@ -515,6 +539,7 @@ export class StandardEngine extends GameEngine {
         });
       }
     }
+    ctx.restore();
   }
 
   private drawSlider(obj: HitObject, idx: number, time: number): void {
@@ -627,7 +652,7 @@ export class StandardEngine extends GameEngine {
     }
 
     // approach circle
-    if (timeUntil > 0 && this.showApproachCircles) {
+    if (timeUntil > 0 && this.showApproachCircles && !(this.modHidden && (1 - timeUntil / this.preempt) > 0.5)) {
       const approachT = clamp(1 - timeUntil / this.preempt, 0, 1);
       if (approachT < 1) {
         const ar = r * (3.8 - 2.8 * approachT);
@@ -651,17 +676,34 @@ export class StandardEngine extends GameEngine {
     // 滑条球 + 拖尾
     if (ballPos) {
       const { x: bx, y: by } = ballPos;
-      // 外发光
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(bx, by, r * 0.85, 0, Math.PI * 2);
-      ctx.fillStyle = hexToRgba(color, 0.28);
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 22;
-      ctx.fill();
-      ctx.restore();
-      // 主体
-      drawCircle(this.ctx, bx, by, r * 0.48, "rgba(255,255,255,0.95)", color, 2.5);
+      const sliderBallSkin = this.getSkinTexture("sliderb0.png");
+      if (sliderBallSkin) {
+        // 使用皮肤滑条球
+        const size = r * 1.4;
+        ctx.save();
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 14;
+        ctx.drawImage(sliderBallSkin, bx - size / 2, by - size / 2, size, size);
+        ctx.restore();
+        // 跟随圈
+        const followSkin = this.getSkinTexture("sliderfollowcircle.png");
+        if (followSkin) {
+          const fs = r * 2.8;
+          ctx.drawImage(followSkin, bx - fs / 2, by - fs / 2, fs, fs);
+        }
+      } else {
+        // 外发光
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(bx, by, r * 0.85, 0, Math.PI * 2);
+        ctx.fillStyle = hexToRgba(color, 0.28);
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 22;
+        ctx.fill();
+        ctx.restore();
+        // 主体
+        drawCircle(this.ctx, bx, by, r * 0.48, "rgba(255,255,255,0.95)", color, 2.5);
+      }
     }
   }
 
@@ -671,16 +713,27 @@ export class StandardEngine extends GameEngine {
     const dx = prev.x - tail.x;
     const dy = prev.y - tail.y;
     const angle = Math.atan2(dy, dx);
-    const size = r * 0.65;
     const pulse = 1 + Math.sin(time / 80) * 0.08;
+    const size = r * 1.3 * pulse;
+
+    const arrowSkin = this.getSkinTexture("reversearrow.png");
+    if (arrowSkin) {
+      ctx.save();
+      ctx.translate(tail.x, tail.y);
+      ctx.rotate(angle);
+      ctx.drawImage(arrowSkin, -size / 2, -size / 2, size, size);
+      ctx.restore();
+      return;
+    }
+
+    const ts = r * 0.65 * pulse;
     ctx.save();
     ctx.translate(tail.x, tail.y);
     ctx.rotate(angle);
-    ctx.scale(pulse, pulse);
     ctx.beginPath();
-    ctx.moveTo(-size * 0.5, -size * 0.5);
-    ctx.lineTo(size * 0.5, 0);
-    ctx.lineTo(-size * 0.5, size * 0.5);
+    ctx.moveTo(-ts * 0.5, -ts * 0.5);
+    ctx.lineTo(ts * 0.5, 0);
+    ctx.lineTo(-ts * 0.5, ts * 0.5);
     ctx.closePath();
     ctx.fillStyle = "#ffffff";
     ctx.strokeStyle = "rgba(255,255,255,0.7)";

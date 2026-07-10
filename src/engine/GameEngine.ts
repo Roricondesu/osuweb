@@ -5,7 +5,7 @@
  *  - 调用子类的 update / render / onInput
  *  - 维护分数状态（通过 Judger）
  */
-import type { ParsedBeatmap, HitObject, Judgement, StoryboardSprite, StoryboardCommand, Replay, ReplayEvent, ReplayScore } from "@/types";
+import type { ParsedBeatmap, HitObject, Judgement, StoryboardSprite, StoryboardCommand, Replay, ReplayEvent, ReplayScore, ModType } from "@/types";
 import type { LyricLine } from "@/utils/lrclibLyrics";
 import {
   createInitialScore,
@@ -72,6 +72,9 @@ export interface EngineOptions {
   cursorSize?: number;
   playbackRate?: number;
   replay?: Replay;
+  mods?: ModType[];
+  useBeatmapSkin?: boolean;
+  customSkinAssetUrls?: Record<string, string>;
 }
 
 export abstract class GameEngine {
@@ -162,6 +165,22 @@ export abstract class GameEngine {
   protected hudScale = 1;
   protected cursorSize = 1;
   protected playbackRate = 1;
+  protected mods: ModType[] = [];
+  protected useBeatmapSkin = true;
+  protected customSkinAssetUrls: Record<string, string> = {};
+  // 自定义皮肤纹理（优先于谱面皮肤）
+  protected customSkinTextures: Map<string, HTMLImageElement> = new Map();
+  // Mod 调整后的有效难度值
+  protected effectiveAR = 0;
+  protected effectiveCS = 0;
+  protected effectiveOD = 0;
+  protected effectiveHP = 0;
+  protected modHidden = false;
+  protected modFlashlight = false;
+  protected modNoFail = false;
+  protected modSuddenDeath = false;
+  protected modDT = false;
+  protected modHT = false;
   protected showLyrics = true;
   protected lyrics: LyricLine[] = [];
   private lastFrameAt = 0;
@@ -181,7 +200,9 @@ export abstract class GameEngine {
     this.audio = opts.audio;
     this.beatmap = opts.beatmap;
     this.offset = opts.offset || 0;
-    this.windows = windowsForOD(opts.beatmap.od);
+    this.mods = opts.mods ?? [];
+    this.computeModEffects(opts.beatmap);
+    this.windows = windowsForOD(this.effectiveOD);
     this.isLandscape = opts.isLandscape ?? this.ctx.width >= this.ctx.height;
     this.callbacks = opts.callbacks || {};
     this.auto = opts.auto ?? false;
@@ -198,6 +219,14 @@ export abstract class GameEngine {
     this.hudScale = opts.hudScale ?? 1;
     this.cursorSize = opts.cursorSize ?? 1;
     this.playbackRate = opts.playbackRate ?? 1;
+    // DT/HT 在用户播放速度基础上叠加倍率
+    if (this.modDT) this.playbackRate *= 1.5;
+    if (this.modHT) this.playbackRate *= 0.75;
+    this.useBeatmapSkin = opts.useBeatmapSkin ?? true;
+    if (opts.customSkinAssetUrls) {
+      this.customSkinAssetUrls = opts.customSkinAssetUrls;
+      this.loadCustomSkinTextures();
+    }
     this.showLyrics = opts.showLyrics ?? true;
     this.showCursorTrail = opts.showCursorTrail ?? true;
     this.showCursorPress = opts.showCursorPress ?? true;
@@ -217,6 +246,45 @@ export abstract class GameEngine {
       this.loadSkinTextures();
     }
     this.prepareStoryboardCommands();
+  }
+
+  /** 判断是否启用了某个 Mod */
+  protected hasMod(mod: ModType): boolean {
+    return this.mods.includes(mod);
+  }
+
+  /** 根据启用的 Mod 计算有效难度与行为标志 */
+  private computeModEffects(beatmap: ParsedBeatmap): void {
+    const m = new Set(this.mods);
+    this.modNoFail = m.has("notail");
+    this.modSuddenDeath = m.has("suddenDeath");
+    this.modHidden = m.has("hidden");
+    this.modFlashlight = m.has("flashlight");
+    this.modDT = m.has("doubleTime");
+    this.modHT = m.has("halfTime");
+
+    let ar = beatmap.ar;
+    let cs = beatmap.cs;
+    let od = beatmap.od;
+    let hp = beatmap.hp;
+    // HardRock：整体上调，封顶 10
+    if (m.has("hardRock")) {
+      ar = Math.min(10, ar * 1.4);
+      cs = Math.min(10, cs * 1.3);
+      od = Math.min(10, od * 1.4);
+      hp = Math.min(10, hp * 1.4);
+    }
+    // Easy：整体下调
+    if (m.has("easy")) {
+      ar *= 0.5;
+      cs *= 0.5;
+      od *= 0.5;
+      hp *= 0.5;
+    }
+    this.effectiveAR = ar;
+    this.effectiveCS = cs;
+    this.effectiveOD = od;
+    this.effectiveHP = hp;
   }
 
   /** 预先展开并排序 storyboard 命令，避免每帧重复计算；触发器保留运行时处理 */
@@ -311,6 +379,10 @@ export abstract class GameEngine {
 
   /** 加载谱面自带的皮肤纹理 */
   private loadSkinTextures(): void {
+    if (!this.useBeatmapSkin) {
+      this.skinLoaded = true;
+      return;
+    }
     const skinFiles = [
       "hitcircle.png",
       "hitcircleoverlay.png",
@@ -350,9 +422,41 @@ export abstract class GameEngine {
     if (needed === 0) this.skinLoaded = true;
   }
 
-  /** 获取皮肤纹理，不存在返回 null */
+  /** 获取皮肤纹理，自定义皮肤优先，其次谱面皮肤，不存在返回 null */
   protected getSkinTexture(name: string): HTMLImageElement | null {
-    return this.skinTextures.get(name.toLowerCase()) || null;
+    const key = name.toLowerCase();
+    return this.customSkinTextures.get(key) || this.skinTextures.get(key) || null;
+  }
+
+  /** 加载自定义皮肤纹理 */
+  private loadCustomSkinTextures(): void {
+    const skinFiles = [
+      "hitcircle.png", "hitcircleoverlay.png", "approachcircle.png",
+      "hit300.png", "hit300g.png", "hit100.png", "hit100k.png",
+      "hit50.png", "hit50k.png", "hit0.png", "hit0k.png",
+      "sliderb0.png", "sliderfollowcircle.png", "reversearrow.png",
+      "followpoint.png", "cursor.png", "cursortrail.png", "cursormiddle.png",
+    ];
+    const findCustomUrl = (name: string): string | undefined => {
+      const norm = name.replace(/\\/g, "/");
+      const base = norm.split("/").pop() || norm;
+      if (this.customSkinAssetUrls[norm]) return this.customSkinAssetUrls[norm];
+      if (this.customSkinAssetUrls[base]) return this.customSkinAssetUrls[base];
+      const lowerBase = base.toLowerCase();
+      for (const [k, v] of Object.entries(this.customSkinAssetUrls)) {
+        if (k.replace(/\\/g, "/").toLowerCase() === lowerBase) return v;
+      }
+      return undefined;
+    };
+    for (const name of skinFiles) {
+      const url = findCustomUrl(name);
+      if (!url) continue;
+      const img = new Image();
+      if (!url.startsWith("blob:")) img.crossOrigin = "anonymous";
+      img.onload = () => { this.customSkinTextures.set(name.toLowerCase(), img); };
+      img.onerror = () => {};
+      img.src = url;
+    }
   }
 
   private collectStoryboardImageUrls(sprite: StoryboardSprite): string[] {
@@ -560,9 +664,17 @@ export abstract class GameEngine {
     return true;
   }
 
-  /** 提交一次判定 */
+  /** 提交一次判定（应用 NoFail / SuddenDeath Mod） */
   protected submitJudgement(j: Judgement): void {
     this.score = applyJudgement(this.score, j);
+    // NoFail：miss 不扣血，回补 applyJudgement 扣除的 8 点
+    if (this.modNoFail && j === "miss") {
+      this.score = { ...this.score, health: Math.min(100, this.score.health + 8) };
+    }
+    // SuddenDeath：任何 miss 直接清零血量
+    if (this.modSuddenDeath && j === "miss") {
+      this.score = { ...this.score, health: 0 };
+    }
   }
 
   /** 超时未点击 → miss（子类可调用） */
@@ -1098,10 +1210,34 @@ export abstract class GameEngine {
 
     const pulse = 1 + Math.sin(performance.now() / 150) * 0.12;
     const pressScale = 1 + pressStrength * 0.5;
+    const cs = this.cursorSize;
+
+    // 尝试使用皮肤光标
+    const cursorSkin = this.getSkinTexture("cursor.png");
+    const cursorMidSkin = this.getSkinTexture("cursormiddle.png");
+    if (cursorSkin) {
+      const size = 40 * cs * pulse * pressScale;
+      ctx.globalAlpha = 0.92;
+      ctx.drawImage(cursorSkin, x - size / 2, y - size / 2, size, size);
+      ctx.globalAlpha = 1;
+      if (cursorMidSkin) {
+        const ms = 12 * cs * pressScale;
+        ctx.drawImage(cursorMidSkin, x - ms / 2, y - ms / 2, ms, ms);
+      } else {
+        ctx.beginPath();
+        ctx.arc(x, y, 3 * cs * pressScale, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff";
+        ctx.shadowColor = "rgba(255,255,255,0.9)";
+        ctx.shadowBlur = 10 + pressStrength * 14;
+        ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
 
     // 外圈脉冲环（按下时放大）
     ctx.beginPath();
-    ctx.arc(x, y, 10 * pulse * pressScale, 0, Math.PI * 2);
+    ctx.arc(x, y, 10 * cs * pulse * pressScale, 0, Math.PI * 2);
     ctx.strokeStyle = `rgba(255,255,255,${0.45 + pressStrength * 0.35})`;
     ctx.lineWidth = 1.5 + pressStrength * 1.5;
     ctx.stroke();
@@ -1109,20 +1245,20 @@ export abstract class GameEngine {
     // 按下时额外发光环
     if (pressStrength > 0) {
       ctx.beginPath();
-      ctx.arc(x, y, 16 * pressScale, 0, Math.PI * 2);
+      ctx.arc(x, y, 16 * cs * pressScale, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(255,255,255,${pressStrength * 0.22})`;
       ctx.fill();
     }
 
     // 中间半透明环
     ctx.beginPath();
-    ctx.arc(x, y, 6 * pressScale, 0, Math.PI * 2);
+    ctx.arc(x, y, 6 * cs * pressScale, 0, Math.PI * 2);
     ctx.fillStyle = `rgba(255,255,255,${0.25 + pressStrength * 0.35})`;
     ctx.fill();
 
     // 中心实心点
     ctx.beginPath();
-    ctx.arc(x, y, 3 * pressScale, 0, Math.PI * 2);
+    ctx.arc(x, y, 3 * cs * pressScale, 0, Math.PI * 2);
     ctx.fillStyle = "#fff";
     ctx.shadowColor = "rgba(255,255,255,0.9)";
     ctx.shadowBlur = 10 + pressStrength * 14;
@@ -2096,6 +2232,24 @@ export abstract class GameEngine {
     this.drawBreakOverlay(time);
     this.drawHitEffects(time);
     this.drawJudgePopups(time);
+    this.drawFlashlightOverlay();
+  }
+
+  /** Flashlight Mod：屏幕整体变暗，仅光标周围可见 */
+  protected drawFlashlightOverlay(): void {
+    if (!this.modFlashlight) return;
+    const { ctx, width, height } = this.ctx;
+    const radius = 120;
+    const x = this.auto || this.showCursor ? this.cursorX : width / 2;
+    const y = this.auto || this.showCursor ? this.cursorY : height / 2;
+    ctx.save();
+    const grad = ctx.createRadialGradient(x, y, radius * 0.3, x, y, radius);
+    grad.addColorStop(0, "rgba(0,0,0,0)");
+    grad.addColorStop(0.7, "rgba(0,0,0,0.5)");
+    grad.addColorStop(1, "rgba(0,0,0,0.92)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
   }
 
   /** 清空画布（兼容旧子类） */

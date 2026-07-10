@@ -17,7 +17,7 @@ import {
   searchSayobot,
   fetchSayobotFeatured,
 } from "@/api/osuDirect";
-import { extractOsz, extractOszFromFile } from "@/utils/oszLoader";
+import { extractOsz, extractOszFromFile, extractOsk } from "@/utils/oszLoader";
 import { saveDownload, loadAllDownloads, deleteDownload, clearAllDownloads } from "@/utils/indexedDb";
 import { fetchLyrics } from "@/utils/lyricsProvider";
 
@@ -63,6 +63,9 @@ interface GameState {
   clearDownloads: () => Promise<void>;
   loadDownloads: () => Promise<void>;
   importBeatmapFile: (file: File) => Promise<LoadedBeatmapSet | null>;
+
+  // 皮肤
+  importSkinFile: (file: File) => Promise<boolean>;
 
   // 游戏
   runtime: GameRuntime;
@@ -241,6 +244,31 @@ export const useGameStore = create<GameState>()(
         }
       },
 
+      importSkinFile: async (file) => {
+        try {
+          const buf = await file.arrayBuffer();
+          const assetUrls = await extractOsk(buf);
+          // 释放旧的自定义皮肤 Blob URL，避免内存泄漏
+          const oldUrls = get().settings.customSkinAssetUrls;
+          if (oldUrls) {
+            for (const url of Object.values(oldUrls)) {
+              try { URL.revokeObjectURL(url); } catch { /* 忽略 */ }
+            }
+          }
+          set((s) => ({
+            settings: {
+              ...s.settings,
+              customSkinAssetUrls: assetUrls,
+              useCustomSkin: true,
+            },
+          }));
+          return true;
+        } catch (e) {
+          console.error("导入皮肤失败", e);
+          return false;
+        }
+      },
+
       runtime: EMPTY_RUNTIME,
       startGame: (set_, beatmap, mode) => {
         set({
@@ -265,7 +293,13 @@ export const useGameStore = create<GameState>()(
       merge: (persisted, current) => ({
         ...current,
         ...(persisted as GameState),
-        settings: { ...DEFAULT_SETTINGS, ...(persisted as GameState).settings },
+        // blob URL 不跨会话保留，重载后清空自定义皮肤资源，避免引用失效 URL
+        settings: {
+          ...DEFAULT_SETTINGS,
+          ...(persisted as GameState).settings,
+          customSkinAssetUrls: undefined,
+          useCustomSkin: false,
+        },
       }),
     },
   ),

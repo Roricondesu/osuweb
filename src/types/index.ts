@@ -2,6 +2,35 @@
 
 export type GameMode = "standard" | "taiko" | "catch" | "mania";
 
+/** Mod 类型 */
+export type ModType = "easy" | "notail" | "halfTime" | "hardRock" | "suddenDeath" | "doubleTime" | "hidden" | "flashlight" | "relax" | "autopilot";
+
+export const MOD_LABEL: Record<ModType, string> = {
+  easy: "Easy",
+  notail: "No Fail",
+  halfTime: "Half Time",
+  hardRock: "Hard Rock",
+  suddenDeath: "Sudden Death",
+  doubleTime: "Double Time",
+  hidden: "Hidden",
+  flashlight: "Flashlight",
+  relax: "Relax",
+  autopilot: "Autopilot",
+};
+
+export const MOD_COLOR: Record<ModType, string> = {
+  easy: "#66cc44",
+  notail: "#9966ff",
+  halfTime: "#66cc44",
+  hardRock: "#ff375f",
+  suddenDeath: "#ff375f",
+  doubleTime: "#ff9100",
+  hidden: "#ffffff",
+  flashlight: "#ffffff",
+  relax: "#66cc44",
+  autopilot: "#66cc44",
+};
+
 /** osu! 数字模式 ID → 字符串模式 */
 export const MODE_FROM_ID: Record<number, GameMode> = {
   0: "standard",
@@ -219,6 +248,8 @@ export interface ParsedBeatmap {
   backgroundFilename?: string;
   /** Storyboard 物件（.osu Events 或 .osb 合并而来） */
   storyboard: StoryboardSprite[];
+  /** 谱面自定义 combo 颜色（[Colours] 段） */
+  comboColors?: string[];
 }
 
 export interface TimingPoint {
@@ -368,6 +399,14 @@ export interface Settings {
   // 音效
   hitSoundVolume: number;
   playbackRate: number; // 0.5-1.5，播放速度
+
+  // Mod
+  mods: ModType[]; // 启用的 Mod 列表
+
+  // 皮肤
+  useBeatmapSkin: boolean; // 使用谱面自带皮肤
+  useCustomSkin: boolean; // 使用自定义导入皮肤
+  customSkinAssetUrls?: Record<string, string>; // 自定义皮肤资源
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -400,4 +439,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showLyrics: true,
   hitSoundVolume: 0.6,
   playbackRate: 1,
+  mods: [],
+  useBeatmapSkin: true,
+  useCustomSkin: false,
 };

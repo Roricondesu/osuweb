@@ -48,6 +48,10 @@ export default function Game() {
   const hudScale = useGameStore((s) => s.settings.hudScale);
   const cursorSize = useGameStore((s) => s.settings.cursorSize);
   const playbackRate = useGameStore((s) => s.settings.playbackRate);
+  const mods = useGameStore((s) => s.settings.mods);
+  const useBeatmapSkin = useGameStore((s) => s.settings.useBeatmapSkin);
+  const useCustomSkin = useGameStore((s) => s.settings.useCustomSkin);
+  const customSkinAssetUrls = useGameStore((s) => s.settings.customSkinAssetUrls);
   const updateRuntime = useGameStore((s) => s.updateRuntime);
   const endGame = useGameStore((s) => s.endGame);
   const { toggle: toggleFullscreen, active: isFullscreen } = useFullscreen();
@@ -149,6 +153,9 @@ export default function Game() {
         hudScale,
         cursorSize,
         playbackRate,
+        mods,
+        useBeatmapSkin,
+        customSkinAssetUrls: useCustomSkin ? customSkinAssetUrls : undefined,
         replay: selectedReplay ?? undefined,
         callbacks: {
           onScoreUpdate: (s) => {
@@ -200,7 +207,7 @@ export default function Game() {
     };
     // 引擎创建依赖较多，避免音量/offset 等运行时可调设置导致整引擎重建
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume, approachMultiplier, backgroundBlur, showFollowPoints, showApproachCircles, showComboNumbers, showHitEffects, showFPS, hudScale, cursorSize, playbackRate, selectedReplay]);
+  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, backgroundDim, showLyrics, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume, approachMultiplier, backgroundBlur, showFollowPoints, showApproachCircles, showComboNumbers, showHitEffects, showFPS, hudScale, cursorSize, playbackRate, mods, useBeatmapSkin, useCustomSkin, customSkinAssetUrls, selectedReplay]);
 
   // 同步音量
   useEffect(() => {

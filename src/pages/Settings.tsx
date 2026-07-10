@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { useGameStore } from "@/store/useGameStore";
 import { GlassSwitch, GlassSlider } from "@/components/glass";
 import {
@@ -17,11 +17,18 @@ import {
   Maximize,
   RotateCcw,
   Trash2,
+  Zap,
+  Brush,
 } from "lucide-react";
-import type { Settings } from "@/types";
-import { DEFAULT_SETTINGS } from "@/types";
+import type { Settings, ModType } from "@/types";
+import { DEFAULT_SETTINGS, MOD_LABEL, MOD_COLOR } from "@/types";
 import { checkApiHealth, type ApiHealthResult } from "@/utils/apiHealth";
 import { deleteReplay, loadReplays } from "@/utils/replayStorage";
+
+const ALL_MODS: ModType[] = [
+  "easy", "notail", "halfTime", "hardRock", "suddenDeath",
+  "doubleTime", "hidden", "flashlight", "relax", "autopilot",
+];
 
 const ACCENTS = [
   { key: "#0a84ff", label: "蓝" },
@@ -73,12 +80,16 @@ const Section: React.FC<{
 export default function Settings() {
   const settings = useGameStore((s) => s.settings);
   const updateSetting = useGameStore((s) => s.updateSetting);
+  const importSkinFile = useGameStore((s) => s.importSkinFile);
   const scheme = settings.theme === "dark" ? "dark" : "light";
   const [health, setHealth] = React.useState<ApiHealthResult | null>(null);
   const [checking, setChecking] = React.useState(false);
   const [openSections, setOpenSections] = useState<Set<string>>(
     () => new Set<string>(),
   );
+  const [skinImporting, setSkinImporting] = useState(false);
+  const [skinImportMsg, setSkinImportMsg] = useState<string>("");
+  const skinInputRef = useRef<HTMLInputElement>(null);
 
   const toggleSection = useCallback((id: string) => {
     setOpenSections((prev) => {
@@ -88,6 +99,35 @@ export default function Settings() {
       return next;
     });
   }, []);
+
+  const toggleMod = useCallback((mod: ModType) => {
+    const current = settings.mods;
+    const next = current.includes(mod)
+      ? current.filter((m) => m !== mod)
+      : [...current, mod];
+    updateSetting("mods", next);
+  }, [settings.mods, updateSetting]);
+
+  const handleSkinImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSkinImporting(true);
+    setSkinImportMsg("");
+    try {
+      const ok = await importSkinFile(file);
+      if (ok) {
+        updateSetting("useCustomSkin", true);
+        setSkinImportMsg(`已导入皮肤：${file.name}`);
+      } else {
+        setSkinImportMsg("导入失败：无法解析该皮肤文件");
+      }
+    } catch {
+      setSkinImportMsg("导入失败：文件损坏或格式不支持");
+    } finally {
+      setSkinImporting(false);
+      if (skinInputRef.current) skinInputRef.current.value = "";
+    }
+  }, [importSkinFile, updateSetting]);
 
   const resetSettings = useCallback(() => {
     (Object.keys(DEFAULT_SETTINGS) as Array<keyof Settings>).forEach((key) => {
@@ -346,6 +386,123 @@ export default function Settings() {
               scheme={scheme}
               ariaLabel="按键音音量"
             />
+          </div>
+        </div>
+      </Section>
+
+      <Section icon={<Zap size={18} />} title="Mod" delay={5} open={openSections.has("mod")} onToggle={() => toggleSection("mod")}>
+        <div className="flex flex-col gap-4">
+          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+            点击切换 Mod，可多选。难度调整类（DT/HT/HR/Easy）会实际影响游戏速度与判定。
+          </p>
+          <div className="flex flex-wrap gap-2.5">
+            {ALL_MODS.map((mod) => {
+              const active = settings.mods.includes(mod);
+              const color = MOD_COLOR[mod];
+              return (
+                <button
+                  key={mod}
+                  onClick={() => toggleMod(mod)}
+                  className="rounded-xl px-3.5 py-2 text-xs font-semibold transition-transform active:scale-95"
+                  style={{
+                    border: "1px solid",
+                    borderColor: active ? color : "var(--border)",
+                    color: active ? "#fff" : "var(--text-primary)",
+                    background: active ? color : "transparent",
+                    boxShadow: active ? `0 0 12px ${color}55` : "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {MOD_LABEL[mod]}
+                </button>
+              );
+            })}
+          </div>
+          {settings.mods.length > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                已启用 {settings.mods.length} 个 Mod
+              </span>
+              <button
+                onClick={() => updateSetting("mods", [])}
+                className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95"
+                style={{
+                  border: "1px solid var(--border)",
+                  color: "var(--text-primary)",
+                  background: "transparent",
+                  cursor: "pointer",
+                }}
+              >
+                清除全部
+              </button>
+            </div>
+          )}
+        </div>
+      </Section>
+
+      <Section icon={<Brush size={18} />} title="皮肤" delay={6} open={openSections.has("skin")} onToggle={() => toggleSection("skin")}>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>使用谱面自带皮肤</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>加载谱面包内的 hitcircle / cursor / slider 等纹理</div>
+            </div>
+            <GlassSwitch
+              checked={settings.useBeatmapSkin}
+              onCheckedChange={(c) => updateSetting("useBeatmapSkin", c)}
+              scheme={scheme}
+              ariaLabel="使用谱面自带皮肤"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>使用自定义皮肤</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>应用导入的 .osk 皮肤，优先级高于谱面皮肤</div>
+            </div>
+            <GlassSwitch
+              checked={settings.useCustomSkin}
+              onCheckedChange={(c) => updateSetting("useCustomSkin", c)}
+              scheme={scheme}
+              ariaLabel="使用自定义皮肤"
+            />
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>导入 .osk 皮肤</div>
+                <div className="text-xs" style={{ color: "var(--text-secondary)" }}>从本地选择 osu! 皮肤压缩包</div>
+              </div>
+              <button
+                onClick={() => skinInputRef.current?.click()}
+                disabled={skinImporting}
+                className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95 disabled:opacity-50"
+                style={{
+                  border: "1px solid var(--accent)",
+                  color: "var(--accent)",
+                  background: "var(--accent-soft)",
+                  cursor: skinImporting ? "not-allowed" : "pointer",
+                }}
+              >
+                {skinImporting ? "导入中..." : "选择文件"}
+              </button>
+              <input
+                ref={skinInputRef}
+                type="file"
+                accept=".osk,.zip"
+                onChange={handleSkinImport}
+                style={{ display: "none" }}
+              />
+            </div>
+            {skinImportMsg && (
+              <p className="text-xs" style={{ color: "var(--accent)" }}>{skinImportMsg}</p>
+            )}
+            {settings.useCustomSkin && settings.customSkinAssetUrls && (
+              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                当前皮肤已加载 {Object.keys(settings.customSkinAssetUrls).length} 个资源文件
+              </p>
+            )}
           </div>
         </div>
       </Section>
@@ -704,6 +861,8 @@ export default function Settings() {
               <li>Storyboard 渲染与歌词同步</li>
               <li>回放系统、Auto 演示、全屏模式</li>
               <li>内置默认打击音效，零延迟反馈</li>
+              <li>Mod 系统（DT/HT/HR/Easy/Hidden 等）</li>
+              <li>谱面自带皮肤与 .osk 自定义皮肤导入</li>
             </ul>
           </div>
           <div className="pt-1">

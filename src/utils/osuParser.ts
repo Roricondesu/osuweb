@@ -584,6 +584,7 @@ export const parseOsu = (text: string): ParsedBeatmap => {
   const timingPoints: TimingPoint[] = [];
   const hitObjects: HitObject[] = [];
   const eventLines: string[] = [];
+  const comboColors: string[] = [];
   let inEvents = false;
 
   for (const rawLine of lines) {
@@ -655,6 +656,16 @@ export const parseOsu = (text: string): ParsedBeatmap => {
       else if (k === "ApproachRate") result.ar = num;
       else if (k === "SliderMultiplier") result.sliderMultiplier = num;
       else if (k === "SliderTickRate") result.sliderTickRate = num;
+    } else if (section === "Colours") {
+      const kv = parseKV(line);
+      if (!kv) continue;
+      const [k, v] = kv;
+      if (k.startsWith("Combo") && comboColors.length < 8) {
+        const parts = v.split(",").map((s) => parseInt(s.trim(), 10));
+        if (parts.length >= 3 && parts.every((n) => !isNaN(n))) {
+          comboColors.push(`#${parts.slice(0, 3).map((n) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, "0")).join("")}`);
+        }
+      }
     } else if (section === "TimingPoints") {
       const tp = parseTimingPoint(line);
       if (tp) timingPoints.push(tp);
@@ -667,6 +678,7 @@ export const parseOsu = (text: string): ParsedBeatmap => {
   // ApproachRate 默认等于 OverallDifficulty
   if (result.ar === 0 && result.od) result.ar = result.od;
 
+  if (comboColors.length > 0) result.comboColors = comboColors;
   result.timingPoints = timingPoints;
   result.hitObjects = hitObjects.sort((a, b) => a.time - b.time);
 

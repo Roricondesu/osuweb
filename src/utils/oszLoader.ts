@@ -16,6 +16,10 @@ export interface ExtractResult {
 const AUDIO_EXT = [".mp3", ".ogg", ".m4a", ".wav", ".flac"];
 const IMAGE_EXT = [".jpg", ".jpeg", ".png", ".webp"];
 
+/** .osk 皮肤中需要提取的资源类型 */
+const SKIN_IMAGE_EXT = [".png", ".jpg", ".jpeg", ".webp"];
+const SKIN_AUDIO_EXT = [".wav", ".mp3", ".ogg"];
+
 const lowerEndsWith = (name: string, exts: string[]): boolean => {
   const n = name.toLowerCase();
   return exts.some((e) => n.endsWith(e));
@@ -233,4 +237,39 @@ export const extractOszFromFile = async (data: ArrayBuffer): Promise<LoadedBeatm
     hasStoryboard: result.hasStoryboard,
     downloadedAt: Date.now(),
   };
+};
+
+/** 解压 .osk（zip）皮肤包，提取所有皮肤纹理与音效为 Blob URL 映射
+ *  返回 文件名 -> blob URL 的字典，同时提供不带路径的文件名作为别名
+ */
+export const extractOsk = async (data: ArrayBuffer): Promise<Record<string, string>> => {
+  const zip = await JSZip.loadAsync(data);
+  const fileNames = Object.keys(zip.files);
+  const assetUrls: Record<string, string> = {};
+
+  for (const name of fileNames) {
+    const file = zip.files[name];
+    if (file.dir) continue;
+    const lower = name.toLowerCase();
+    // 跳过 skin.ini 等非资源文件，只提取图片与音效
+    if (!lowerEndsWith(name, SKIN_IMAGE_EXT) && !lowerEndsWith(name, SKIN_AUDIO_EXT)) continue;
+    try {
+      const blob = await file.async("blob");
+      const url = blobToUrl(blob);
+      // 保留原始路径
+      assetUrls[name] = url;
+      // 同时存一份不带路径的文件名，方便按文件名匹配
+      const baseName = name.split("/").pop() || name;
+      if (baseName && baseName !== name) {
+        assetUrls[baseName] = url;
+      }
+    } catch {
+      // 忽略损坏的资源
+    }
+  }
+
+  if (Object.keys(assetUrls).length === 0) {
+    throw new Error("皮肤包内未找到任何可用的图片或音效资源");
+  }
+  return assetUrls;
 };
