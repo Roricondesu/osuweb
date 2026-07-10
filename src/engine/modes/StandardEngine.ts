@@ -669,7 +669,7 @@ export class StandardEngine extends GameEngine {
     }
 
     // 绘制整条路径（闭路复用）
-    const drawPath = (lineWidth: number, strokeStyle: string | CanvasGradient | CanvasPattern, glow = false) => {
+    const drawPath = (lineWidth: number, strokeStyle: string, glow = false) => {
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -686,74 +686,14 @@ export class StandardEngine extends GameEngine {
       ctx.restore();
     };
 
-    // 皮肤纹理：slidertrack（轨道底色，需 tint combo 颜色）、sliderborder（轨道边框）
-    // osu! 原版：有 slidertrack 用它，否则回退 hitcircle.png 作为轨道底色
-    const sliderTrackSkin = this.getSkinTexture("slidertrack.png") || this.getSkinTexture("hitcircle.png");
-    const sliderBorderSkin = this.getSkinTexture("sliderborder.png");
-
-    if (sliderTrackSkin) {
-      // 使用皮肤纹理作为轨道描边图案
-      // 纹理通常是 64x64 平铺，缩放到圆圈直径大小
-      const trackSize = r * 2;
-      const off = document.createElement("canvas");
-      off.width = trackSize;
-      off.height = trackSize;
-      const octx = off.getContext("2d");
-      if (octx) {
-        // 先画纹理，再用 source-atop tint combo 颜色
-        octx.globalCompositeOperation = "source-over";
-        octx.drawImage(sliderTrackSkin, 0, 0, trackSize, trackSize);
-        octx.globalCompositeOperation = "source-atop";
-        octx.fillStyle = color;
-        octx.fillRect(0, 0, trackSize, trackSize);
-        octx.globalCompositeOperation = "multiply";
-        octx.drawImage(sliderTrackSkin, 0, 0, trackSize, trackSize);
-      }
-      const pattern = ctx.createPattern(off, "repeat");
-      if (pattern) {
-        drawPath(r * 2.0, pattern);
-      } else {
-        drawPath(r * 2.0, hexToRgba(color, 0.28));
-      }
-      // 边框：有 sliderborder 用纹理，否则用 combo 色实线描边（osu! 默认边框）
-      if (sliderBorderSkin) {
-        const bPattern = ctx.createPattern(sliderBorderSkin, "repeat");
-        if (bPattern) {
-          ctx.save();
-          ctx.lineCap = "round";
-          ctx.lineJoin = "round";
-          ctx.beginPath();
-          ctx.moveTo(pts[0].x, pts[0].y);
-          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-          ctx.lineWidth = r * 2.2 * this.sliderBorderWidth;
-          ctx.strokeStyle = bPattern;
-          ctx.globalCompositeOperation = "destination-over";
-          ctx.stroke();
-          ctx.restore();
-        }
-      } else {
-        // 无边框纹理：combo 色外圈描边（destination-over 画在轨道下方）
-        ctx.save();
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-        ctx.lineWidth = r * 2.2 * this.sliderBorderWidth;
-        ctx.strokeStyle = color;
-        ctx.globalCompositeOperation = "destination-over";
-        ctx.stroke();
-        ctx.restore();
-      }
-    } else {
-      // 无任何皮肤纹理：原始 Canvas 原语绘制
-      // 外圈（主题色弱发光，替代之前的黑色边框）
-      drawPath(r * 2.45, hexToRgba(color, 0.22), true);
-      // 底色轨道
-      drawPath(r * 2.0, hexToRgba(color, 0.28));
-      // 内芯轨道
-      drawPath(r * 1.55, hexToRgba(color, 0.55));
-    }
+    // 滑条轨道：osu! 原版是连续描边路径，不用平铺纹理（平铺会导致碎裂）。
+    // 绘制顺序（由外到内）：
+    //   1. 外边框（combo 色实心，最粗）
+    //   2. 内轨道（深色半透明，稍细）
+    // 这样得到一条带 combo 色边框、深色填充的连续轨道，干净无碎裂。
+    const borderW = r * 2.0 * this.sliderBorderWidth;
+    drawPath(borderW, color);
+    drawPath(borderW * 0.78, hexToRgba("#000000", 0.35));
 
     // 已滑过部分高亮（沿实际路径）
     if (ballPos) {

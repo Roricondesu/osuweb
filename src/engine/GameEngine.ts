@@ -458,10 +458,9 @@ export abstract class GameEngine {
   }
 
   /**
-   * 将白色皮肤纹理按 combo 颜色着色后绘制。
-   * 原理：先用 source-over 画一层颜色矩形（source-atop 裁剪到纹理 alpha），
-   * 再用 multiply 叠加纹理本身。等价于把白色纹理 tint 成指定颜色。
-   * 适用于 sliderb0 / slidertrack 等本应跟随 combo 颜色的元素。
+   * 将白色皮肤纹理按 combo 颜色着色后绘制（保留透明背景）。
+   * 用离屏 canvas + source-in：输出形状/alpha 与纹理一致，颜色为 tint。
+   * 适用于 hitcircle / sliderb0 等本应跟随 combo 颜色的元素。
    */
   protected drawTintedTexture(
     img: HTMLImageElement,
@@ -472,19 +471,23 @@ export abstract class GameEngine {
     tint: string,
   ): void {
     const { ctx } = this.ctx;
-    ctx.save();
-    // 离屏画到临时 canvas 再合成会精确但开销大；这里用 source-atop 近似：
-    // 1. 先画纹理（source-over）
-    ctx.globalCompositeOperation = "source-over";
-    ctx.drawImage(img, x, y, w, h);
-    // 2. 在纹理 alpha 范围内叠加颜色（source-atop 保持透明区域）
-    ctx.globalCompositeOperation = "source-atop";
-    ctx.fillStyle = tint;
-    ctx.fillRect(x, y, w, h);
-    // 3. 再叠加一次纹理用 multiply 增强细节（保留纹理明暗）
-    ctx.globalCompositeOperation = "multiply";
-    ctx.drawImage(img, x, y, w, h);
-    ctx.restore();
+    const off = document.createElement("canvas");
+    off.width = Math.ceil(w);
+    off.height = Math.ceil(h);
+    const octx = off.getContext("2d");
+    if (!octx) {
+      ctx.drawImage(img, x, y, w, h);
+      return;
+    }
+    // 1. 画纹理到离屏（source-over）
+    octx.globalCompositeOperation = "source-over";
+    octx.drawImage(img, 0, 0, w, h);
+    // 2. source-in 用 tint 填充：只在已有 alpha 范围内着色，透明区域保持透明
+    octx.globalCompositeOperation = "source-in";
+    octx.fillStyle = tint;
+    octx.fillRect(0, 0, w, h);
+    // 3. 把离屏结果画到主 canvas
+    ctx.drawImage(off, x, y);
   }
 
   /** 加载自定义皮肤纹理 */
