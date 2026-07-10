@@ -181,6 +181,8 @@ export abstract class GameEngine {
   protected modSuddenDeath = false;
   protected modDT = false;
   protected modHT = false;
+  protected modRelax = false;
+  protected modAutopilot = false;
   protected showLyrics = true;
   protected lyrics: LyricLine[] = [];
   private lastFrameAt = 0;
@@ -262,6 +264,8 @@ export abstract class GameEngine {
     this.modFlashlight = m.has("flashlight");
     this.modDT = m.has("doubleTime");
     this.modHT = m.has("halfTime");
+    this.modRelax = m.has("relax");
+    this.modAutopilot = m.has("autopilot");
 
     let ar = beatmap.ar;
     let cs = beatmap.cs;
@@ -629,6 +633,12 @@ export abstract class GameEngine {
     this.update(time);
     this.smoothCursor(dt, time);
 
+    // 失败判定：血量归零且未启用 NoFail → 直接结束（失败）
+    if (this.score.health <= 0 && !this.modNoFail) {
+      this.finish();
+      return;
+    }
+
     this.render();
     this.drawLyrics(time);
     this.updateCursorTrail(time);
@@ -666,15 +676,20 @@ export abstract class GameEngine {
 
   /** 提交一次判定（应用 NoFail / SuddenDeath Mod） */
   protected submitJudgement(j: Judgement): void {
-    this.score = applyJudgement(this.score, j);
-    // NoFail：miss 不扣血，回补 applyJudgement 扣除的 8 点
+    this.score = applyJudgement(this.score, j, 1, this.effectiveHP);
+    // NoFail：miss 不扣血，回补 applyJudgement 扣除的血量
     if (this.modNoFail && j === "miss") {
-      this.score = { ...this.score, health: Math.min(100, this.score.health + 8) };
+      this.score = { ...this.score, health: Math.min(100, this.score.health + this.missHpDrain()) };
     }
     // SuddenDeath：任何 miss 直接清零血量
     if (this.modSuddenDeath && j === "miss") {
       this.score = { ...this.score, health: 0 };
     }
+  }
+
+  /** miss 扣血量（基于 effectiveHP） */
+  private missHpDrain(): number {
+    return Math.max(3, 4 + this.effectiveHP * 0.6);
   }
 
   /** 超时未点击 → miss（子类可调用） */

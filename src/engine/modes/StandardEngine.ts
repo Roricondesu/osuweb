@@ -187,7 +187,107 @@ export class StandardEngine extends GameEngine {
       }
     }
     if (this.auto) this.autoPlay(time);
+    else if (this.modRelax || this.modAutopilot) this.modAutoInput(time);
     this.pruneHitEffects(time);
+  }
+
+  /**
+   * Relax / Autopilot Mod 的自动输入
+   * - Autopilot：自动移动光标到下一个物件，玩家只需点击
+   * - Relax：光标在物件上时自动判定，玩家只需移动光标
+   * 两者同时启用时等同于 Autopilot + Relax（几乎全自动，但仍需点击）
+   */
+  private modAutoInput(time: number): void {
+    const objs = this.beatmap.hitObjects;
+    const len = objs.length;
+    const win300 = this.windows["300"];
+
+    // Autopilot：自动移动光标到最近的可击打物件
+    if (this.modAutopilot) {
+      let focus: HitObject | null = null;
+      let focusIndex = -1;
+      let bestScore = Infinity;
+      for (let i = this.activeIndex; i < len; i++) {
+        const obj = objs[i];
+        if (obj.judged) continue;
+        if (obj.type === "slider" && time > (obj.endTime || obj.time)) continue;
+        const dt = obj.time - time;
+        let score = dt;
+        if (obj.type === "circle" && Math.abs(dt) <= win300) {
+          score -= 2000;
+        }
+        if (obj.type === "slider" && obj._sliderHit) {
+          const remaining = (obj.endTime || obj.time) - time;
+          if (remaining > 200) score -= 1800;
+        }
+        if (obj.type === "spinner" && time >= obj.time && time <= (obj.endTime || obj.time)) {
+          score -= 1000;
+        }
+        if (score < bestScore) {
+          bestScore = score;
+          focus = obj;
+          focusIndex = i;
+        }
+        if (dt > this.preempt) break;
+      }
+      if (focus) {
+        if (focus.type === "spinner") {
+          this.spinnerRotation += 0.6;
+          if (this.spinnerRotation > 10) {
+            this.judgeHit(focus, time);
+            this.spawnHitEffect(this.ctx.width / 2, this.ctx.height / 2, "300", time);
+            this.spinnerRotation = 0;
+          }
+          this.cursorTargetX = this.ctx.width / 2 + Math.cos(time / 80) * 60;
+          this.cursorTargetY = this.ctx.height / 2 + Math.sin(time / 80) * 60;
+        } else {
+          const pos = this.toCanvas(focus.x, focus.y);
+          this.cursorTargetX = pos.x;
+          this.cursorTargetY = pos.y;
+        }
+      }
+    }
+
+    // Relax：光标在物件判定窗口内且距离足够近时自动判定
+    if (this.modRelax) {
+      const cx = this.cursorX;
+      const cy = this.cursorY;
+      const hitRadius = this.radius * 1.4;
+      for (let i = this.activeIndex; i < len; i++) {
+        const obj = objs[i];
+        if (obj.judged) continue;
+        if (obj.type === "spinner") continue;
+        const delta = time - obj.time;
+        if (delta < -win300) break;
+        if (delta > win300) continue;
+        // slider 头部
+        if (obj.type === "slider") {
+          if (!obj._sliderHit) {
+            const pos = this.toCanvas(obj.x, obj.y);
+            const dist = Math.hypot(pos.x - cx, pos.y - cy);
+            if (dist <= hitRadius) {
+              obj._sliderHit = true;
+              obj.judged = false;
+              this.spawnHitEffect(pos.x, pos.y, "300", time);
+              this.pressCursor(time);
+              this.playHitSound(obj);
+            }
+          }
+          continue;
+        }
+        // circle
+        if (obj.type === "circle") {
+          const pos = this.toCanvas(obj.x, obj.y);
+          const dist = Math.hypot(pos.x - cx, pos.y - cy);
+          if (dist <= hitRadius) {
+            this.judgeHit(obj, time);
+            this.spawnHitEffect(pos.x, pos.y, "300", time);
+            this.pressCursor(time);
+          }
+        }
+        if (obj.time - time > this.windows["50"] + 100) break;
+      }
+    }
   }
 
   private autoPlay(time: number): void {

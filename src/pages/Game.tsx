@@ -5,7 +5,7 @@ import { createEngine, type GameEngine, type ScoreState } from "@/engine";
 import { GlassButton } from "@/components/glass/GlassButton";
 import { RotateCcw, ArrowLeft, Pause, Play, Menu, X, Maximize, Minimize, Eye } from "lucide-react";
 import type { GameMode, Replay } from "@/types";
-import { MODE_LABEL } from "@/types";
+import { MODE_LABEL, MOD_LABEL, MOD_COLOR } from "@/types";
 import { useOrientation } from "@/hooks/useOrientation";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import type { LyricLine } from "@/utils/lyricsProvider";
@@ -404,6 +404,44 @@ export default function Game() {
         </div>
       )}
 
+      {/* Mod 标识 */}
+      {mods.length > 0 && phase === "playing" && (
+        <div
+          style={{
+            position: "absolute",
+            top: "env(safe-area-inset-top, 0px)",
+            right: 12,
+            paddingTop: 12,
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 4,
+            justifyContent: "flex-end",
+            pointerEvents: "none",
+            zIndex: 10,
+            marginTop: 4,
+            maxWidth: "60%",
+          }}
+        >
+          {mods.map((mod) => (
+            <span
+              key={mod}
+              style={{
+                padding: "3px 8px",
+                borderRadius: 8,
+                background: "rgba(0,0,0,0.4)",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+                color: MOD_COLOR[mod],
+                fontSize: 11,
+                fontWeight: 700,
+              }}
+            >
+              {MOD_LABEL[mod]}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* HUD 浮层（右上角聚合菜单） */}
       <div
         style={{
@@ -616,6 +654,8 @@ const ResultScreen: React.FC<{
   else if (score.accuracy >= 80) rank = "B";
   else if (score.accuracy >= 70) rank = "C";
 
+  const failed = score.health <= 0;
+
   return (
     <div className="page-shell">
       <div className="solid-card p-6 md:p-8 animate-enter">
@@ -623,8 +663,8 @@ const ResultScreen: React.FC<{
           <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
             {MODE_LABEL[mode]} · 结算
           </p>
-          <h1 className="mt-2 text-3xl font-bold md:text-4xl" style={{ color: "var(--accent)" }}>
-            完成！
+          <h1 className="mt-2 text-3xl font-bold md:text-4xl" style={{ color: failed ? "#ff375f" : "var(--accent)" }}>
+            {failed ? "失败" : "完成！"}
           </h1>
           {justSaved && (
             <p className="mt-2 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>

@@ -69,11 +69,14 @@ export const createInitialScore = (): ScoreState => ({
   health: 100,
 });
 
-/** 应用一次判定到分数状态 */
+/** 应用一次判定到分数状态
+ *  hp 参数（0-10）影响扣血/回血幅度，对应谱面 HPDrainRate
+ */
 export const applyJudgement = (
   state: ScoreState,
   j: Judgement,
   comboBonus: number = 1,
+  hp: number = 5,
 ): ScoreState => {
   const next: ScoreState = {
     ...state,
@@ -82,12 +85,16 @@ export const applyJudgement = (
   next.judgements[j] = (next.judgements[j] || 0) + 1;
   if (j === "miss") {
     next.combo = 0;
-    next.health = Math.max(0, next.health - 8);
+    // miss 扣血随 HP 增大而增大
+    const missDrain = Math.max(3, 4 + hp * 0.6);
+    next.health = Math.max(0, next.health - missDrain);
   } else {
     next.combo = state.combo + 1;
     next.maxCombo = Math.max(state.maxCombo, next.combo);
     next.score += SCORE_VALUE[j] + next.combo * comboBonus;
-    next.health = Math.min(100, next.health + (j === "300" ? 2 : j === "100" ? 1 : 0.3));
+    // 命中回血随 HP 增大而减小（高 HP 谱面回血慢）
+    const heal = Math.max(0.2, (j === "300" ? 2.4 : j === "100" ? 1.2 : 0.4) * (1 - hp * 0.05));
+    next.health = Math.min(100, next.health + heal);
   }
   // 重新计算准确率
   const total = next.judgements["300"] + next.judgements["100"] + next.judgements["50"] + next.judgements.miss;
