@@ -60,7 +60,7 @@ export const TopNav: React.FC = () => {
                 key={item.to}
                 to={item.to}
                 aria-label={item.label}
-                className="flex h-10 w-10 items-center justify-center rounded-xl no-underline transition-colors"
+                className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] no-underline transition-colors"
                 style={{
                   background: isActive ? "var(--accent-soft)" : "transparent",
                   color: isActive ? "var(--accent)" : "var(--text-secondary)",
@@ -75,7 +75,7 @@ export const TopNav: React.FC = () => {
         <button
           onClick={toggle}
           aria-label={active ? "退出全屏" : "进入全屏"}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border-none transition-colors"
+          className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border-none transition-colors"
           style={{
             background: active ? "var(--accent-soft)" : "transparent",
             color: active ? "var(--accent)" : "var(--text-secondary)",
