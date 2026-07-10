@@ -23,9 +23,9 @@ export const TopNav: React.FC = () => {
 
   return (
     <header
-      className="fixed left-1/2 top-4 z-50 -translate-x-1/2"
+      className="fixed left-1/2 top-1 z-50 -translate-x-1/2"
       style={{
-        top: "calc(env(safe-area-inset-top, 0px) + 16px)",
+        top: "calc(env(safe-area-inset-top, 0px) + 4px)",
         width: "min(calc(100% - 24px), 720px)",
         borderRadius: 18,
         background: theme === "dark" ? "rgba(9,9,12,0.62)" : "rgba(232,234,239,0.62)",
