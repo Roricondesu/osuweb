@@ -108,6 +108,8 @@ export const drawText = (
     baseline?: CanvasTextBaseline;
     /** 完全视觉居中：用 actualBoundingBoxAscent/Descent 计算真实字形中心，消除 middle 基线的 em-box 偏移 */
     perfectCenter?: boolean;
+    /** 视觉居中时的纵向微调（正值下移，负值上移），单位 px */
+    offsetY?: number;
   } = {},
 ) => {
   const { ctx } = c;
@@ -121,7 +123,7 @@ export const drawText = (
     const ascent = m.actualBoundingBoxAscent || 0;
     const descent = m.actualBoundingBoxDescent || 0;
     // 视觉中心在 baseline + (descent - ascent) / 2，要让其等于 y：
-    const baselineY = y + (ascent - descent) / 2;
+    const baselineY = y + (ascent - descent) / 2 + (opts.offsetY ?? 0);
     ctx.fillText(text, x, baselineY);
   } else {
     ctx.textBaseline = opts.baseline || "middle";

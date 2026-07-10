@@ -621,6 +621,7 @@ export class StandardEngine extends GameEngine {
           fillStyle: "rgba(255,255,255,0.95)",
           align: "center",
           perfectCenter: true,
+          offsetY: -1,
         });
       }
     } else {
@@ -633,6 +634,7 @@ export class StandardEngine extends GameEngine {
           fillStyle: "rgba(255,255,255,0.95)",
           align: "center",
           perfectCenter: true,
+          offsetY: -1,
         });
       }
     }
@@ -738,6 +740,7 @@ export class StandardEngine extends GameEngine {
         fillStyle: "rgba(255,255,255,0.95)",
         align: "center",
         perfectCenter: true,
+        offsetY: -1,
       });
     }
 
