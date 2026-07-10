@@ -177,7 +177,7 @@ export const useGameStore = create<GameState>()(
           const artist = set_.artist_unicode || set_.artist;
 
           // 歌词与谱面下载并行进行
-          const lyricsPromise = fetchLyrics(title, artist, get().settings.lyricsSource).catch(() => []);
+          const lyricsPromise = fetchLyrics(title, artist).catch(() => []);
 
           const buf = await apiDownloadOsz(set_.id, full, (r) => set({ downloadProgress: r }));
           const loaded = await extractOsz(buf, {

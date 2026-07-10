@@ -8,7 +8,7 @@ import type { GameMode, Replay } from "@/types";
 import { MODE_LABEL } from "@/types";
 import { useOrientation } from "@/hooks/useOrientation";
 import { useFullscreen } from "@/hooks/useFullscreen";
-import type { LyricLine } from "@/utils/neteaseLyrics";
+import type { LyricLine } from "@/utils/lyricsProvider";
 import { fetchLyrics } from "@/utils/lyricsProvider";
 import { getReplaysForBeatmap, saveReplay } from "@/utils/replayStorage";
 
@@ -38,7 +38,6 @@ export default function Game() {
   const autoCursorSpeed = useGameStore((s) => s.settings.autoCursorSpeed);
   const autoCircleMode = useGameStore((s) => s.settings.autoCircleMode);
   const hitSoundVolume = useGameStore((s) => s.settings.hitSoundVolume);
-  const lyricsSource = useGameStore((s) => s.settings.lyricsSource);
   const updateRuntime = useGameStore((s) => s.updateRuntime);
   const endGame = useGameStore((s) => s.endGame);
   const { toggle: toggleFullscreen, active: isFullscreen } = useFullscreen();
@@ -66,11 +65,11 @@ export default function Game() {
       return;
     }
     let cancelled = false;
-    fetchLyrics(set.title, set.artist, lyricsSource).then((lines) => {
+    fetchLyrics(set.title, set.artist).then((lines) => {
       if (!cancelled) setLyrics(lines);
     });
     return () => { cancelled = true; };
-  }, [set, showLyrics, lyricsSource]);
+  }, [set, showLyrics]);
 
   // 加载该谱面已有的回放
   useEffect(() => {

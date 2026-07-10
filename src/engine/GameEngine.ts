@@ -6,7 +6,7 @@
  *  - 维护分数状态（通过 Judger）
  */
 import type { ParsedBeatmap, HitObject, Judgement, StoryboardSprite, StoryboardCommand, Replay, ReplayEvent, ReplayScore } from "@/types";
-import type { LyricLine } from "@/utils/neteaseLyrics";
+import type { LyricLine } from "@/utils/lrclibLyrics";
 import {
   createInitialScore,
   applyJudgement,
@@ -17,7 +17,7 @@ import {
 } from "./Judger";
 import type { CanvasContext } from "./renderer/Canvas2D";
 import { setupCanvas, clear, GAME_FONT, clamp } from "./renderer/Canvas2D";
-import { getCurrentLyric } from "@/utils/neteaseLyrics";
+import { getCurrentLyric } from "@/utils/lrclibLyrics";
 
 interface HitEffect {
   x: number;

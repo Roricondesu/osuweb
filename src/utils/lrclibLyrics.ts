@@ -1,6 +1,9 @@
-/** LRCLIB 开源歌词获取（备用源） */
+/** LRCLIB 开源歌词获取 */
 
-import type { LyricLine } from "./neteaseLyrics";
+export interface LyricLine {
+  time: number; // ms
+  text: string;
+}
 
 const LRCLIB_SEARCH = "https://lrclib.net/api/search";
 
@@ -52,4 +55,15 @@ export async function fetchLrclibLyrics(title: string, artist: string): Promise<
   } catch {
     return [];
   }
+}
+
+/** 根据当前时间获取当前歌词行 */
+export function getCurrentLyric(lines: LyricLine[], time: number): LyricLine | null {
+  if (lines.length === 0) return null;
+  let best: LyricLine = lines[0];
+  for (const line of lines) {
+    if (line.time <= time) best = line;
+    else break;
+  }
+  return best;
 }

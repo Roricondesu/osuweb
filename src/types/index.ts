@@ -357,7 +357,6 @@ export interface Settings {
 
   // 歌词
   showLyrics: boolean; // 游戏内底部显示匹配歌词
-  lyricsSource: "auto" | "netease" | "lrclib"; // 歌词源
 
   // 音效
   hitSoundVolume: number; // 0-1，谱面按键音音量
@@ -378,7 +377,6 @@ export const DEFAULT_SETTINGS: Settings = {
   forceLandscape: false,
   fullscreen: false,
   showLyrics: true,
-  lyricsSource: "auto",
   showCursorTrail: true,
   showCursorPress: true,
   autoCursorSpeed: 1,
