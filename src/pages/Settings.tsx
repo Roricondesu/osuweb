@@ -151,7 +151,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="page-shell space-y-4">
+    <div className="page-shell mx-auto max-w-3xl space-y-4">
       <Section icon={<Moon size={18} />} title="外观" delay={1} open={openSections.has("appearance")} onToggle={() => toggleSection("appearance")}>
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">

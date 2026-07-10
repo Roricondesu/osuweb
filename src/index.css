@@ -65,6 +65,8 @@ body {
 /* 页面外壳留出顶部导航空间 */
 .page-shell {
   min-height: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
   padding: 72px 16px calc(32px + env(safe-area-inset-bottom, 0px)) 16px;
 }
 

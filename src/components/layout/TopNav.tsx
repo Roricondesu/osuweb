@@ -50,7 +50,7 @@ export const TopNav: React.FC = () => {
           <span>osu!web</span>
         </Link>
 
-        {/* 导航：移动端紧凑图标（带文字标签），桌面端图标+文字 */}
+        {/* 导航：纯图标 */}
         <nav className="flex items-center gap-1">
           {NAV_ITEMS.map((item) => {
             const isActive = location.pathname === item.to;
@@ -60,14 +60,13 @@ export const TopNav: React.FC = () => {
                 key={item.to}
                 to={item.to}
                 aria-label={item.label}
-                className="flex h-10 items-center gap-1.5 rounded-xl px-2.5 no-underline transition-colors sm:gap-2 sm:px-3"
+                className="flex h-10 w-10 items-center justify-center rounded-xl no-underline transition-colors"
                 style={{
                   background: isActive ? "var(--accent-soft)" : "transparent",
                   color: isActive ? "var(--accent)" : "var(--text-secondary)",
                 }}
               >
-                <Icon size={18} className="shrink-0" />
-                <span className="text-xs font-medium sm:text-sm">{item.label}</span>
+                <Icon size={18} />
               </Link>
             );
           })}
