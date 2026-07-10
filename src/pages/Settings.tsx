@@ -77,20 +77,7 @@ export default function Settings() {
   const [health, setHealth] = React.useState<ApiHealthResult | null>(null);
   const [checking, setChecking] = React.useState(false);
   const [openSections, setOpenSections] = useState<Set<string>>(
-    () =>
-      new Set([
-        "appearance",
-        "audio",
-        "timing",
-        "game",
-        "search",
-        "network",
-        "download",
-        "display",
-        "lyrics",
-        "advanced",
-        "about",
-      ]),
+    () => new Set<string>(),
   );
 
   const toggleSection = useCallback((id: string) => {
@@ -369,7 +356,7 @@ export default function Settings() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>检测 API 连接</div>
-              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>osu.direct / Sayobot / 网易云歌词</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>osu.direct / Sayobot / LRCLIB</div>
             </div>
             <button
               onClick={runCheck}
@@ -546,14 +533,33 @@ export default function Settings() {
       </Section>
 
       <Section icon={<Info size={18} />} title="关于" delay={10} open={openSections.has("about")} onToggle={() => toggleSection("about")}>
-        <div className="space-y-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+        <div className="space-y-3 text-sm" style={{ color: "var(--text-secondary)" }}>
+          <div>
+            <strong style={{ color: "var(--text-primary)", fontSize: 16 }}>osu!web</strong>
+          </div>
+          <p>纯前端 osu! 客户端，在浏览器里畅玩谱面。</p>
           <p>
-            <strong style={{ color: "var(--text-primary)" }}>osu! game</strong> · 移动端节奏游戏
+            在线体验：
+            <a href="https://osu.yuiro.top" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", textDecoration: "none" }}>osu.yuiro.top</a>
           </p>
-          <p>支持 4 种模式：osu! / 太鼓 / 接水果 / 下落式</p>
-          <p>谱面来源：osu.direct / Sayobot 公共镜像</p>
-          <p>下载镜像：Sayobot {settings.downloadFullPackage ? "full" : "mini"}</p>
-          <p className="pt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+          <div className="pt-1">
+            <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>功能</div>
+            <ul style={{ margin: 0, paddingLeft: 16, lineHeight: 1.8 }}>
+              <li>osu!standard / Taiko / Catch / Mania 四种模式</li>
+              <li>Storyboard 渲染与歌词同步</li>
+              <li>回放系统、Auto 演示、全屏模式</li>
+              <li>内置默认打击音效，零延迟反馈</li>
+            </ul>
+          </div>
+          <div className="pt-1">
+            <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>数据来源</div>
+            <ul style={{ margin: 0, paddingLeft: 16, lineHeight: 1.8 }}>
+              <li>谱面搜索：osu.direct / Sayobot</li>
+              <li>谱面下载：Sayobot 镜像</li>
+              <li>歌词：LRCLIB 开源歌词库</li>
+            </ul>
+          </div>
+          <p className="pt-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
             仅供学习交流，请勿用于商业用途
           </p>
         </div>

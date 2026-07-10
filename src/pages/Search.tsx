@@ -159,21 +159,19 @@ export default function Search() {
                 {src === "osu" ? "osu.direct" : "Sayobot"}
               </button>
             ))}
-            {settings.searchSource === "osu" && (
-              <button
-                onClick={() => updateSetting("storyboardOnly", !settings.storyboardOnly)}
-                className="rounded-full px-2.5 py-1 text-xs font-medium transition-transform active:scale-95"
-                style={{
-                  border: "1px solid",
-                  borderColor: settings.storyboardOnly ? "var(--accent)" : "var(--border)",
-                  color: settings.storyboardOnly ? "var(--accent)" : "var(--text-primary)",
-                  background: settings.storyboardOnly ? "var(--accent-soft)" : "transparent",
-                  cursor: "pointer",
-                }}
-              >
-                Storyboard
-              </button>
-            )}
+            <button
+              onClick={() => updateSetting("storyboardOnly", !settings.storyboardOnly)}
+              className="rounded-full px-2.5 py-1 text-xs font-medium transition-transform active:scale-95"
+              style={{
+                border: "1px solid",
+                borderColor: settings.storyboardOnly ? "var(--accent)" : "var(--border)",
+                color: settings.storyboardOnly ? "var(--accent)" : "var(--text-primary)",
+                background: settings.storyboardOnly ? "var(--accent-soft)" : "transparent",
+                cursor: "pointer",
+              }}
+            >
+              Storyboard
+            </button>
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">

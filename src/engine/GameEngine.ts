@@ -107,6 +107,7 @@ export abstract class GameEngine {
   protected hitSoundVolume = 0.6;
   protected hitSoundAudios: Map<string, HTMLAudioElement> = new Map();
   protected hitSoundUrlCache: Map<string, string | null> = new Map();
+  protected audioCtx: AudioContext | null = null;
 
   // 回放
   protected isReplay = false;
@@ -402,6 +403,10 @@ export abstract class GameEngine {
     }
     this.status = "finished";
     this.audio.pause();
+    if (this.audioCtx) {
+      this.audioCtx.close().catch(() => {});
+      this.audioCtx = null;
+    }
   }
 
   /** 主循环 */
@@ -574,6 +579,53 @@ export abstract class GameEngine {
     return url;
   }
 
+  /** 获取（懒创建并恢复）Web Audio 上下文，用于合成默认击打音效 */
+  private getAudioCtx(): AudioContext | null {
+    if (!this.audioCtx) {
+      try {
+        this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      } catch {
+        return null;
+      }
+    }
+    if (this.audioCtx.state === "suspended") {
+      this.audioCtx.resume().catch(() => {});
+    }
+    return this.audioCtx;
+  }
+
+  /** 播放内置默认击打音效（Web Audio 合成，零延迟） */
+  protected playDefaultHitSound(isBlue: boolean = false): void {
+    if (this.hitSoundVolume <= 0) return;
+    const ctx = this.getAudioCtx();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    if (isBlue) {
+      // "ka" - 高音边缘音
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(180, now + 0.06);
+      osc.type = "triangle";
+      gain.gain.setValueAtTime(this.hitSoundVolume * 0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    } else {
+      // "don" - 低音鼓
+      osc.frequency.setValueAtTime(150, now);
+      osc.frequency.exponentialRampToValueAtTime(60, now + 0.08);
+      osc.type = "sine";
+      gain.gain.setValueAtTime(this.hitSoundVolume * 0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    }
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.12);
+  }
+
   /** 播放物件的按键音（谱面自带音效） */
   protected playHitSound(obj: HitObject): void {
     if (this.hitSoundVolume <= 0) return;
@@ -587,6 +639,19 @@ export abstract class GameEngine {
     if (flags & 4) sounds.push("finish");
     if (flags & 8) sounds.push("clap");
     if (sounds.length === 0) sounds.push("normal");
+
+    // 检查是否有可用的谱面自带音效
+    let hasAnyUrl = false;
+    for (const sound of sounds) {
+      const url = this.resolveHitSoundUrl(setName, sound, indexSuffix);
+      if (url) { hasAnyUrl = true; break; }
+    }
+
+    // 没有谱面自带音效时，使用内置合成音效
+    if (!hasAnyUrl) {
+      this.playDefaultHitSound(!!(flags & 2)); // whistle = ka (blue)
+      return;
+    }
 
     for (const sound of sounds) {
       const url = this.resolveHitSoundUrl(setName, sound, indexSuffix);

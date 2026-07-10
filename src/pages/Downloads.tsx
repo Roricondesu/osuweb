@@ -16,7 +16,8 @@ export default function Downloads() {
   const deleteDownload = useGameStore((s) => s.deleteDownload);
   const clearDownloads = useGameStore((s) => s.clearDownloads);
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [coverError, setCoverError] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     loadDownloads().finally(() => setLoading(false));
@@ -24,8 +25,8 @@ export default function Downloads() {
 
   const items = Array.from(downloaded.values());
 
-  const toggleCollapse = (setId: number) => {
-    setCollapsed((prev) => {
+  const toggleExpand = (setId: number) => {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(setId)) next.delete(setId);
       else next.add(setId);
@@ -115,7 +116,8 @@ export default function Downloads() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {items.map((set) => {
-              const isCollapsed = collapsed.has(set.setId);
+              const isExpanded = expanded.has(set.setId);
+              const coverSrc = coverError.has(set.setId) ? (set.backgroundUrl || set.cover) : set.cover;
               return (
               <div
                 key={set.setId}
@@ -131,8 +133,11 @@ export default function Downloads() {
               >
                 <div style={{ display: "flex", gap: 14 }}>
                   <img
-                    src={set.cover}
+                    src={coverSrc}
                     alt="cover"
+                    onError={() => {
+                      setCoverError((prev) => new Set(prev).add(set.setId));
+                    }}
                     style={{
                       width: 72,
                       height: 72,
@@ -179,11 +184,11 @@ export default function Downloads() {
                   </div>
                   <div style={{ display: "flex", gap: 6, alignSelf: "flex-start" }}>
                     <GlassButton
-                      onClick={() => toggleCollapse(set.setId)}
+                      onClick={() => toggleExpand(set.setId)}
                       style={{ background: "var(--surface-elevated)", color: "var(--text-secondary)" }}
-                      aria-label={isCollapsed ? "展开" : "折叠"}
+                      aria-label={isExpanded ? "折叠" : "展开"}
                     >
-                      {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </GlassButton>
                     <GlassButton
                       onClick={() => handleDelete(set.setId)}
@@ -197,7 +202,7 @@ export default function Downloads() {
                   </div>
                 </div>
 
-                {!isCollapsed && (
+                {isExpanded && (
                 <div
                   style={{
                     display: "flex",

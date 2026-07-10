@@ -83,15 +83,15 @@ const initSearch = async (
     const hasQuery = query.trim().length > 0;
     if (source === "sayobot") {
       results = hasQuery
-        ? await searchSayobot(query, mode || undefined, 30)
-        : await fetchSayobotFeatured(mode || undefined, 30);
+        ? await searchSayobot(query, mode || undefined, 50)
+        : await fetchSayobotFeatured(mode || undefined, 50);
     } else {
       results = hasQuery
-        ? await apiSearch(query, mode || undefined, 30)
-        : await apiFeatured(mode || undefined, 30);
-      if (storyboardOnly) {
-        results = results.filter((s) => s.hasStoryboard !== false);
-      }
+        ? await apiSearch(query, mode || undefined, 50)
+        : await apiFeatured(mode || undefined, 50);
+    }
+    if (storyboardOnly) {
+      results = results.filter((s) => s.hasStoryboard === true);
     }
     set({ searchResults: results, searchLoading: false });
   } catch (e) {
