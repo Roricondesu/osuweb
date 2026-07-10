@@ -895,7 +895,7 @@ export abstract class GameEngine {
   }
 
   /** 获取指定时间的 sampleSet / sampleIndex（二分查找，避免大量 timing point 时线性扫描） */
-  private getSampleAt(time: number): { set: number; index: number } {
+  protected getSampleAt(time: number): { set: number; index: number } {
     const tps = this.beatmap.timingPoints;
     if (tps.length === 0) return { set: 1, index: 0 };
 
@@ -937,31 +937,96 @@ export abstract class GameEngine {
     const cached = this.hitSoundUrlCache.get(baseName);
     if (cached !== undefined) return cached || undefined;
 
-    const exts = [".wav", ".mp3", ".ogg"];
-    let url: string | undefined;
-    for (const ext of exts) {
-      const key = baseName + ext;
-      if (this.assetUrls[key]) {
-        url = this.assetUrls[key];
-        break;
-      }
-    }
-    if (!url) {
-      const lowerBase = baseName.toLowerCase();
-      for (const [k, v] of Object.entries(this.assetUrls)) {
-        const base = k.split("/").pop()?.toLowerCase() || "";
-        if (base === lowerBase + ".wav" || base === lowerBase + ".mp3" || base === lowerBase + ".ogg") {
-          url = v;
-          break;
-        }
-      }
-    }
+    let url = this.findSampleUrl(baseName);
     if (!url && indexSuffix) {
       // 自定义 index 不存在时回退到默认
-      url = this.resolveHitSoundUrl(setName, sound, "");
+      url = this.findSampleUrl(`${setName}-hit${sound}`);
     }
     this.hitSoundUrlCache.set(baseName, url || null);
     return url;
+  }
+
+  /** 按基础名（如 "normal-hitnormal"）在 assetUrls / customSkinAssetUrls 中查找采样 URL（大小写、扩展名不敏感） */
+  protected findSampleUrl(baseName: string): string | undefined {
+    const cached = this.hitSoundUrlCache.get(baseName);
+    if (cached !== undefined) return cached || undefined;
+    const exts = [".wav", ".mp3", ".ogg"];
+    const sources = [this.customSkinAssetUrls, this.assetUrls];
+    let url: string | undefined;
+    // 精确匹配
+    for (const src of sources) {
+      for (const ext of exts) {
+        const key = baseName + ext;
+        if (src[key]) { url = src[key]; break; }
+      }
+      if (url) break;
+    }
+    // 大小写/路径不敏感兜底
+    if (!url) {
+      const lowerBase = baseName.toLowerCase();
+      for (const src of sources) {
+        for (const [k, v] of Object.entries(src)) {
+          const base = k.split("/").pop()?.toLowerCase() || "";
+          if (base === lowerBase + ".wav" || base === lowerBase + ".mp3" || base === lowerBase + ".ogg") {
+            url = v;
+            break;
+          }
+        }
+        if (url) break;
+      }
+    }
+    this.hitSoundUrlCache.set(baseName, url || null);
+    return url;
+  }
+
+  /** 用对象池播放一个采样 URL（复用实例，避免连续播放互相中断） */
+  protected playSampleUrl(url: string, volume?: number): void {
+    let pool = this.hitSoundAudioPool.get(url);
+    if (!pool) {
+      pool = [];
+      this.hitSoundAudioPool.set(url, pool);
+    }
+    let idx = this.hitSoundPoolIndex.get(url) ?? 0;
+    let audio = pool[idx];
+    if (!audio) {
+      try {
+        audio = new Audio(url);
+      } catch {
+        return;
+      }
+      audio.preload = "auto";
+      pool.push(audio);
+    }
+    idx = (idx + 1) % this.maxHitSoundPoolSize;
+    this.hitSoundPoolIndex.set(url, idx);
+    audio.volume = volume ?? this.hitSoundVolume;
+
+    const play = () => {
+      try {
+        audio.currentTime = 0;
+      } catch {
+        // 忽略未加载完成时的设置异常
+      }
+      audio.play().catch(() => {
+        // 忽略自动播放限制等错误
+      });
+    };
+
+    if (audio.readyState >= 2) {
+      play();
+    } else {
+      const onCanPlay = () => {
+        audio.removeEventListener("canplaythrough", onCanPlay);
+        audio.removeEventListener("error", onError);
+        play();
+      };
+      const onError = () => {
+        audio.removeEventListener("canplaythrough", onCanPlay);
+        audio.removeEventListener("error", onError);
+      };
+      audio.addEventListener("canplaythrough", onCanPlay);
+      audio.addEventListener("error", onError);
+    }
   }
 
   /** 获取（懒创建并恢复）Web Audio 上下文，用于合成默认击打音效 */
@@ -979,36 +1044,95 @@ export abstract class GameEngine {
     return this.audioCtx;
   }
 
-  /** 播放内置默认击打音效（Web Audio 合成，零延迟） */
-  protected playDefaultHitSound(isBlue: boolean = false): void {
+  /** 播放内置默认击打音效（Web Audio 合成，零延迟）
+   *  参考 osu! 太鼓音色：don 为低频鼓心共鸣，ka 为高频鼓边噪声，big 叠加更深的共鸣 */
+  protected playDefaultHitSound(isBlue: boolean = false, big: boolean = false): void {
     if (this.hitSoundVolume <= 0) return;
     const ctx = this.getAudioCtx();
     if (!ctx) return;
 
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    if (isBlue) {
-      // "ka" - 高音边缘音
-      osc.frequency.setValueAtTime(320, now);
-      osc.frequency.exponentialRampToValueAtTime(180, now + 0.06);
-      osc.type = "triangle";
-      gain.gain.setValueAtTime(this.hitSoundVolume * 0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-    } else {
-      // "don" - 低音鼓
-      osc.frequency.setValueAtTime(150, now);
-      osc.frequency.exponentialRampToValueAtTime(60, now + 0.08);
-      osc.type = "sine";
-      gain.gain.setValueAtTime(this.hitSoundVolume * 0.4, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    // suspended 状态下 currentTime 不推进，osc 不会发声；
+    // 异步 resume 后用 running 时间重试一次，确保首次击打也有声
+    if (ctx.state !== "running") {
+      ctx.resume().then(() => {
+        if (ctx.state === "running") this.playDefaultHitSound(isBlue, big);
+      }).catch(() => {});
+      return;
     }
 
-    osc.connect(gain);
+    const now = ctx.currentTime;
+    const vol = this.hitSoundVolume;
+
+    if (isBlue) {
+      // "ka" - 鼓边：高频音调 + 短噪声击打
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.setValueAtTime(big ? 360 : 300, now);
+      osc.frequency.exponentialRampToValueAtTime(200, now + 0.05);
+      osc.type = "triangle";
+      gain.gain.setValueAtTime(vol * (big ? 0.4 : 0.3), now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.09);
+      // 噪声成分模拟鼓边"啪"的质感
+      this.playNoiseBurst(ctx, now, big ? 0.05 : 0.035, vol * (big ? 0.25 : 0.18), 2200);
+    } else {
+      // "don" - 鼓心：低频共鸣 + 击打冲击
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const startFreq = big ? 110 : 150;
+      osc.frequency.setValueAtTime(startFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(big ? 45 : 60, now + 0.1);
+      osc.type = "sine";
+      gain.gain.setValueAtTime(vol * (big ? 0.55 : 0.4), now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + (big ? 0.16 : 0.12));
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + (big ? 0.2 : 0.14));
+      // 大音符额外叠加低八度共鸣，模拟更厚的鼓声
+      if (big) {
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.frequency.setValueAtTime(65, now);
+        osc2.frequency.exponentialRampToValueAtTime(35, now + 0.18);
+        osc2.type = "sine";
+        gain2.gain.setValueAtTime(vol * 0.3, now);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now);
+        osc2.stop(now + 0.24);
+      }
+      // 击打冲击噪声（极短）
+      this.playNoiseBurst(ctx, now, 0.02, vol * 0.15, 800);
+    }
+  }
+
+  /** 合成短噪声爆发（模拟鼓皮/鼓边击打质感） */
+  private playNoiseBurst(ctx: AudioContext, now: number, duration: number, volume: number, filterFreq: number): void {
+    const samples = Math.floor(ctx.sampleRate * duration);
+    if (samples <= 0) return;
+    const buffer = ctx.createBuffer(1, samples, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < samples; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / samples);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = filterFreq;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    noise.connect(filter);
+    filter.connect(gain);
     gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.12);
+    noise.start(now);
+    noise.stop(now + duration + 0.01);
   }
 
   /** 播放物件的按键音（谱面自带音效） */
@@ -1041,55 +1165,7 @@ export abstract class GameEngine {
     for (const sound of sounds) {
       const url = this.resolveHitSoundUrl(setName, sound, indexSuffix);
       if (!url) continue;
-
-      // 从对象池取一个可用实例，避免连续播放时互相中断
-      let pool = this.hitSoundAudioPool.get(url);
-      if (!pool) {
-        pool = [];
-        this.hitSoundAudioPool.set(url, pool);
-      }
-      let idx = this.hitSoundPoolIndex.get(url) ?? 0;
-      let audio = pool[idx];
-      if (!audio) {
-        try {
-          audio = new Audio(url);
-        } catch {
-          continue;
-        }
-        audio.preload = "auto";
-        pool.push(audio);
-      }
-      idx = (idx + 1) % this.maxHitSoundPoolSize;
-      this.hitSoundPoolIndex.set(url, idx);
-
-      audio.volume = this.hitSoundVolume;
-
-      const play = () => {
-        try {
-          audio.currentTime = 0;
-        } catch {
-          // 忽略未加载完成时的设置异常
-        }
-        audio.play().catch(() => {
-          // 忽略自动播放限制等错误
-        });
-      };
-
-      if (audio.readyState >= 2) {
-        play();
-      } else {
-        const onCanPlay = () => {
-          audio.removeEventListener("canplaythrough", onCanPlay);
-          audio.removeEventListener("error", onError);
-          play();
-        };
-        const onError = () => {
-          audio.removeEventListener("canplaythrough", onCanPlay);
-          audio.removeEventListener("error", onError);
-        };
-        audio.addEventListener("canplaythrough", onCanPlay);
-        audio.addEventListener("error", onError);
-      }
+      this.playSampleUrl(url);
     }
   }
 

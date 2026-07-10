@@ -355,9 +355,62 @@ export class TaikoEngine extends GameEngine {
     this.spawnHitEffect(this.judgePos, this.crossPos, j, time);
   }
 
-  /** Taiko 覆盖：始终播放对应颜色的合成音效，不依赖谱面 hitSound flags */
+  /** Taiko 覆盖：参考 osu! 官方实现
+   *  - don（红/鼓心）→ hitnormal 采样
+   *  - ka（蓝/鼓边）→ hitwhistle 或 hitclap 采样
+   *  - finish（大音符）→ 额外叠加 hitfinish 采样
+   *  优先 Taiko 专属采样（taiko-normal-* / taiko-hit*），再回退通用采样，最后合成 */
   protected playHitSound(obj: HitObject): void {
-    this.playDefaultHitSound(this.isBlue(obj));
+    if (this.hitSoundVolume <= 0) return;
+    const blue = this.isBlue(obj);
+    const big = this.isBig(obj);
+    const { set } = this.getSampleAt(obj.time);
+    const setName = ["", "normal", "soft", "drum"][set] || "normal";
+
+    // 按优先级查找采样：taiko-<set>-* > taiko-* > <set>-* > normal-*
+    const pickUrl = (names: string[]): string | undefined => {
+      for (const n of names) {
+        const url = this.findSampleUrl(n);
+        if (url) return url;
+      }
+      return undefined;
+    };
+
+    const donUrl = pickUrl([
+      `taiko-${setName}-hitnormal`,
+      `taiko-hitnormal`,
+      `${setName}-hitnormal`,
+      "normal-hitnormal",
+    ]);
+    const kaUrl = pickUrl([
+      `taiko-${setName}-hitwhistle`,
+      `taiko-${setName}-hitclap`,
+      `taiko-hitwhistle`,
+      `taiko-hitclap`,
+      `${setName}-hitwhistle`,
+      `${setName}-hitclap`,
+      "normal-hitwhistle",
+      "normal-hitclap",
+    ]);
+    const finishUrl = big ? pickUrl([
+      `taiko-${setName}-hitfinish`,
+      `taiko-hitfinish`,
+      `${setName}-hitfinish`,
+      "normal-hitfinish",
+    ]) : undefined;
+
+    const mainUrl = blue ? kaUrl : donUrl;
+    const hasSample = !!mainUrl || !!finishUrl;
+
+    if (hasSample) {
+      // 有采样：按 osu! 规则播放（主音 + finish 叠加）
+      if (mainUrl) this.playSampleUrl(mainUrl);
+      if (finishUrl) this.playSampleUrl(finishUrl);
+      return;
+    }
+
+    // 无采样：合成 don/ka（带 big 区分）
+    this.playDefaultHitSound(blue, big);
   }
 
   protected handlePointerDown(x: number, _y: number): void {
