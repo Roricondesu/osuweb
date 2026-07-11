@@ -89,9 +89,16 @@ export class TaikoEngine extends GameEngine {
       (obj) => Math.abs(time - obj.time),
     );
     if (best && Math.abs(time - best.time) <= win300) {
-      const j = this.judgeHit(best, time, this.judgePos, this.crossPos);
-      this.spawnHitEffect(this.judgePos, this.crossPos, j, time);
-      this.pressCursor(time);
+      const blue = this.isBlue(best);
+      const side = blue ? 1 : 0;
+      // Auto 模式下也遵守冷却并播放按键反馈音
+      if (time - this.lastHitTime[side] >= this.HIT_COOLDOWN) {
+        this.lastHitTime[side] = time;
+        this.playTaikoFeedback(blue);
+        const j = this.judgeHit(best, time, this.judgePos, this.crossPos);
+        this.spawnHitEffect(this.judgePos, this.crossPos, j, time);
+        this.pressCursor(time);
+      }
     }
     this.cursorTargetX = this.judgePos;
     this.cursorTargetY = this.crossPos;
@@ -286,7 +293,10 @@ export class TaikoEngine extends GameEngine {
     // 1. 冷却：同侧在 40ms 内只能触发一次判定
     if (time - this.lastHitTime[side] < this.HIT_COOLDOWN) return;
 
-    // 2. 命中目标：普通音符必须颜色匹配；大音符任意一侧都可命中
+    // 2. osu! 官方行为：每次按键先播放 don/ka 按键反馈音（空按也有声）
+    this.playTaikoFeedback(blue);
+
+    // 3. 命中目标：普通音符必须颜色匹配；大音符任意一侧都可命中
     const best = this.findHitTarget(
       time,
       (obj) => !obj.judged && (this.isBig(obj) || this.isBlue(obj) === blue),
@@ -294,7 +304,7 @@ export class TaikoEngine extends GameEngine {
     );
     if (!best) return;
 
-    // 3. 必须落在实际判定窗口内，防止一次点击误判远处的音符
+    // 4. 必须落在实际判定窗口内，防止一次点击误判远处的音符
     if (Math.abs(time - best.time) > this.windows["50"]) return;
 
     this.lastHitTime[side] = time;
@@ -302,19 +312,12 @@ export class TaikoEngine extends GameEngine {
     this.spawnHitEffect(this.judgePos, this.crossPos, j, time);
   }
 
-  /** Taiko 覆盖：参考 osu! 官方实现
-   *  - don（红/鼓心）→ hitnormal 采样
-   *  - ka（蓝/鼓边）→ hitwhistle 或 hitclap 采样
-   *  - finish（大音符）→ 额外叠加 hitfinish 采样
-   *  优先 Taiko 专属采样（taiko-normal-* / taiko-hit*），再回退通用采样，最后合成 */
-  protected playHitSound(obj: HitObject): void {
+  /** 播放 don/ka 按键反馈音：优先皮肤/谱面采样，无采样则合成默认音效 */
+  private playTaikoFeedback(blue: boolean): void {
     if (this.hitSoundVolume <= 0) return;
-    const blue = this.isBlue(obj);
-    const big = this.isBig(obj);
-    const { set } = this.getSampleAt(obj.time);
+    const { set } = this.getSampleAt(this.currentTime);
     const setName = ["", "normal", "soft", "drum"][set] || "normal";
 
-    // 按优先级查找采样：taiko-<set>-* > taiko-* > <set>-* > normal-*
     const pickUrl = (names: string[]): string | undefined => {
       for (const n of names) {
         const url = this.findSampleUrl(n);
@@ -323,41 +326,62 @@ export class TaikoEngine extends GameEngine {
       return undefined;
     };
 
-    const donUrl = pickUrl([
-      `taiko-${setName}-hitnormal`,
-      `taiko-hitnormal`,
-      `${setName}-hitnormal`,
-      "normal-hitnormal",
-    ]);
-    const kaUrl = pickUrl([
-      `taiko-${setName}-hitwhistle`,
-      `taiko-${setName}-hitclap`,
-      `taiko-hitwhistle`,
-      `taiko-hitclap`,
-      `${setName}-hitwhistle`,
-      `${setName}-hitclap`,
-      "normal-hitwhistle",
-      "normal-hitclap",
-    ]);
-    const finishUrl = big ? pickUrl([
+    const url = blue
+      ? pickUrl([
+          `taiko-${setName}-hitwhistle`,
+          `taiko-${setName}-hitclap`,
+          `taiko-hitwhistle`,
+          `taiko-hitclap`,
+          `${setName}-hitwhistle`,
+          `${setName}-hitclap`,
+          "normal-hitwhistle",
+          "normal-hitclap",
+        ])
+      : pickUrl([
+          `taiko-${setName}-hitnormal`,
+          `taiko-hitnormal`,
+          `${setName}-hitnormal`,
+          "normal-hitnormal",
+        ]);
+
+    if (url) {
+      this.playSampleUrl(url);
+    } else {
+      this.playDefaultHitSound(blue, false);
+    }
+  }
+
+  /** Taiko 命中附加音效：只处理大音符的 finish 叠加，普通 don/ka 已在按键反馈中播放 */
+  protected playHitSound(obj: HitObject): void {
+    if (this.hitSoundVolume <= 0) return;
+    const blue = this.isBlue(obj);
+    const big = this.isBig(obj);
+    if (!big) return;
+
+    const { set } = this.getSampleAt(obj.time);
+    const setName = ["", "normal", "soft", "drum"][set] || "normal";
+
+    const pickUrl = (names: string[]): string | undefined => {
+      for (const n of names) {
+        const url = this.findSampleUrl(n);
+        if (url) return url;
+      }
+      return undefined;
+    };
+
+    const finishUrl = pickUrl([
       `taiko-${setName}-hitfinish`,
       `taiko-hitfinish`,
       `${setName}-hitfinish`,
       "normal-hitfinish",
-    ]) : undefined;
+    ]);
 
-    const mainUrl = blue ? kaUrl : donUrl;
-    const hasSample = !!mainUrl || !!finishUrl;
-
-    if (hasSample) {
-      // 有采样：按 osu! 规则播放（主音 + finish 叠加）
-      if (mainUrl) this.playSampleUrl(mainUrl);
-      if (finishUrl) this.playSampleUrl(finishUrl);
-      return;
+    if (finishUrl) {
+      this.playSampleUrl(finishUrl);
+    } else {
+      // 无 finish 采样：用默认合成音叠加一层更深的共鸣
+      this.playDefaultHitSound(blue, true);
     }
-
-    // 无采样：合成 don/ka（带 big 区分）
-    this.playDefaultHitSound(blue, big);
   }
 
   protected handlePointerDown(x: number, _y: number): void {

@@ -134,6 +134,8 @@ export abstract class GameEngine {
   protected hitSoundUrlCache: Map<string, string | null> = new Map();
   protected audioCtx: AudioContext | null = null;
   private audioUnlocked = false;
+  private audioBuffers = new Map<string, AudioBuffer>();
+  private audioBuffersLoading = new Map<string, Promise<AudioBuffer | null>>();
 
   // 回放
   protected isReplay = false;
@@ -285,6 +287,7 @@ export abstract class GameEngine {
       this.assetUrls = opts.assetUrls;
       this.loadStoryboardImages();
       this.loadSkinTextures();
+      this.preloadAudioBuffers();
     }
     this.prepareStoryboardCommands();
   }
@@ -1001,8 +1004,25 @@ export abstract class GameEngine {
     return url;
   }
 
-  /** 用对象池播放一个采样 URL（复用实例，避免连续播放互相中断） */
+  /** 播放采样 URL：优先使用 Web Audio Buffer（更稳定、无自动播放限制），未解码完成前用 HTMLAudio 兜底 */
   protected playSampleUrl(url: string, volume?: number): void {
+    const ctx = this.getAudioCtx();
+    const cached = this.audioBuffers.get(url);
+    if (ctx && cached) {
+      const src = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      src.buffer = cached;
+      gain.gain.value = volume ?? this.hitSoundVolume;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      src.start(0);
+      return;
+    }
+
+    // 异步解码缓存，供后续击打使用
+    this.loadAudioBuffer(url).catch(() => {});
+
+    // HTMLAudio 兜底
     let pool = this.hitSoundAudioPool.get(url);
     if (!pool) {
       pool = [];
@@ -1049,6 +1069,48 @@ export abstract class GameEngine {
       audio.addEventListener("canplaythrough", onCanPlay);
       audio.addEventListener("error", onError);
     }
+  }
+
+  /** 预加载所有谱面/皮肤中的音频采样到 Web Audio Buffer */
+  private preloadAudioBuffers(): void {
+    const isAudio = (url: string) => /\.(wav|mp3|ogg)(\?.*)?$/i.test(url);
+    const urls = new Set<string>();
+    for (const url of Object.values(this.assetUrls)) {
+      if (isAudio(url)) urls.add(url);
+    }
+    for (const url of Object.values(this.customSkinAssetUrls)) {
+      if (isAudio(url)) urls.add(url);
+    }
+    for (const url of urls) {
+      this.loadAudioBuffer(url).catch(() => {});
+    }
+  }
+
+  /** 异步解码音频采样并缓存 */
+  private async loadAudioBuffer(url: string): Promise<AudioBuffer | null> {
+    const cached = this.audioBuffers.get(url);
+    if (cached) return cached;
+    const loading = this.audioBuffersLoading.get(url);
+    if (loading) return loading;
+
+    const ctx = this.getAudioCtx();
+    if (!ctx) return null;
+
+    const promise = (async () => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const arrayBuffer = await res.arrayBuffer();
+        const buffer = await ctx.decodeAudioData(arrayBuffer);
+        this.audioBuffers.set(url, buffer);
+        return buffer;
+      } catch {
+        return null;
+      }
+    })();
+
+    this.audioBuffersLoading.set(url, promise);
+    return promise;
   }
 
   /** 获取（懒创建并恢复）Web Audio 上下文，用于合成默认击打音效 */
