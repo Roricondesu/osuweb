@@ -199,6 +199,8 @@ export abstract class GameEngine {
   protected hasStoryboardVideo = false;
   /** Storyboard 视频精灵是否真正加载到资源（决定是否回退到背景视频） */
   protected storyboardVideoAvailable = false;
+  /** Storyboard 视频就绪检测定时器：超时未就绪则降级到背景视频 */
+  private storyboardVideoCheckTimer: number | null = null;
   protected keyBindings: KeyBindings = { ...DEFAULT_KEY_BINDINGS };
   protected backgroundDim = 0.68;
   protected approachMultiplier = 1.5;
@@ -559,8 +561,11 @@ export abstract class GameEngine {
   private syncStoryboardVideos(time: number): void {
     if (!this.showStoryboard) return; // storyboard 关闭时不播放视频
     for (const [fileName, video] of this.storyboardVideoElements) {
-      if (!this.storyboardVideoReady.has(fileName)) continue;
+      // 用 readyState 直接判断（oncanplay 在某些浏览器/自动播放策略下不触发）
+      // readyState >= 2 (HAVE_CURRENT_DATA) 即可同步与播放
       if (video.readyState < 2) continue;
+      // 标记 ready（供 useBackgroundVideo 判断 storyboard 视频实际可用）
+      this.storyboardVideoReady.add(fileName);
       // 视频从游戏时间 0 开始播放；视频时间 = time / 1000
       const targetTime = time / 1000;
       // 偏差 > 0.3s 时纠正
@@ -919,6 +924,16 @@ export abstract class GameEngine {
         video.playbackRate = this.playbackRate;
         video.play().catch(() => {});
       }
+      // 超时降级：2 秒后若所有 storyboard 视频均未就绪，回退到背景视频
+      // 避免 storyboardVideoAvailable=true 但视频加载失败时背景视频也被阻断
+      if (this.storyboardVideoElements.size > 0 && this.videoElement && this.storyboardVideoCheckTimer === null) {
+        this.storyboardVideoCheckTimer = window.setTimeout(() => {
+          this.storyboardVideoCheckTimer = null;
+          if (this.storyboardVideoReady.size === 0) {
+            this.storyboardVideoAvailable = false;
+          }
+        }, 2000);
+      }
     }
     this.unlockAudio();
     this.startTime = performance.now();
@@ -982,10 +997,21 @@ export abstract class GameEngine {
     }
     // Storyboard 视频精灵重启（仅 storyboard 开启时）
     if (this.showStoryboard) {
+      // 重启时恢复乐观值（前次可能因超时降级为 false）
+      if (this.storyboardVideoElements.size > 0) this.storyboardVideoAvailable = true;
       for (const [, video] of this.storyboardVideoElements) {
         try { video.currentTime = 0; } catch { /* 忽略 */ }
         video.playbackRate = this.playbackRate;
         video.play().catch(() => {});
+      }
+      // 超时降级检测（同 start）
+      if (this.storyboardVideoElements.size > 0 && this.videoElement && this.storyboardVideoCheckTimer === null) {
+        this.storyboardVideoCheckTimer = window.setTimeout(() => {
+          this.storyboardVideoCheckTimer = null;
+          if (this.storyboardVideoReady.size === 0) {
+            this.storyboardVideoAvailable = false;
+          }
+        }, 2000);
       }
     }
     this.lastFrameAt = 0;
@@ -1003,6 +1029,10 @@ export abstract class GameEngine {
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
+    }
+    if (this.storyboardVideoCheckTimer !== null) {
+      clearTimeout(this.storyboardVideoCheckTimer);
+      this.storyboardVideoCheckTimer = null;
     }
     this.status = "finished";
     this.audio.pause();
@@ -1060,8 +1090,9 @@ export abstract class GameEngine {
       }
     }
 
-    if (this.spectatorMode) {
+    if (this.spectatorMode && !this.isReplay) {
       // 观赏模式：只播放 Storyboard / 背景 / 歌词，不渲染游戏元素与判定
+      // 回放模式(isReplay)不走此分支，否则会看不到铺面
       this.renderBackground(time);
       this.drawLyrics(time);
       this.drawFPS();
@@ -1103,7 +1134,8 @@ export abstract class GameEngine {
   /** 是否所有对象都已处理完 */
   protected isFinished(time: number): boolean {
     // 观赏模式：只要音频未结束就继续播放（让 Storyboard / 视频播完）
-    if (this.spectatorMode) {
+    // 回放模式不视为观赏，按正常逻辑判定结束
+    if (this.spectatorMode && !this.isReplay) {
       if (!this.audio.ended && this.audio.currentTime < this.audio.duration - 0.1) return false;
       return true;
     }
@@ -3154,7 +3186,8 @@ export abstract class GameEngine {
     for (const sprite of sprites) {
       if (sprite.type !== "video") continue;
       const video = this.storyboardVideoElements.get(sprite.fileName);
-      if (!video || !this.storyboardVideoReady.has(sprite.fileName)) continue;
+      if (!video) continue;
+      // 用 readyState 直接判断，不依赖 oncanplay 触发（与 syncStoryboardVideos 一致）
       if (video.readyState < 2) continue;
       const vw = video.videoWidth;
       const vh = video.videoHeight;
