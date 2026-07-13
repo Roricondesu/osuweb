@@ -5,7 +5,7 @@
  *  - 普通水果为正多边形并持续旋转
  *  - 纯色几何水果，无描边/高光
  */
-import type { HitObject } from "@/types";
+import type { HitObject, Judgement } from "@/types";
 import { GameEngine, type EngineOptions } from "../GameEngine";
 import { clamp } from "../renderer/Canvas2D";
 
@@ -300,6 +300,19 @@ export class CatchEngine extends GameEngine {
     ctx.roundRect(-PLATE_W / 2, -PLATE_H / 2, PLATE_W, PLATE_H, PLATE_H / 2);
     ctx.fill();
     ctx.restore();
+  }
+
+  /** catch 接住即最高判定 */
+  protected judgeHit(obj: HitObject, time: number, x = 0, y = 0): Judgement {
+    const alreadyJudged = obj.judged;
+    obj.judged = true;
+    obj.judgement = "300";
+    if (!alreadyJudged) {
+      this.submitJudgement("300");
+      this.spawnJudgePopup("300", x, y, time);
+    }
+    this.playHitSound(obj);
+    return "300";
   }
 
   protected handlePointerDown(x: number, _y: number): void {
