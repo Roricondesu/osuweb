@@ -2,6 +2,7 @@
  *  - 水果统一从屏幕上方垂直下落
  *  - osu! x 坐标 [0, 512] 线性映射到屏幕横向
  *  - 盘子只在底部左右移动，简约矩形
+ *  - 普通水果为正多边形并持续旋转
  *  - 纯色几何水果，无描边/高光
  */
 import type { HitObject } from "@/types";
@@ -11,17 +12,19 @@ import { clamp } from "../renderer/Canvas2D";
 const APPROACH_TIME = 1500;
 const FRUIT_R = 22;
 const DROP_R = 13;
-const PLATE_W = 110;
-const PLATE_H = 16;
+const PLATE_W = 100;
+const PLATE_H = 14;
 const MODE_COLOR = "#4ade80";
 
 /** 水果颜色 */
 const FRUIT_COLORS = ["#f472b6", "#fbbf24", "#4ade80", "#38bdf8", "#a78bfa", "#fb7185"];
+const DROP_COLOR = "#38bdf8";
 
 interface CachedFruit {
   type: "fruit" | "drop" | "banana";
   color: string;
-  vertices?: { x: number; y: number }[];
+  sides: number;
+  rotationOffset: number;
 }
 
 export class CatchEngine extends GameEngine {
@@ -50,34 +53,20 @@ export class CatchEngine extends GameEngine {
       const obj = objs[i];
       const type = obj.type === "spinner" ? "banana" : obj.type === "slider" ? "drop" : "fruit";
       const colorIdx = (obj.newCombo ? i : i + Math.floor(obj.time / 200)) % FRUIT_COLORS.length;
-      const color = type === "drop" ? "#fbbf24" : FRUIT_COLORS[colorIdx];
+      const color = type === "drop" ? DROP_COLOR : FRUIT_COLORS[colorIdx];
+      const seed = i * 9301 + 49297;
+      const rand = () => {
+        let s = seed;
+        s = (s * 16807) % 2147483647;
+        return (s % 1000) / 1000;
+      };
       this.cached[i] = {
         type,
         color,
-        vertices: type === "fruit" ? this.generatePolygon(i, FRUIT_R) : undefined,
+        sides: type === "fruit" ? 2 + Math.floor(rand() * 4) : 0, // 2 ~ 5
+        rotationOffset: rand() * Math.PI * 2,
       };
     }
-  }
-
-  /** 基于 idx 作为 seed 生成随机多边形顶点 */
-  private generatePolygon(seed: number, r: number): { x: number; y: number }[] {
-    let s = seed * 9301 + 49297;
-    const rand = () => {
-      s = (s * 16807) % 2147483647;
-      return (s % 1000) / 1000;
-    };
-    const sides = 2 + Math.floor(rand() * 4); // 2 ~ 5
-    const rotation = rand() * Math.PI * 2;
-    const vertices: { x: number; y: number }[] = [];
-    for (let i = 0; i < sides; i++) {
-      const angle = rotation + (i / sides) * Math.PI * 2;
-      const radius = r * (0.75 + rand() * 0.25);
-      vertices.push({
-        x: Math.cos(angle) * radius,
-        y: Math.sin(angle) * radius,
-      });
-    }
-    return vertices;
   }
 
   private computeLayout(): void {
@@ -109,40 +98,42 @@ export class CatchEngine extends GameEngine {
       this.autoPlay(time);
     } else if (this.leftHeld || this.rightHeld) {
       const dir = (this.rightHeld ? 1 : 0) - (this.leftHeld ? 1 : 0);
-      const speed = 1.1;
+      const speed = 2.5;
       this.targetX = clamp(this.plateX + dir * speed * dt, PLATE_W / 2, this.ctx.width - PLATE_W / 2);
     }
-    this.plateX += (this.targetX - this.plateX) * 0.45;
+    this.plateX += (this.targetX - this.plateX) * 0.6;
 
+    // 判定：只处理当前 active 指针指向的第一个未判定物件
+    // 避免一次循环吃掉多个水果，让节奏更清晰
     const objs = this.beatmap.hitObjects;
     const len = objs.length;
-    for (let i = this.activeIndex; i < len; i++) {
-      const obj = objs[i];
-      if (obj.judged) continue;
-      const y = this.fruitY(obj, time);
-      const x = this.fruitX(obj);
-      if (y >= this.judgeY - FRUIT_R) {
-        const dist = Math.abs(x - this.plateX);
-        if (dist < PLATE_W / 2 + FRUIT_R * 0.4) {
-          const j = this.judgeHit(obj, time);
-          this.spawnHitEffect(x, this.judgeY, j, time);
-        } else if (y > this.judgeY + FRUIT_R) {
-          obj.judged = true;
-          obj.judgement = "miss";
-          this.submitJudgement("miss");
-          this.spawnHitEffect(x, this.judgeY, "miss", time);
+    if (this.activeIndex < len) {
+      const obj = objs[this.activeIndex];
+      if (!obj.judged) {
+        const y = this.fruitY(obj, time);
+        const x = this.fruitX(obj);
+        if (y >= this.judgeY) {
+          const halfPlate = PLATE_W / 2;
+          const caught = x >= this.plateX - halfPlate - FRUIT_R * 0.3 && x <= this.plateX + halfPlate + FRUIT_R * 0.3;
+          if (caught) {
+            const j = this.judgeHit(obj, time);
+            this.spawnHitEffect(x, this.judgeY, j, time);
+          } else {
+            obj.judged = true;
+            obj.judgement = "miss";
+            this.submitJudgement("miss");
+            this.spawnHitEffect(x, this.judgeY, "miss", time);
+          }
         }
-      } else {
-        break;
       }
     }
+
     this.pruneHitEffects(time);
   }
 
   private autoPlay(time: number): void {
     const objs = this.beatmap.hitObjects;
     const len = objs.length;
-    const win300 = this.windows["300"];
 
     let focus: HitObject | null = null;
     let focusIndex = -1;
@@ -157,11 +148,6 @@ export class CatchEngine extends GameEngine {
       let score = Math.abs(dt);
       const approachT = clamp(1 - dt / APPROACH_TIME, 0, 1);
       score -= approachT * 1200;
-
-      if (Math.abs(dt) <= win300) {
-        const urgency = (win300 - Math.abs(dt)) / win300;
-        score -= 2000 + urgency * 3000;
-      }
 
       if (score < bestScore) {
         bestScore = score;
@@ -223,7 +209,7 @@ export class CatchEngine extends GameEngine {
       const y = this.fruitY(obj, time);
       if (y > this.ctx.height + FRUIT_R) continue;
       const x = this.fruitX(obj);
-      this.drawFruit(x, y, i);
+      this.drawFruit(x, y, i, time);
     }
 
     this.drawPlate();
@@ -235,15 +221,13 @@ export class CatchEngine extends GameEngine {
   private drawTrack(): void {
     const { width, height, ctx } = this.ctx;
     ctx.save();
-    // 判定线
-    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, this.judgeY);
     ctx.lineTo(width, this.judgeY);
     ctx.stroke();
-    // 两侧边距参考线
-    ctx.strokeStyle = "rgba(255,255,255,0.06)";
+    ctx.strokeStyle = "rgba(255,255,255,0.05)";
     const pad = FRUIT_R + 8;
     ctx.beginPath();
     ctx.moveTo(pad, 0);
@@ -254,7 +238,7 @@ export class CatchEngine extends GameEngine {
     ctx.restore();
   }
 
-  private drawFruit(x: number, y: number, idx: number): void {
+  private drawFruit(x: number, y: number, idx: number, time: number): void {
     const c = this.cached[idx];
     const { ctx } = this.ctx;
     ctx.save();
@@ -266,18 +250,23 @@ export class CatchEngine extends GameEngine {
     } else if (c.type === "drop") {
       this.drawDrop(ctx);
     } else {
-      this.drawRegularFruit(ctx, c.vertices || []);
+      this.drawRegularFruit(ctx, c.sides, c.rotationOffset, time);
     }
 
     ctx.restore();
   }
 
-  private drawRegularFruit(ctx: CanvasRenderingContext2D, vertices: { x: number; y: number }[]): void {
+  private drawRegularFruit(ctx: CanvasRenderingContext2D, sides: number, rotationOffset: number, time: number): void {
+    const r = FRUIT_R;
+    const rotation = rotationOffset + time / 800;
     ctx.beginPath();
-    vertices.forEach((v, i) => {
-      if (i === 0) ctx.moveTo(v.x, v.y);
-      else ctx.lineTo(v.x, v.y);
-    });
+    for (let i = 0; i < sides; i++) {
+      const angle = rotation + (i / sides) * Math.PI * 2;
+      const px = Math.cos(angle) * r;
+      const py = Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
     ctx.closePath();
     ctx.fill();
   }
@@ -330,12 +319,12 @@ export class CatchEngine extends GameEngine {
     if (k === left) this.leftHeld = true;
     else if (k === right) this.rightHeld = true;
   }
-  protected handleKeyUp = (key: string): void => {
+  protected handleKeyUp(key: string): void {
     const k = key.toLowerCase();
     const [left, right] = this.keyBindings.catch;
     if (k === left) this.leftHeld = false;
     else if (k === right) this.rightHeld = false;
-  };
+  }
 
   protected resetState(): void {
     super.resetState();
