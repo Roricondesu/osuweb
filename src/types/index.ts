@@ -397,18 +397,46 @@ export interface KeyBindings {
   taiko: [string, string, string, string];
   // catch：左移、右移
   catch: [string, string];
-  // mania 4K：4 列
-  mania4: [string, string, string, string];
-  // mania 7K：7 列
-  mania7: [string, string, string, string, string, string, string];
+  // mania：按键数索引的键位方案（1K-10K），运行时按谱面 cs 选取
+  mania: Record<number, string[]>;
 }
+
+/** 为指定 mania 键数生成默认键位 */
+export const defaultManiaKeys = (cols: number): string[] => {
+  const presets: Record<number, string[]> = {
+    1: [" "],
+    2: ["f", "j"],
+    3: ["f", " ", "j"],
+    4: ["d", "f", "j", "k"],
+    5: ["d", "f", " ", "j", "k"],
+    6: ["s", "d", "f", "j", "k", "l"],
+    7: ["s", "d", "f", " ", "j", "k", "l"],
+    8: ["a", "s", "d", "f", "j", "k", "l", ";"],
+    9: ["a", "s", "d", "f", " ", "j", "k", "l", ";"],
+    10: ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
+  };
+  if (presets[cols]) return [...presets[cols]];
+  // 超出预设：从中间向两侧扩展
+  const base = ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "z", "x", "c", "v", "b", "n", "m"];
+  return base.slice(0, Math.max(1, cols));
+};
 
 export const DEFAULT_KEY_BINDINGS: KeyBindings = {
   standard: ["z", "x"],
   taiko: ["d", "f", "j", "k"],
   catch: ["arrowleft", "arrowright"],
-  mania4: ["d", "f", "j", "k"],
-  mania7: ["s", "d", "f", " ", "j", "k", "l"],
+  mania: {
+    1: defaultManiaKeys(1),
+    2: defaultManiaKeys(2),
+    3: defaultManiaKeys(3),
+    4: defaultManiaKeys(4),
+    5: defaultManiaKeys(5),
+    6: defaultManiaKeys(6),
+    7: defaultManiaKeys(7),
+    8: defaultManiaKeys(8),
+    9: defaultManiaKeys(9),
+    10: defaultManiaKeys(10),
+  },
 };
 
 export interface Settings {

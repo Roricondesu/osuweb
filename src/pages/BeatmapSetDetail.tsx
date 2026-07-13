@@ -377,7 +377,11 @@ export default function BeatmapSetDetail() {
                     </div>
                     <div className="mt-0.5 flex gap-3 text-[11px]" style={{ color: "var(--text-secondary)" }}>
                       <span>AR {b.ar?.toFixed(1) ?? "-"}</span>
-                      <span>CS {b.cs?.toFixed(1) ?? "-"}</span>
+                      {mode === "mania" ? (
+                        <span style={{ color: "var(--accent)" }}>{Math.max(1, Math.round(b.cs || 4))}K</span>
+                      ) : (
+                        <span>CS {b.cs?.toFixed(1) ?? "-"}</span>
+                      )}
                       <span>OD {b.od?.toFixed(1) ?? "-"}</span>
                       <span>HP {b.hp?.toFixed(1) ?? "-"}</span>
                     </div>

@@ -372,18 +372,38 @@ export const useGameStore = create<GameState>()(
       name: "osu-game-settings",
       // 只持久化 settings
       partialize: (s) => ({ settings: s.settings }) as unknown as GameState,
-      merge: (persisted, current) => ({
-        ...current,
-        ...(persisted as GameState),
-        // blob URL 不跨会话保留，重载后清空自定义皮肤 / 音效资源，避免引用失效 URL
-        settings: {
-          ...DEFAULT_SETTINGS,
-          ...(persisted as GameState).settings,
-          customSkinAssetUrls: undefined,
-          useCustomSkin: false,
-          customHitSoundUrls: undefined,
-        },
-      }),
+      merge: (persisted, current) => {
+        const persistedSettings = (persisted as GameState)?.settings as unknown as Record<string, unknown> | undefined;
+        // 旧版 KeyBindings 含 mania4/mania7 字段，需迁移到 mania: Record<number, string[]>
+        let maniaKeys = { ...DEFAULT_SETTINGS.keyBindings.mania };
+        if (persistedSettings) {
+          const oldKb = persistedSettings.keyBindings as Record<string, unknown> | undefined;
+          if (oldKb) {
+            if (Array.isArray(oldKb.mania4)) maniaKeys[4] = oldKb.mania4 as string[];
+            if (Array.isArray(oldKb.mania7)) maniaKeys[7] = oldKb.mania7 as string[];
+            if (oldKb.mania && typeof oldKb.mania === "object") {
+              maniaKeys = { ...maniaKeys, ...(oldKb.mania as Record<number, string[]>) };
+            }
+          }
+        }
+        return {
+          ...current,
+          ...(persisted as GameState),
+          // blob URL 不跨会话保留，重载后清空自定义皮肤 / 音效资源，避免引用失效 URL
+          settings: {
+            ...DEFAULT_SETTINGS,
+            ...(persisted as GameState).settings,
+            keyBindings: {
+              ...DEFAULT_SETTINGS.keyBindings,
+              ...((persisted as GameState).settings as unknown as { keyBindings?: Record<string, unknown> } | undefined)?.keyBindings,
+              mania: maniaKeys,
+            },
+            customSkinAssetUrls: undefined,
+            useCustomSkin: false,
+            customHitSoundUrls: undefined,
+          },
+        };
+      },
     },
   ),
 );

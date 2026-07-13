@@ -21,7 +21,7 @@ import {
   Keyboard,
 } from "lucide-react";
 import type { Settings, ModType, KeyBindings } from "@/types";
-import { DEFAULT_SETTINGS, DEFAULT_KEY_BINDINGS, MOD_LABEL, MOD_COLOR } from "@/types";
+import { DEFAULT_SETTINGS, DEFAULT_KEY_BINDINGS, MOD_LABEL, MOD_COLOR, defaultManiaKeys } from "@/types";
 import { checkApiHealth, type ApiHealthResult } from "@/utils/apiHealth";
 import { deleteReplay, loadReplays } from "@/utils/replayStorage";
 
@@ -272,6 +272,10 @@ export default function Settings() {
   }, [updateSetting]);
 
   const updateKeyBinding = useCallback((mode: keyof KeyBindings, index: number, key: string) => {
+    if (mode === "mania") {
+      // mania 是 Record<number, string[]>，需特殊处理：用当前显示的键数方案
+      return; // mania 用专用 updateManiaKeyBinding
+    }
     const current = settings.keyBindings[mode] as string[];
     const next = [...current] as string[];
     // 冲突检测：同模式内若新键已绑定到其他槽位，则交换两个槽位的键
@@ -283,8 +287,29 @@ export default function Settings() {
     updateSetting("keyBindings", { ...settings.keyBindings, [mode]: next });
   }, [settings.keyBindings, updateSetting]);
 
+  /** 更新 mania 指定键数的第 index 个键 */
+  const updateManiaKeyBinding = useCallback((cols: number, index: number, key: string) => {
+    const current = settings.keyBindings.mania[cols] || defaultManiaKeys(cols);
+    const next = [...current];
+    const conflictIdx = next.findIndex((k, i) => i !== index && k === key);
+    if (conflictIdx >= 0) next[conflictIdx] = next[index];
+    next[index] = key;
+    updateSetting("keyBindings", {
+      ...settings.keyBindings,
+      mania: { ...settings.keyBindings.mania, [cols]: next },
+    });
+  }, [settings.keyBindings, updateSetting]);
+
+  const resetManiaKeyBinding = useCallback((cols: number) => {
+    updateSetting("keyBindings", {
+      ...settings.keyBindings,
+      mania: { ...settings.keyBindings.mania, [cols]: defaultManiaKeys(cols) },
+    });
+  }, [settings.keyBindings, updateSetting]);
+
   const resetKeyBinding = useCallback((mode: keyof KeyBindings) => {
-    updateSetting("keyBindings", { ...settings.keyBindings, [mode]: [...DEFAULT_KEY_BINDINGS[mode]] });
+    if (mode === "mania") return;
+    updateSetting("keyBindings", { ...settings.keyBindings, [mode]: [...(DEFAULT_KEY_BINDINGS[mode] as string[])] });
   }, [settings.keyBindings, updateSetting]);
 
   const clearReplays = useCallback(() => {
@@ -669,23 +694,21 @@ export default function Settings() {
             scheme={scheme}
           />
 
-          <KeyBindingGroup
-            label="osu!mania 4K"
-            keys={settings.keyBindings.mania4}
-            labels={["列 1", "列 2", "列 3", "列 4"]}
-            onChange={(idx, key) => updateKeyBinding("mania4", idx, key)}
-            onReset={() => resetKeyBinding("mania4")}
-            scheme={scheme}
-          />
-
-          <KeyBindingGroup
-            label="osu!mania 7K"
-            keys={settings.keyBindings.mania7}
-            labels={["列 1", "列 2", "列 3", "列 4", "列 5", "列 6", "列 7"]}
-            onChange={(idx, key) => updateKeyBinding("mania7", idx, key)}
-            onReset={() => resetKeyBinding("mania7")}
-            scheme={scheme}
-          />
+          {/* osu!mania 键位：渲染所有支持的键数方案 */}
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((cols) => {
+            const keys = settings.keyBindings.mania[cols] || defaultManiaKeys(cols);
+            return (
+              <KeyBindingGroup
+                key={cols}
+                label={`osu!mania ${cols}K`}
+                keys={keys}
+                labels={Array.from({ length: keys.length }, (_, i) => `列 ${i + 1}`)}
+                onChange={(idx, key) => updateManiaKeyBinding(cols, idx, key)}
+                onReset={() => resetManiaKeyBinding(cols)}
+                scheme={scheme}
+              />
+            );
+          })}
 
           <button
             onClick={() => updateSetting("keyBindings", { ...DEFAULT_KEY_BINDINGS })}
