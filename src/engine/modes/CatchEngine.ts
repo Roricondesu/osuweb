@@ -66,7 +66,7 @@ export class CatchEngine extends GameEngine {
       s = (s * 16807) % 2147483647;
       return (s % 1000) / 1000;
     };
-    const sides = 6 + Math.floor(rand() * 3); // 6 ~ 8
+    const sides = 2 + Math.floor(rand() * 4); // 2 ~ 5
     const rotation = rand() * Math.PI * 2;
     const vertices: { x: number; y: number }[] = [];
     for (let i = 0; i < sides; i++) {
@@ -266,7 +266,7 @@ export class CatchEngine extends GameEngine {
     } else if (c.type === "drop") {
       this.drawDrop(ctx);
     } else {
-      this.drawRegularFruit(ctx);
+      this.drawRegularFruit(ctx, c.vertices || []);
     }
 
     ctx.restore();

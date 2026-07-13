@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "@/store/useGameStore";
 import { createEngine, type GameEngine, type ScoreState } from "@/engine";
 import { GlassButton } from "@/components/glass/GlassButton";
-import { RotateCcw, ArrowLeft, Pause, Play, Menu, X, Maximize, Minimize, Eye } from "lucide-react";
+import { RotateCcw, ArrowLeft, Pause, Play, Menu, X, Maximize, Minimize, Eye, Home } from "lucide-react";
 import type { GameMode, Replay } from "@/types";
 import { MODE_LABEL } from "@/types";
 import { useOrientation } from "@/hooks/useOrientation";
@@ -557,8 +557,8 @@ export default function Game() {
         )}
       </div>
 
-      {/* 准备页 / 暂停页 浮层 */}
-      {(phase === "ready" || phase === "paused") && (
+      {/* 准备页浮层 */}
+      {phase === "ready" && (
         <div
           style={{
             position: "absolute",
@@ -580,15 +580,13 @@ export default function Game() {
               {MODE_LABEL[gameMode]} 模式
             </p>
             <h2 className="mt-1 text-2xl font-bold" style={{ color: "#fff" }}>
-              {phase === "ready" ? "准备好了吗？" : "已暂停"}
+              准备好了吗？
             </h2>
-            {phase === "ready" && (
-              <p className="mt-2 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
-                {selectedReplay ? "回放模式：将按录制输入自动游玩" : "点击开始后立即播放音频"}
-              </p>
-            )}
+            <p className="mt-2 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+              {selectedReplay ? "回放模式：将按录制输入自动游玩" : "点击开始后立即播放音频"}
+            </p>
           </div>
-          {phase === "ready" && availableReplays.length > 0 && (
+          {availableReplays.length > 0 && (
             <select
               value={selectedReplay?.id || ""}
               onChange={(e) => {
@@ -614,16 +612,23 @@ export default function Game() {
               ))}
             </select>
           )}
-          <GlassButton onClick={phase === "ready" ? handleStart : handleResume} accent style={{ padding: "14px 28px", fontSize: 16 }}>
+          <GlassButton onClick={handleStart} accent style={{ padding: "14px 28px", fontSize: 16 }}>
             <Play size={18} fill="currentColor" />
-            {phase === "ready" ? (selectedReplay ? "播放回放" : "开始游戏") : "继续"}
+            {selectedReplay ? "播放回放" : "开始游戏"}
           </GlassButton>
-          {phase === "paused" && (
-            <GlassButton onClick={handleRestart} style={{ padding: "10px 20px" }}>
-              <RotateCcw size={14} /> 重新开始
-            </GlassButton>
-          )}
         </div>
+      )}
+
+      {/* 暂停页浮层 */}
+      {phase === "paused" && (
+        <PauseOverlay
+          mode={gameMode}
+          score={score}
+          onResume={handleResume}
+          onRestart={handleRestart}
+          onBack={() => navigate(-1)}
+          onHome={() => navigate("/")}
+        />
       )}
     </div>
   );
@@ -716,6 +721,112 @@ const ResultScreen: React.FC<{
     </div>
   );
 };
+
+// === 暂停页 ===
+const PauseOverlay: React.FC<{
+  mode: GameMode;
+  score: ScoreState | null;
+  onResume: () => void;
+  onRestart: () => void;
+  onBack: () => void;
+  onHome: () => void;
+}> = ({ mode, score, onResume, onRestart, onBack, onHome }) => {
+  const judgements = score?.judgements ?? { "300": 0, "100": 0, "50": 0, miss: 0 };
+  const total = judgements["300"] + judgements["100"] + judgements["50"] + judgements.miss;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 20,
+        padding: 20,
+      }}
+    >
+      <div
+        className="solid-card"
+        style={{
+          width: "min(420px, 92vw)",
+          borderRadius: 22,
+          padding: "28px 24px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+          boxShadow: "0 24px 60px rgba(0,0,0,0.45)",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{MODE_LABEL[mode]} 模式</p>
+          <h2 className="mt-1 text-2xl font-bold" style={{ color: "var(--text-primary)" }}>已暂停</h2>
+        </div>
+
+        {score && (
+          <div className="grid grid-cols-3 gap-3">
+            <PauseStat label="分数" value={Math.round(score.score).toLocaleString()} />
+            <PauseStat label="准确率" value={`${score.accuracy.toFixed(2)}%`} />
+            <PauseStat label="连击" value={`${score.combo}x / ${score.maxCombo}x`} />
+          </div>
+        )}
+
+        {score && total > 0 && (
+          <div className="grid grid-cols-4 gap-2">
+            <PauseJudgement label="300" count={judgements["300"]} color="#66cc44" />
+            <PauseJudgement label="100" count={judgements["100"]} color="#0a84ff" />
+            <PauseJudgement label="50" count={judgements["50"]} color="#ff9100" />
+            <PauseJudgement label="Miss" count={judgements.miss} color="#ff375f" />
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <GlassButton onClick={onResume} accent style={{ padding: "12px 0", fontSize: 15 }}>
+            <Play size={16} fill="currentColor" /> 继续
+          </GlassButton>
+          <GlassButton onClick={onRestart} style={{ padding: "12px 0", fontSize: 15 }}>
+            <RotateCcw size={16} /> 重开
+          </GlassButton>
+          <GlassButton onClick={onBack} style={{ padding: "12px 0", fontSize: 15 }}>
+            <ArrowLeft size={16} /> 返回选歌
+          </GlassButton>
+          <GlassButton onClick={onHome} style={{ padding: "12px 0", fontSize: 15 }}>
+            <Home size={16} /> 主页
+          </GlassButton>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PauseStat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div
+    className="p-3 text-center"
+    style={{
+      borderRadius: 14,
+      background: "rgba(255,255,255,0.06)",
+    }}
+  >
+    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>{label}</div>
+    <div className="mt-1 text-sm font-bold md:text-base" style={{ color: "var(--text-primary)" }}>{value}</div>
+  </div>
+);
+
+const PauseJudgement: React.FC<{ label: string; count: number; color: string }> = ({ label, count, color }) => (
+  <div
+    className="p-2 text-center"
+    style={{
+      borderRadius: 10,
+      background: `${color}1a`,
+    }}
+  >
+    <div className="text-xs font-bold" style={{ color }}>{label}</div>
+    <div className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{count}</div>
+  </div>
+);
 
 const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="solid-card p-3 text-center" style={{ borderRadius: 14 }}>
