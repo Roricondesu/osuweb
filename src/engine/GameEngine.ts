@@ -1693,12 +1693,11 @@ export abstract class GameEngine {
     }
   }
 
-  /** 绘制背景图 */
+  /** 绘制背景图（全亮，dim 由 drawDimOverlay 统一处理） */
   protected drawBackgroundImage(): void {
     const { ctx, width, height } = this.ctx;
     if (this.backgroundImage && this.backgroundLoaded) {
       ctx.save();
-      ctx.globalAlpha = 1 - this.backgroundDim;
       if (this.backgroundBlur > 0) {
         ctx.filter = `blur(${this.backgroundBlur}px)`;
       }
@@ -1712,21 +1711,20 @@ export abstract class GameEngine {
     }
   }
 
-  /** 绘制视频背景（在背景图位置，替代背景图） */
+  /** 绘制视频背景（全亮，dim 由 drawDimOverlay 统一处理） */
   protected drawVideoBackground(): void {
     const video = this.videoElement;
     if (!video || !this.videoLoaded || !this.showVideo) return;
-    // 视频未就绪时跳过本帧
     if (video.readyState < 2) return;
     const { ctx, width, height } = this.ctx;
     ctx.save();
-    ctx.globalAlpha = 1 - this.backgroundDim;
     if (this.backgroundBlur > 0) {
       ctx.filter = `blur(${this.backgroundBlur}px)`;
     }
     const vw = video.videoWidth;
     const vh = video.videoHeight;
     if (vw > 0 && vh > 0) {
+      // cover 模式：保持宽高比填充整个屏幕（不拉伸）
       const scale = Math.max(width / vw, height / vh);
       const dw = vw * scale;
       const dh = vh * scale;
@@ -2935,6 +2933,7 @@ export abstract class GameEngine {
 
     for (const sprite of sprites) {
       if (!layers.includes(sprite.layer)) continue;
+      if (sprite.type === "video") continue; // 视频精灵单独绘制（drawStoryboardVideos）
       const state = this.evaluateStoryboardSprite(sprite, time, this.score.health);
       if (state.alpha <= 0.001) continue;
       const img = this.getStoryboardImage(sprite, time);
@@ -2993,8 +2992,54 @@ export abstract class GameEngine {
     ctx.restore();
   }
 
+  /** 绘制 Storyboard 视频精灵（最底层，在所有其他 storyboard 元素之下） */
+  private drawStoryboardVideos(time: number): void {
+    if (!this.showStoryboard) return;
+    if (this.storyboardVideoElements.size === 0) return;
+    const sprites = this.beatmap.storyboard || [];
+    const { ctx, width, height } = this.ctx;
+    // 固定逻辑分辨率 640x480，按短边等比缩放并居中
+    const SB_W = 640;
+    const SB_H = 480;
+    const scale = Math.min(width / SB_W, height / SB_H);
+    const offsetX = (width - SB_W * scale) / 2;
+    const offsetY = (height - SB_H * scale) / 2;
+
+    for (const sprite of sprites) {
+      if (sprite.type !== "video") continue;
+      const video = this.storyboardVideoElements.get(sprite.fileName);
+      if (!video || !this.storyboardVideoReady.has(sprite.fileName)) continue;
+      if (video.readyState < 2) continue;
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      if (vw === 0 || vh === 0) continue;
+
+      const state = this.evaluateStoryboardSprite(sprite, time, this.score.health);
+      if (state.alpha <= 0.001) continue;
+
+      // 视频按原始尺寸绘制在 640x480 坐标系中（居中于 320,240）
+      const w = vw * state.scaleX;
+      const h = vh * state.scaleY;
+      const origin = this.originOffset(sprite.origin, w, h);
+      const x = state.x + origin.x;
+      const y = state.y + origin.y;
+
+      ctx.save();
+      ctx.globalAlpha = clamp(state.alpha, 0, 1);
+      ctx.translate(offsetX, offsetY);
+      ctx.scale(scale, scale);
+      ctx.translate(x + w / 2, y + h / 2);
+      ctx.rotate((state.rotation * Math.PI) / 180);
+      ctx.scale(state.flipH ? -1 : 1, state.flipV ? -1 : 1);
+      ctx.drawImage(video, -w / 2, -h / 2, w, h);
+      ctx.restore();
+    }
+  }
+
   /** 绘制 Storyboard 所有层，统一放在游戏内容下方 */
   protected drawStoryboardAll(time: number): void {
+    // 视频精灵在最底层（在 Background 层之前）
+    this.drawStoryboardVideos(time);
     const isPass = this.score.health > 0;
     this.drawStoryboardLayer(time, ["Background"]);
     this.drawStoryboardLayer(time, isPass ? ["Pass"] : ["Fail"]);
