@@ -1,7 +1,7 @@
 /** osu!mania 引擎 - 简约现代视觉
  *  - 纯色极简：列背景、判定线、note 圆角矩形
  *  - 支持任意键数（1K-18K，由 beatmap.cs 决定）
- *  - mania 专用判定窗口（比 standard 略宽）
+ *  - mania 专用判定窗口（覆盖基类 standard 窗口）
  *  - hold note：头部按 delta 判定，尾部按释放时差判定（300/100/50）
  *  - HR/Easy 不改变键数（mania 原版行为）
  */
@@ -11,7 +11,7 @@ import { GameEngine, type EngineOptions } from "../GameEngine";
 import { drawRect, drawText, clamp, hexToRgba } from "../renderer/Canvas2D";
 
 /** mania 专用判定窗口（ms），比 standard 更宽容 */
-const MANIA_WINDOWS = (od: number): { "300": number; "100": number; "50": number } => ({
+const maniaWindowsFor = (od: number): { "300": number; "100": number; "50": number } => ({
   "300": Math.max(16, 64 - 3 * od),
   "100": Math.max(64, 127 - 3 * od),
   "50": Math.max(96, 151 - 3 * od),
@@ -39,14 +39,13 @@ export class ManiaEngine extends GameEngine {
   /** 正在按住的 hold：obj -> 按下时间（用于尾判） */
   private activeHolds: Map<HitObject, number> = new Map();
   private keyMap: string[] = [];
-  /** mania 专用判定窗口 */
-  private maniaWindows: { "300": number; "100": number; "50": number } = { "300": 46, "100": 97, "50": 121 };
 
   constructor(opts: EngineOptions) {
     super(opts);
     // 键数 = CircleSize；mania 不受 HR/Easy 影响 cs（原版行为）
     this.cols = Math.max(1, Math.min(18, Math.round(opts.beatmap.cs || 4)));
-    this.maniaWindows = MANIA_WINDOWS(this.effectiveOD);
+    // 覆盖基类 standard 窗口为 mania 专用窗口，advanceActiveIndex/findHitTarget 会自动使用
+    this.windows = maniaWindowsFor(this.effectiveOD);
     // 兜底列号（osuParser 已计算，此处仅补缺失）
     const colWidth512 = 512 / this.cols;
     for (const obj of opts.beatmap.hitObjects) {
@@ -89,7 +88,7 @@ export class ManiaEngine extends GameEngine {
     this.advanceActiveIndex(time);
     const objs = this.beatmap.hitObjects;
     const len = objs.length;
-    const win50 = this.maniaWindows["50"];
+    const win50 = this.windows["50"];
     for (let i = this.activeIndex; i < len; i++) {
       const obj = objs[i];
       if (obj.judged) continue;
@@ -100,12 +99,10 @@ export class ManiaEngine extends GameEngine {
           if (time - obj.time > win50) {
             this.judgeAndFinalize(obj, "miss", col, time);
           }
-        }
-        // 按住中的 hold 由 releaseCol / 超时处理，此处不提前判尾
-        else if (time > obj.endTime + win50) {
-          // 玩家未在窗口内释放，按超时 miss
-          this.judgeAndFinalize(obj, "miss", col, time);
-          this.activeHolds.delete(obj);
+        } else if (time > obj.endTime + win50) {
+          // 按住中但超过尾部窗口仍未释放：判定为释放（取尾判）
+          // 模拟"在 endTime 释放"以给最宽容的判定
+          this.finalizeHold(obj, col, obj.endTime);
         }
       } else {
         if (time - obj.time > win50) {
@@ -126,8 +123,33 @@ export class ManiaEngine extends GameEngine {
     this.spawnHitEffect(this.colX(col), this.judgeY, j, time);
   }
 
+  /** 完成 hold 判定：取头/尾 delta 较差者 */
+  private finalizeHold(obj: HitObject, col: number, releaseTime: number): void {
+    const pressTime = this.activeHolds.get(obj) ?? obj.time;
+    this.activeHolds.delete(obj);
+    const win50 = this.windows["50"];
+    const headDelta = Math.abs(pressTime - obj.time);
+    const tailDelta = Math.abs(releaseTime - (obj.endTime ?? obj.time));
+    let j: Judgement;
+    if (releaseTime < (obj.endTime ?? obj.time) - win50) {
+      // 释放过早 = miss
+      j = "miss";
+    } else {
+      const worseDelta = Math.max(headDelta, tailDelta);
+      const d = Math.abs(worseDelta);
+      if (d <= this.windows["300"]) j = "300";
+      else if (d <= this.windows["100"]) j = "100";
+      else if (d <= this.windows["50"]) j = "50";
+      else j = "miss";
+    }
+    obj.judged = true;
+    obj.judgement = j;
+    this.submitJudgement(j);
+    this.spawnHitEffect(this.colX(col), this.judgeY, j, releaseTime);
+  }
+
   private autoPlay(time: number): void {
-    const win300 = this.maniaWindows["300"];
+    const win300 = this.windows["300"];
     this.heldCols.clear();
     for (let c = 0; c < this.cols; c++) {
       // 保持正在按住的长条
@@ -176,23 +198,23 @@ export class ManiaEngine extends GameEngine {
       const noteH = 22;
 
       if (obj.type === "hold" && obj.endTime) {
-        const headY = this.noteY(obj.time, time);
-        const tailY = this.noteY(obj.endTime, time);
         const isHeld = this.activeHolds.has(obj);
+        // 头部位置：按住时贴在判定线，未按住时随时间下落
+        const headY = isHeld ? this.judgeY : this.noteY(obj.time, time);
+        const tailY = this.noteY(obj.endTime, time);
         // hold body：从 tail（上）到 head（下）
-        const top = Math.max(tailY, -40);
-        const bottom = Math.min(headY, this.judgeY);
-        const h = bottom - top;
-        if (h > 0) {
+        const top = Math.min(tailY, headY);
+        const bottom = Math.max(tailY, headY);
+        if (bottom > top) {
           // 简约 hold 体：半透明色块
-          drawRect(this.ctx, x - noteW / 2, top, noteW, h, hexToRgba(color, isHeld ? 0.55 : 0.32), 3);
+          drawRect(this.ctx, x - noteW / 2, top, noteW, bottom - top, hexToRgba(color, isHeld ? 0.55 : 0.32), 3);
         }
-        // 头部 note
-        if (headY > -40 && headY < this.ctx.height + 40) {
+        // 头部 note（仅未按住时显示，按住后头部已"消失"在判定线）
+        if (!isHeld && headY > -40 && headY < this.ctx.height + 40) {
           drawRect(this.ctx, x - noteW / 2, headY - noteH / 2, noteW, noteH, color, 4);
           drawRect(this.ctx, x - noteW / 2, headY - noteH / 2, noteW, 5, "#ffffff", 4);
         }
-        // 尾部标记
+        // 尾部标记（仅当尾部还在屏幕内时显示）
         if (tailY > -40 && tailY < this.ctx.height + 40) {
           drawRect(this.ctx, x - noteW / 2, tailY - 3, noteW, 6, "#ffffff", 2);
         }
@@ -290,14 +312,12 @@ export class ManiaEngine extends GameEngine {
     if (!best) return;
 
     const delta = time - best.time;
-    const win50 = this.maniaWindows["50"];
+    const win50 = this.windows["50"];
     if (Math.abs(delta) > win50) return; // 超出窗口，忽略
 
     if (best.type === "hold" && best.endTime) {
       // hold 头部：记录按下时间，不立即提交分数（尾判时一起算）
       this.activeHolds.set(best, time);
-      const j = this.judgeByDeltaMania(delta);
-      this.spawnHitEffect(this.colX(col), this.judgeY, j, time);
       this.playHitSound(best);
     } else {
       const j = this.judgeByDeltaMania(delta);
@@ -312,37 +332,22 @@ export class ManiaEngine extends GameEngine {
   /** mania 专用 delta 判定 */
   private judgeByDeltaMania(delta: number): Judgement {
     const d = Math.abs(delta);
-    if (d <= this.maniaWindows["300"]) return "300";
-    if (d <= this.maniaWindows["100"]) return "100";
-    if (d <= this.maniaWindows["50"]) return "50";
+    if (d <= this.windows["300"]) return "300";
+    if (d <= this.windows["100"]) return "100";
+    if (d <= this.windows["50"]) return "50";
     return "miss";
   }
 
   /** 释放列：判定 hold 尾部 */
   private releaseCol(col: number, time: number): void {
     this.heldCols.delete(col);
-    for (const [obj, pressTime] of this.activeHolds) {
-      if ((obj.column ?? 0) !== col) continue;
-      if (!obj.endTime) continue;
-      const win50 = this.maniaWindows["50"];
-      // 头部 delta（按下时与 obj.time 的差）
-      const headDelta = Math.abs(pressTime - obj.time);
-      // 尾部 delta（释放时与 endTime 的差）
-      const tailDelta = Math.abs(time - obj.endTime);
-      // 取较差者作为整体判定（mania 原版类似逻辑）
-      const worseDelta = Math.max(headDelta, tailDelta);
-      let j: Judgement;
-      if (time < obj.endTime - win50) {
-        // 释放过早 = miss
-        j = "miss";
-      } else {
-        j = this.judgeByDeltaMania(worseDelta);
-      }
-      obj.judged = true;
-      obj.judgement = j;
-      this.submitJudgement(j);
-      this.spawnHitEffect(this.colX(col), this.judgeY, j, time);
-      this.activeHolds.delete(obj);
+    // 收集该列所有正在按住的 hold（避免迭代中删除）
+    const toRelease: HitObject[] = [];
+    for (const [obj] of this.activeHolds) {
+      if ((obj.column ?? 0) === col) toRelease.push(obj);
+    }
+    for (const obj of toRelease) {
+      this.finalizeHold(obj, col, time);
     }
   }
 
@@ -364,13 +369,17 @@ export class ManiaEngine extends GameEngine {
     const k = key.toLowerCase();
     const idx = this.keyMap.findIndex((m) => m.toLowerCase() === k);
     if (idx < 0) return;
+    // 防止键盘重复触发（keydown 会连续发送）
+    if (this.heldCols.has(idx)) return;
     this.heldCols.add(idx);
     this.tryHit(idx);
   }
   protected handleKeyUp = (key: string): void => {
     const k = key.toLowerCase();
     const idx = this.keyMap.findIndex((m) => m.toLowerCase() === k);
-    if (idx >= 0) this.releaseCol(idx, this.currentTime);
+    if (idx < 0) return;
+    this.heldCols.delete(idx);
+    this.releaseCol(idx, this.currentTime);
   };
 
   protected resetState(): void {
