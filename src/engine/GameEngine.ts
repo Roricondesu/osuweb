@@ -332,14 +332,6 @@ export abstract class GameEngine {
     // 背景视频：始终加载作为兜底；storyboard 视频真正可用时由 useBackgroundVideo 让位
     if (opts.videoUrl && this.showVideo) {
       this.loadVideo(opts.videoUrl);
-      console.log("[video] 引擎构造：加载背景视频", opts.videoUrl.slice(0, 50));
-    } else {
-      console.log("[video] 引擎构造：无背景视频可加载", {
-        hasVideoUrl: !!opts.videoUrl,
-        showVideo: this.showVideo,
-        videoFilename: this.beatmap.videoFilename,
-        storyboardVideoCount: (this.beatmap.storyboard || []).filter((s) => s.type === "video").length,
-      });
     }
     if (opts.assetUrls) {
       this.assetUrls = opts.assetUrls;
@@ -534,7 +526,6 @@ export abstract class GameEngine {
     for (const s of sprites) {
       if (s.type !== "video") continue;
       const url = this.findAssetUrl(s.fileName);
-      console.log("[video] storyboard 视频精灵查找资源", s.fileName, "→", url ? "找到" : "未找到");
       if (!url) continue;
       anyAvailable = true;
       if (this.storyboardVideoElements.has(s.fileName)) continue;
@@ -2831,6 +2822,10 @@ export abstract class GameEngine {
     };
 
     if (cached.all.length === 0 || expired || triggersHidden) {
+      // 视频精灵无命令时（.osu Video 事件的常态）默认始终可见
+      if (sprite.type === "video" && cached.all.length === 0 && !expired && !triggersHidden) {
+        return { ...baseState, alpha: 1 };
+      }
       return baseState;
     }
     const { byType } = cached;
@@ -2875,18 +2870,13 @@ export abstract class GameEngine {
     const moveHidden =
       flat?.hideUntilMove && Number.isFinite(flat.firstMoveTime) && time < flat.firstMoveTime;
 
-    // 视频精灵无任何命令时（.osu Video 事件的常态）默认始终可见
-    const isVideoNoCmd = sprite.type === "video" && cached.all.length === 0;
-
     const state = {
       ...baseState,
-      // 默认 alpha：视频精灵无命令时始终可见；有 F 命令时按 F 控制；无 F 命令时在命令活跃期间显示
-      alpha: isVideoNoCmd
-        ? 1
-        : (hasFadeCmd ? (time >= firstFadeTime ? 1 : 0) : (inCommandRange ? 1 : 0)),
+      // 默认 alpha：有 F 命令时按 F 控制；无 F 命令时在命令活跃期间显示
+      alpha: hasFadeCmd ? (time >= firstFadeTime ? 1 : 0) : (inCommandRange ? 1 : 0),
     };
 
-    if (moveHidden && !isVideoNoCmd) {
+    if (moveHidden) {
       state.alpha = 0;
     }
 
@@ -3221,7 +3211,6 @@ export abstract class GameEngine {
 
   /** 标准背景+Storyboard流程，子类 render() 应先调用此方法 */
   protected renderBackground(time: number): void {
-    this.logVideoDiag();
     clear(this.ctx);
     // 背景视频：仅当无 storyboard 视频时使用；视频未就绪时回退到背景图（避免闪烁）
     const videoReady = this.useBackgroundVideo
@@ -3234,24 +3223,6 @@ export abstract class GameEngine {
     }
     this.drawStoryboardAll(time);
     this.drawDimOverlay();
-  }
-
-  private _videoDiagLogged = false;
-  /** 每帧渲染前输出一次视频诊断（仅首帧） */
-  private logVideoDiag(): void {
-    if (this._videoDiagLogged) return;
-    this._videoDiagLogged = true;
-    console.log("[video] 渲染诊断", {
-      showVideo: this.showVideo,
-      showStoryboard: this.showStoryboard,
-      hasStoryboardVideo: this.hasStoryboardVideo,
-      storyboardVideoAvailable: this.storyboardVideoAvailable,
-      videoElementExists: !!this.videoElement,
-      videoLoaded: this.videoLoaded,
-      useBackgroundVideo: this.useBackgroundVideo,
-      storyboardVideoElementsSize: this.storyboardVideoElements.size,
-      storyboardVideoReadySize: this.storyboardVideoReady.size,
-    });
   }
 
   /** 标准前景流程，子类 render() 末尾应调用此方法 */
