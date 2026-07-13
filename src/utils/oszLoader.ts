@@ -9,12 +9,14 @@ export interface ExtractResult {
   beatmaps: Beatmap[]; // 含 parsed
   audioUrl: string;
   backgroundUrl?: string;
+  videoUrl?: string;
   assetUrls: Record<string, string>; // 文件名 -> blob URL
   hasStoryboard: boolean;
 }
 
 const AUDIO_EXT = [".mp3", ".ogg", ".m4a", ".wav", ".flac"];
 const IMAGE_EXT = [".jpg", ".jpeg", ".png", ".webp"];
+const VIDEO_EXT = [".mp4", ".webm", ".avi", ".mov", ".mkv", ".m4v"];
 
 /** .osk 皮肤中需要提取的资源类型 */
 const SKIN_IMAGE_EXT = [".png", ".jpg", ".jpeg", ".webp"];
@@ -36,6 +38,7 @@ const extractBeatmapSet = async (
   const osuFiles = fileNames.filter((n) => n.toLowerCase().endsWith(".osu"));
   const audioFiles = fileNames.filter((n) => lowerEndsWith(n, AUDIO_EXT));
   const imageFiles = fileNames.filter((n) => lowerEndsWith(n, IMAGE_EXT));
+  const videoFiles = fileNames.filter((n) => lowerEndsWith(n, VIDEO_EXT));
 
   // 解析所有 .osu 文件
   const parsed: { beatmap: Beatmap; parsed: ParsedBeatmap }[] = [];
@@ -131,6 +134,44 @@ const extractBeatmapSet = async (
     backgroundUrl = assetUrls[imageFiles[0]];
   }
 
+  // 提取视频文件（Events 中 Video 事件指定的文件优先）
+  let videoUrl: string | undefined;
+  const videoName = firstParsed?.videoFilename;
+  if (videoName) {
+    const norm = videoName.replace(/\\/g, "/");
+    const base = norm.split("/").pop() || norm;
+    videoUrl = assetUrls[norm] || assetUrls[base] || assetUrls[videoName];
+  }
+  if (!videoUrl && videoFiles.length > 0) {
+    const name = videoFiles[0];
+    const file = zip.files[name];
+    if (file && !file.dir) {
+      try {
+        const blob = await file.async("blob");
+        videoUrl = blobToUrl(blob);
+      } catch {
+        // 忽略损坏视频
+      }
+    }
+  }
+  // 若 Video 事件指定了文件但尚未提取，从 zip 中提取
+  if (!videoUrl && videoName) {
+    const norm = videoName.replace(/\\/g, "/");
+    const candidates = [norm, videoName, norm.split("/").pop() || ""];
+    for (const c of candidates) {
+      const file = zip.files[c];
+      if (file && !file.dir) {
+        try {
+          const blob = await file.async("blob");
+          videoUrl = blobToUrl(blob);
+          break;
+        } catch {
+          // 忽略
+        }
+      }
+    }
+  }
+
   // 解析 .osb（谱面集级 storyboard）并合并到每个难度的 storyboard
   const osbFiles = fileNames.filter((n) => n.toLowerCase().endsWith(".osb"));
   const osbSprites: import("@/types").StoryboardSprite[] = [];
@@ -159,7 +200,7 @@ const extractBeatmapSet = async (
     .map((p) => p.beatmap)
     .sort((a, b) => (a.parsed?.hitObjects[0]?.time || 0) - (b.parsed?.hitObjects[0]?.time || 0));
 
-  return { beatmaps, audioUrl, backgroundUrl, assetUrls, hasStoryboard };
+  return { beatmaps, audioUrl, backgroundUrl, videoUrl, assetUrls, hasStoryboard };
 };
 
 /** 解压 .osz ArrayBuffer 并构造 LoadedBeatmapSet */
@@ -168,7 +209,7 @@ export const extractOsz = async (
   baseSet: { id: number; title: string; artist: string; cover: string; beatmaps: Beatmap[] },
 ): Promise<LoadedBeatmapSet> => {
   const zip = await JSZip.loadAsync(data);
-  const { beatmaps, audioUrl, backgroundUrl, assetUrls, hasStoryboard } = await extractBeatmapSet(zip, baseSet);
+  const { beatmaps, audioUrl, backgroundUrl, videoUrl, assetUrls, hasStoryboard } = await extractBeatmapSet(zip, baseSet);
 
   return {
     setId: baseSet.id,
@@ -177,6 +218,7 @@ export const extractOsz = async (
     cover: baseSet.cover,
     audioUrl,
     backgroundUrl,
+    videoUrl,
     assetUrls,
     beatmaps,
     hasStoryboard,
@@ -233,6 +275,7 @@ export const extractOszFromFile = async (data: ArrayBuffer): Promise<LoadedBeatm
     cover: cover || result.backgroundUrl || "",
     audioUrl: result.audioUrl,
     backgroundUrl: result.backgroundUrl,
+    videoUrl: result.videoUrl,
     assetUrls: result.assetUrls,
     beatmaps: result.beatmaps,
     hasStoryboard: result.hasStoryboard,

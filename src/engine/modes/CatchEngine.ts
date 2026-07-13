@@ -368,13 +368,15 @@ export class CatchEngine extends GameEngine {
 
   protected handleKeyDown(key: string): void {
     const k = key.toLowerCase();
-    if (k === "arrowleft" || k === "a") this.leftHeld = true;
-    else if (k === "arrowright" || k === "d") this.rightHeld = true;
+    const [left, right] = this.keyBindings.catch;
+    if (k === left) this.leftHeld = true;
+    else if (k === right) this.rightHeld = true;
   }
   protected handleKeyUp = (key: string): void => {
     const k = key.toLowerCase();
-    if (k === "arrowleft" || k === "a") this.leftHeld = false;
-    else if (k === "arrowright" || k === "d") this.rightHeld = false;
+    const [left, right] = this.keyBindings.catch;
+    if (k === left) this.leftHeld = false;
+    else if (k === right) this.rightHeld = false;
   };
 
   protected resetState(): void {

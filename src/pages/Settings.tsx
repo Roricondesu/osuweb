@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useGameStore } from "@/store/useGameStore";
 import { GlassSwitch, GlassSlider } from "@/components/glass";
 import {
@@ -19,9 +19,10 @@ import {
   Trash2,
   Zap,
   Brush,
+  Keyboard,
 } from "lucide-react";
-import type { Settings, ModType } from "@/types";
-import { DEFAULT_SETTINGS, MOD_LABEL, MOD_COLOR } from "@/types";
+import type { Settings, ModType, KeyBindings } from "@/types";
+import { DEFAULT_SETTINGS, DEFAULT_KEY_BINDINGS, MOD_LABEL, MOD_COLOR } from "@/types";
 import { checkApiHealth, type ApiHealthResult } from "@/utils/apiHealth";
 import { deleteReplay, loadReplays } from "@/utils/replayStorage";
 
@@ -75,6 +76,111 @@ const Section: React.FC<{
       </div>
     </div>
   </section>
+);
+
+/** 将键盘 key 值转为可读标签 */
+const keyToLabel = (key: string): string => {
+  if (key === " ") return "Space";
+  if (key === "arrowleft") return "←";
+  if (key === "arrowright") return "→";
+  if (key === "arrowup") return "↑";
+  if (key === "arrowdown") return "↓";
+  if (key === "shift") return "Shift";
+  if (key === "control") return "Ctrl";
+  if (key === "alt") return "Alt";
+  if (key === "meta") return "Meta";
+  if (key === "enter") return "Enter";
+  if (key === "escape") return "Esc";
+  if (key === "tab") return "Tab";
+  if (key === "backspace") return "⌫";
+  if (key.length === 1) return key.toUpperCase();
+  return key;
+};
+
+/** 单个键位绑定按钮：点击后进入监听状态，按下任意键完成绑定 */
+const KeyBindingButton: React.FC<{
+  label: string;
+  keyVal: string;
+  onChange: (key: string) => void;
+  scheme: "dark" | "light";
+}> = ({ label, keyVal, onChange, scheme: _scheme }) => {
+  const [listening, setListening] = useState(false);
+
+  const handleClick = () => {
+    setListening(true);
+  };
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Escape 取消
+    if (e.key === "Escape") {
+      setListening(false);
+      return;
+    }
+    const k = e.key.toLowerCase();
+    onChange(k);
+    setListening(false);
+  }, [onChange]);
+
+  useEffect(() => {
+    if (!listening) return;
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [listening, handleKeyDown]);
+
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm" style={{ color: "var(--text-primary)" }}>{label}</span>
+      <button
+        onClick={handleClick}
+        className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-transform active:scale-95"
+        style={{
+          minWidth: 60,
+          border: `1px solid ${listening ? "var(--accent)" : "var(--border)"}`,
+          color: listening ? "#fff" : "var(--text-primary)",
+          background: listening ? "var(--accent)" : "transparent",
+          cursor: "pointer",
+        }}
+      >
+        {listening ? "按下…" : keyToLabel(keyVal)}
+      </button>
+    </div>
+  );
+};
+
+/** 一组键位绑定（带标题和重置按钮） */
+const KeyBindingGroup: React.FC<{
+  label: string;
+  keys: string[];
+  labels: string[];
+  onChange: (index: number, key: string) => void;
+  onReset: () => void;
+  scheme: "dark" | "light";
+}> = ({ label, keys, labels, onChange, onReset, scheme }) => (
+  <div>
+    <div className="mb-2 flex items-center justify-between">
+      <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{label}</span>
+      <button
+        onClick={onReset}
+        className="text-xs transition-transform active:scale-95"
+        style={{ color: "var(--text-secondary)", background: "transparent", border: "none", cursor: "pointer" }}
+      >
+        重置
+      </button>
+    </div>
+    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+      {keys.map((k, i) => (
+        <KeyBindingButton
+          key={i}
+          label={labels[i] || `按键 ${i + 1}`}
+          keyVal={k}
+          onChange={(key) => onChange(i, key)}
+          scheme={scheme}
+        />
+      ))}
+    </div>
+  </div>
 );
 
 export default function Settings() {
@@ -134,6 +240,17 @@ export default function Settings() {
       updateSetting(key, DEFAULT_SETTINGS[key]);
     });
   }, [updateSetting]);
+
+  const updateKeyBinding = useCallback((mode: keyof KeyBindings, index: number, key: string) => {
+    const current = settings.keyBindings[mode] as string[];
+    const next = [...current] as string[];
+    next[index] = key;
+    updateSetting("keyBindings", { ...settings.keyBindings, [mode]: next });
+  }, [settings.keyBindings, updateSetting]);
+
+  const resetKeyBinding = useCallback((mode: keyof KeyBindings) => {
+    updateSetting("keyBindings", { ...settings.keyBindings, [mode]: [...DEFAULT_KEY_BINDINGS[mode]] });
+  }, [settings.keyBindings, updateSetting]);
 
   const clearReplays = useCallback(() => {
     loadReplays().forEach((r) => deleteReplay(r.id));
@@ -387,6 +504,72 @@ export default function Settings() {
               ariaLabel="按键音音量"
             />
           </div>
+        </div>
+      </Section>
+
+      <Section icon={<Keyboard size={18} />} title="键位" delay={5} open={openSections.has("keys")} onToggle={() => toggleSection("keys")}>
+        <div className="flex flex-col gap-4">
+          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+            点击按键后按下新键即可修改。空格键显示为 Space，方向键显示为 Arrow。
+          </p>
+
+          <KeyBindingGroup
+            label="osu! (Standard)"
+            keys={settings.keyBindings.standard}
+            labels={["按键 1", "按键 2"]}
+            onChange={(idx, key) => updateKeyBinding("standard", idx, key)}
+            onReset={() => resetKeyBinding("standard")}
+            scheme={scheme}
+          />
+
+          <KeyBindingGroup
+            label="osu!taiko"
+            keys={settings.keyBindings.taiko}
+            labels={["KAT 左", "KAT 右", "DON 左", "DON 右"]}
+            onChange={(idx, key) => updateKeyBinding("taiko", idx, key)}
+            onReset={() => resetKeyBinding("taiko")}
+            scheme={scheme}
+          />
+
+          <KeyBindingGroup
+            label="osu!catch"
+            keys={settings.keyBindings.catch}
+            labels={["左移", "右移"]}
+            onChange={(idx, key) => updateKeyBinding("catch", idx, key)}
+            onReset={() => resetKeyBinding("catch")}
+            scheme={scheme}
+          />
+
+          <KeyBindingGroup
+            label="osu!mania 4K"
+            keys={settings.keyBindings.mania4}
+            labels={["列 1", "列 2", "列 3", "列 4"]}
+            onChange={(idx, key) => updateKeyBinding("mania4", idx, key)}
+            onReset={() => resetKeyBinding("mania4")}
+            scheme={scheme}
+          />
+
+          <KeyBindingGroup
+            label="osu!mania 7K"
+            keys={settings.keyBindings.mania7}
+            labels={["列 1", "列 2", "列 3", "列 4", "列 5", "列 6", "列 7"]}
+            onChange={(idx, key) => updateKeyBinding("mania7", idx, key)}
+            onReset={() => resetKeyBinding("mania7")}
+            scheme={scheme}
+          />
+
+          <button
+            onClick={() => updateSetting("keyBindings", { ...DEFAULT_KEY_BINDINGS })}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium transition-transform active:scale-95"
+            style={{
+              border: "1px solid var(--border)",
+              color: "var(--text-primary)",
+              background: "transparent",
+              cursor: "pointer",
+            }}
+          >
+            恢复全部默认键位
+          </button>
         </div>
       </Section>
 
@@ -755,6 +938,19 @@ export default function Settings() {
               onCheckedChange={(c) => updateSetting("showStoryboard", c)}
               scheme={scheme}
               ariaLabel="显示 Storyboard"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>视频背景</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>播放谱面自带的视频背景（若有）</div>
+            </div>
+            <GlassSwitch
+              checked={settings.showVideo}
+              onCheckedChange={(c) => updateSetting("showVideo", c)}
+              scheme={scheme}
+              ariaLabel="视频背景"
             />
           </div>
 

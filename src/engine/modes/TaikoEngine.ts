@@ -399,12 +399,13 @@ export class TaikoEngine extends GameEngine {
 
   protected handleKeyDown(key: string): void {
     const k = key.toLowerCase();
-    if (k === "d" || k === "f") {
+    const [katL, katR, donL, donR] = this.keyBindings.taiko;
+    if (k === katL || k === katR) {
       this.unlockAudio();
-      this.tryHit(true); // 左手键 = KAT（蓝）
-    } else if (k === "k" || k === "j") {
+      this.tryHit(true); // KAT（蓝）
+    } else if (k === donL || k === donR) {
       this.unlockAudio();
-      this.tryHit(false); // 右手键 = DON（红）
+      this.tryHit(false); // DON（红）
     }
   }
   protected handleKeyUp = (): void => {};

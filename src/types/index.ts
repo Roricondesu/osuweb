@@ -246,6 +246,8 @@ export interface ParsedBeatmap {
   hitObjects: HitObject[];
   /** Events 里指定的背景文件名 */
   backgroundFilename?: string;
+  /** Events 里指定的视频文件名（Video,0,"video.mp4"） */
+  videoFilename?: string;
   /** Storyboard 物件（.osu Events 或 .osb 合并而来） */
   storyboard: StoryboardSprite[];
   /** 谱面自定义 combo 颜色（[Colours] 段） */
@@ -330,6 +332,7 @@ export interface LoadedBeatmapSet {
   cover: string;
   audioUrl: string; // Blob URL
   backgroundUrl?: string; // Blob URL
+  videoUrl?: string; // 视频背景 Blob URL
   /** 谱面包内所有资源文件名 -> Blob URL，用于 Storyboard */
   assetUrls?: Record<string, string>;
   beatmaps: Beatmap[]; // 已填充 parsed
@@ -359,6 +362,28 @@ export interface GameRuntime {
   };
 }
 
+/** 键位绑定（小写键名，空格用 " " 表示） */
+export interface KeyBindings {
+  // standard：两个点击键
+  standard: [string, string];
+  // taiko：左KAT×2、右DON×2
+  taiko: [string, string, string, string];
+  // catch：左移、右移
+  catch: [string, string];
+  // mania 4K：4 列
+  mania4: [string, string, string, string];
+  // mania 7K：7 列
+  mania7: [string, string, string, string, string, string, string];
+}
+
+export const DEFAULT_KEY_BINDINGS: KeyBindings = {
+  standard: ["z", "x"],
+  taiko: ["d", "f", "j", "k"],
+  catch: ["arrowleft", "arrowright"],
+  mania4: ["d", "f", "j", "k"],
+  mania7: ["s", "d", "f", " ", "j", "k", "l"],
+};
+
 export interface Settings {
   theme: "light" | "dark";
   accent: string;
@@ -374,6 +399,7 @@ export interface Settings {
 
   // 画面
   showStoryboard: boolean;
+  showVideo: boolean; // 播放视频背景
   backgroundDim: number; // 0-1
   backgroundBlur: number; // 0-20，背景高斯模糊半径
   approachMultiplier: number; // 引导线提前倍率 1.0-2.5
@@ -419,6 +445,9 @@ export interface Settings {
   sliderBorderWidth: number; // 滑条边框宽度倍率 0.5-3
   sliderBallScale: number; // 滑条球缩放 0.5-2
   hitCircleScale: number; // 打击圈整体缩放 0.5-2
+
+  // 键位
+  keyBindings: KeyBindings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -432,6 +461,7 @@ export const DEFAULT_SETTINGS: Settings = {
   storyboardOnly: false,
   downloadFullPackage: false,
   showStoryboard: true,
+  showVideo: true,
   backgroundDim: 0.68,
   backgroundBlur: 0,
   approachMultiplier: 1.5,
@@ -463,4 +493,5 @@ export const DEFAULT_SETTINGS: Settings = {
   sliderBorderWidth: 1,
   sliderBallScale: 1,
   hitCircleScale: 1,
+  keyBindings: { ...DEFAULT_KEY_BINDINGS },
 };

@@ -5,7 +5,8 @@
  *  - 调用子类的 update / render / onInput
  *  - 维护分数状态（通过 Judger）
  */
-import type { ParsedBeatmap, HitObject, Judgement, StoryboardSprite, StoryboardCommand, Replay, ReplayEvent, ReplayScore, ModType } from "@/types";
+import type { ParsedBeatmap, HitObject, Judgement, StoryboardSprite, StoryboardCommand, Replay, ReplayEvent, ReplayScore, ModType, KeyBindings } from "@/types";
+import { DEFAULT_KEY_BINDINGS } from "@/types";
 import { MOD_LABEL, MOD_COLOR } from "@/types";
 import type { LyricLine } from "@/utils/lrclibLyrics";
 import {
@@ -60,6 +61,9 @@ export interface EngineOptions {
   lyricsEffect?: "none" | "fade" | "slide";
   lyricsSize?: number;
   spectatorMode?: boolean;
+  showVideo?: boolean;
+  videoUrl?: string;
+  keyBindings?: KeyBindings;
   showCursorTrail?: boolean;
   showCursorPress?: boolean;
   autoCursorSpeed?: number;
@@ -168,6 +172,10 @@ export abstract class GameEngine {
     }
   >();
   protected showStoryboard = true;
+  protected showVideo = true;
+  protected videoElement: HTMLVideoElement | null = null;
+  protected videoLoaded = false;
+  protected keyBindings: KeyBindings = { ...DEFAULT_KEY_BINDINGS };
   protected backgroundDim = 0.68;
   protected approachMultiplier = 1.5;
   protected backgroundBlur = 0;
@@ -271,6 +279,8 @@ export abstract class GameEngine {
     this.lyricsEffect = opts.lyricsEffect ?? "fade";
     this.lyricsSize = opts.lyricsSize ?? 18;
     this.spectatorMode = opts.spectatorMode ?? false;
+    this.showVideo = opts.showVideo ?? true;
+    if (opts.keyBindings) this.keyBindings = { ...opts.keyBindings };
     this.showCursorTrail = opts.showCursorTrail ?? true;
     this.showCursorPress = opts.showCursorPress ?? true;
     this.autoCursorSpeed = opts.autoCursorSpeed ?? 1;
@@ -283,6 +293,7 @@ export abstract class GameEngine {
     }
     if (opts.lyrics) this.lyrics = opts.lyrics;
     if (opts.backgroundUrl) this.loadBackground(opts.backgroundUrl);
+    if (opts.videoUrl && this.showVideo) this.loadVideo(opts.videoUrl);
     if (opts.assetUrls) {
       this.assetUrls = opts.assetUrls;
       this.loadStoryboardImages();
@@ -389,6 +400,24 @@ export abstract class GameEngine {
       this.backgroundLoaded = false;
     };
     img.src = url;
+  }
+
+  /** 加载视频背景 */
+  private loadVideo(url: string): void {
+    const video = document.createElement("video");
+    video.src = url;
+    video.muted = true;
+    video.loop = false;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.crossOrigin = "anonymous";
+    video.oncanplay = () => {
+      this.videoLoaded = true;
+    };
+    video.onerror = () => {
+      this.videoLoaded = false;
+    };
+    this.videoElement = video;
   }
 
   private loadStoryboardImages(): void {
@@ -715,6 +744,21 @@ export abstract class GameEngine {
     return 0;
   }
 
+  /** 同步视频到音频当前时间 */
+  private syncVideo(): void {
+    const video = this.videoElement;
+    if (!video || !this.videoLoaded) return;
+    const targetTime = this.audio.currentTime;
+    // 仅在偏差 > 0.3s 时纠正，避免频繁 seek 导致卡顿
+    if (Math.abs(video.currentTime - targetTime) > 0.3) {
+      try {
+        video.currentTime = targetTime;
+      } catch {
+        // 忽略
+      }
+    }
+  }
+
   /** 启动游戏 */
   start(): void {
     if (this.status !== "idle") return;
@@ -729,6 +773,12 @@ export abstract class GameEngine {
     this.audio.play().catch(() => {
       // 自动播放可能被阻拦，等用户首次交互
     });
+    // 视频与音频同步启动
+    if (this.videoElement && this.showVideo) {
+      try { this.videoElement.currentTime = 0; } catch { /* 忽略 */ }
+      this.videoElement.playbackRate = this.playbackRate;
+      this.videoElement.play().catch(() => {});
+    }
     // 用户点击启动，统一解锁音频（Web Audio + HTMLAudio）
     this.unlockAudio();
     this.startTime = performance.now();
@@ -741,6 +791,7 @@ export abstract class GameEngine {
     if (this.status !== "playing") return;
     this.status = "paused";
     this.audio.pause();
+    if (this.videoElement) this.videoElement.pause();
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
@@ -752,6 +803,11 @@ export abstract class GameEngine {
     this.status = "playing";
     this.audio.playbackRate = this.playbackRate;
     this.audio.play().catch(() => {});
+    if (this.videoElement && this.showVideo) {
+      this.syncVideo();
+      this.videoElement.playbackRate = this.playbackRate;
+      this.videoElement.play().catch(() => {});
+    }
     this.lastFrameAt = 0;
     this.fpsFrameCount = 0;
     this.fpsLastUpdate = 0;
@@ -769,6 +825,11 @@ export abstract class GameEngine {
     this.status = "playing";
     this.audio.playbackRate = this.playbackRate;
     this.audio.play().catch(() => {});
+    if (this.videoElement && this.showVideo) {
+      try { this.videoElement.currentTime = 0; } catch { /* 忽略 */ }
+      this.videoElement.playbackRate = this.playbackRate;
+      this.videoElement.play().catch(() => {});
+    }
     this.lastFrameAt = 0;
     this.fpsFrameCount = 0;
     this.fpsLastUpdate = 0;
@@ -787,6 +848,11 @@ export abstract class GameEngine {
     }
     this.status = "finished";
     this.audio.pause();
+    if (this.videoElement) {
+      this.videoElement.pause();
+      this.videoElement.src = "";
+      this.videoElement = null;
+    }
     if (this.audioCtx) {
       this.audioCtx.close().catch(() => {});
       this.audioCtx = null;
@@ -810,6 +876,9 @@ export abstract class GameEngine {
     this.fpsFrameCount++;
 
     const time = this.getCurrentTime();
+
+    // 每帧同步视频到音频时间
+    if (this.videoElement && this.showVideo) this.syncVideo();
 
     // 回放模式：按时间注入已录制的输入事件
     if (this.isReplay) {
@@ -1439,6 +1508,30 @@ export abstract class GameEngine {
       ctx.filter = "none";
       ctx.restore();
     }
+  }
+
+  /** 绘制视频背景（在背景图位置，替代背景图） */
+  protected drawVideoBackground(): void {
+    const video = this.videoElement;
+    if (!video || !this.videoLoaded || !this.showVideo) return;
+    // 视频未就绪时跳过本帧
+    if (video.readyState < 2) return;
+    const { ctx, width, height } = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = 1 - this.backgroundDim;
+    if (this.backgroundBlur > 0) {
+      ctx.filter = `blur(${this.backgroundBlur}px)`;
+    }
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (vw > 0 && vh > 0) {
+      const scale = Math.max(width / vw, height / vh);
+      const dw = vw * scale;
+      const dh = vh * scale;
+      ctx.drawImage(video, (width - dw) / 2, (height - dh) / 2, dw, dh);
+    }
+    ctx.filter = "none";
+    ctx.restore();
   }
 
   /** 绘制整体变暗遮罩（覆盖在 Storyboard 之上） */
@@ -2619,8 +2712,12 @@ export abstract class GameEngine {
   /** 标准背景+Storyboard流程，子类 render() 应先调用此方法 */
   protected renderBackground(time: number): void {
     clear(this.ctx);
-    // 背景图在最底层，Storyboard 在背景图之上、暗化遮罩之下
-    this.drawBackgroundImage();
+    // 视频背景优先（若存在且启用），否则回退到背景图
+    if (this.videoElement && this.showVideo) {
+      this.drawVideoBackground();
+    } else {
+      this.drawBackgroundImage();
+    }
     this.drawStoryboardAll(time);
     this.drawDimOverlay();
   }

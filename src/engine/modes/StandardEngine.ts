@@ -961,7 +961,9 @@ export class StandardEngine extends GameEngine {
   };
 
   protected handleKeyDown(key: string): void {
-    if (key === "x" || key === "X" || key === "z" || key === "Z" || key === " ") {
+    const k = key.toLowerCase();
+    const [k1, k2] = this.keyBindings.standard;
+    if (k === k1 || k === k2 || k === " ") {
       if (this.lastPointer) this.handlePointerDown(this.lastPointer.x, this.lastPointer.y);
       else this.handlePointerDown(this.ctx.width / 2, this.ctx.height / 2);
     }

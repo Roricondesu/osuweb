@@ -6,7 +6,7 @@
  *  - 性能：活动物件指针、预计算列
  */
 import type { HitObject, ParsedBeatmap } from "@/types";
-import { GameEngine } from "../GameEngine";
+import { GameEngine, type EngineOptions } from "../GameEngine";
 import { drawRect, drawText, clamp, hexToRgba } from "../renderer/Canvas2D";
 
 const APPROACH_TIME = 1600;
@@ -14,8 +14,6 @@ const JUDGE_LINE_OFFSET = 60;
 const MODE_COLOR = "#a78bfa";
 
 const COL_COLORS = ["#f472b6", "#60a5fa", "#f472b6", "#60a5fa", "#f472b6", "#60a5fa", "#a78bfa"];
-const KEY_LABELS_4 = ["D", "F", "J", "K"];
-const KEY_LABELS_7 = ["S", "D", "F", "Space", "J", "K", "L"];
 
 export class ManiaEngine extends GameEngine {
   private cols = 4;
@@ -26,17 +24,7 @@ export class ManiaEngine extends GameEngine {
   private activeHolds: Map<HitObject, boolean> = new Map();
   private keyMap: string[] = [];
 
-  constructor(opts: {
-    canvas: HTMLCanvasElement;
-    audio: HTMLAudioElement;
-    beatmap: ParsedBeatmap;
-    offset?: number;
-    isLandscape?: boolean;
-    callbacks?: import("../GameEngine").EngineCallbacks;
-    backgroundUrl?: string;
-    auto?: boolean;
-    showCursor?: boolean;
-  }) {
+  constructor(opts: EngineOptions) {
     super(opts);
     for (const obj of opts.beatmap.hitObjects) {
       if (obj.column == null) {
@@ -44,7 +32,7 @@ export class ManiaEngine extends GameEngine {
       }
     }
     this.computeLayout();
-    this.keyMap = this.cols === 4 ? KEY_LABELS_4 : KEY_LABELS_7;
+    this.keyMap = this.cols === 4 ? this.keyBindings.mania4 : this.keyBindings.mania7;
   }
 
   protected onLayoutChange(): void { this.computeLayout(); }

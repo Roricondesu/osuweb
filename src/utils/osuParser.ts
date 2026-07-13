@@ -523,14 +523,15 @@ export const parseStoryboardEvents = (text: string): StoryboardSprite[] => {
   return sprites;
 };
 
-/** 解析 [Events] 区段，返回背景和 storyboard 精灵 */
+/** 解析 [Events] 区段，返回背景、视频和 storyboard 精灵 */
 export const parseEventsSection = (
   text: string,
-): { backgroundFilename?: string; storyboard: StoryboardSprite[] } => {
+): { backgroundFilename?: string; videoFilename?: string; storyboard: StoryboardSprite[] } => {
   const lines = text.split(/\r?\n/);
   let inEvents = false;
   const eventLines: string[] = [];
   let backgroundFilename: string | undefined;
+  let videoFilename: string | undefined;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -548,10 +549,19 @@ export const parseEventsSection = (
       const m = line.match(/0,0,\s*"?([^"]+)"?/);
       if (m) backgroundFilename = m[1];
     }
+    // 视频事件：Video,0,"video.mp4" 或旧格式 1,0,"video.mp4" 或 Video,0,"video.mp4"
+    if (line.startsWith("Video,") || line.startsWith("video,")) {
+      const m = line.match(/^[Vv]ideo,\s*\d+,\s*"?([^"]+)"?/);
+      if (m) videoFilename = m[1];
+    } else if (line.startsWith("1,")) {
+      const m = line.match(/^1,\s*\d+,\s*"?([^"]+)"?/);
+      if (m) videoFilename = m[1];
+    }
   }
 
   return {
     backgroundFilename,
+    videoFilename,
     storyboard: parseStoryboardEvents(eventLines.join("\n")),
   };
 };
@@ -604,6 +614,14 @@ export const parseOsu = (text: string): ParsedBeatmap => {
       if (line.startsWith("0,")) {
         const m = line.match(/0,0,\s*"?([^"]+)"?/);
         if (m) result.backgroundFilename = m[1];
+      }
+      // 视频事件：Video,0,"video.mp4" 或旧格式 1,0,"video.mp4"
+      if (line.startsWith("Video,") || line.startsWith("video,")) {
+        const m = line.match(/^[Vv]ideo,\s*\d+,\s*"?([^"]+)"?/);
+        if (m) result.videoFilename = m[1];
+      } else if (line.startsWith("1,")) {
+        const m = line.match(/^1,\s*\d+,\s*"?([^"]+)"?/);
+        if (m) result.videoFilename = m[1];
       }
       continue;
     }
