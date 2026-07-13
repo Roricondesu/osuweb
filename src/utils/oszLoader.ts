@@ -81,11 +81,34 @@ const extractBeatmapSet = async (
     }
   }
 
-  // 提取音频
+  // 提取音频：优先使用 .osu 文件中 AudioFilename 指定的主音频，避免误用音效文件
   let audioUrl = "";
-  if (audioFiles.length > 0) {
-    const file = zip.files[audioFiles[0]];
-    if (!file.dir) {
+  const firstParsed = parsed[0]?.parsed;
+  const audioName = firstParsed?.audioFilename;
+  if (audioName) {
+    const norm = audioName.replace(/\\/g, "/");
+    const base = norm.split("/").pop() || norm;
+    const matched = audioFiles.find((n) => {
+      const nn = n.replace(/\\/g, "/");
+      return nn === norm || nn === base || (nn.split("/").pop() || "") === base;
+    });
+    if (matched) {
+      const file = zip.files[matched];
+      if (file && !file.dir) {
+        const blob = await file.async("blob");
+        audioUrl = blobToUrl(blob);
+      }
+    }
+  }
+  if (!audioUrl && audioFiles.length > 0) {
+    // 回退：跳过明显的音效文件（hit/soft/normal/drum/sliderslide/sliderwhistle 前缀）
+    const mainAudio = audioFiles.find((n) => {
+      const bn = (n.split("/").pop() || n).toLowerCase();
+      return !/^(hit|soft|normal|drum|sliderslide|sliderwhistle|taiko)/.test(bn.replace(/\.[^.]+$/, ""));
+    });
+    const fallback = mainAudio || audioFiles[0];
+    const file = zip.files[fallback];
+    if (file && !file.dir) {
       const blob = await file.async("blob");
       audioUrl = blobToUrl(blob);
     }
@@ -127,7 +150,6 @@ const extractBeatmapSet = async (
 
   // 优先使用 Events 中指定的背景，否则取第一张图片
   let backgroundUrl: string | undefined;
-  const firstParsed = parsed[0]?.parsed;
   if (firstParsed?.backgroundFilename && assetUrls[firstParsed.backgroundFilename]) {
     backgroundUrl = assetUrls[firstParsed.backgroundFilename];
   } else if (imageFiles.length > 0) {
@@ -137,29 +159,41 @@ const extractBeatmapSet = async (
   // 提取视频文件（Events 中 Video 事件指定的文件优先，再回退到第一个视频文件）
   let videoUrl: string | undefined;
   const videoName = firstParsed?.videoFilename;
+  // 大小写不敏感查找 zip 中的文件
+  const findInZip = (name: string): string | undefined => {
+    if (!name) return undefined;
+    const norm = name.replace(/\\/g, "/");
+    const base = norm.split("/").pop() || norm;
+    const lowerNorm = norm.toLowerCase();
+    const lowerBase = base.toLowerCase();
+    for (const k of Object.keys(zip.files)) {
+      const kk = k.replace(/\\/g, "/").toLowerCase();
+      if (kk === lowerNorm || kk === lowerBase || (kk.split("/").pop() || "") === lowerBase) {
+        return k;
+      }
+    }
+    return undefined;
+  };
   if (videoName) {
     const norm = videoName.replace(/\\/g, "/");
     const base = norm.split("/").pop() || norm;
     videoUrl = assetUrls[norm] || assetUrls[base] || assetUrls[videoName];
   }
-  if (!videoUrl) {
-    // 从 zip 中按候选名查找并提取
-    const candidates = videoName
-      ? [videoName.replace(/\\/g, "/"), videoName, videoName.replace(/\\/g, "/").split("/").pop() || ""]
-      : [];
-    for (const c of candidates) {
-      const file = zip.files[c];
+  if (!videoUrl && videoName) {
+    // 从 zip 中按候选名大小写不敏感查找并提取
+    const matchedKey = findInZip(videoName);
+    if (matchedKey) {
+      const file = zip.files[matchedKey];
       if (file && !file.dir) {
         try {
           const blob = await file.async("blob");
           videoUrl = blobToUrl(blob);
-          // 同步注册到 assetUrls，方便 storyboard 视频精灵引用
-          if (c) {
-            assetUrls[c] = videoUrl;
-            const bn = c.split("/").pop();
-            if (bn && bn !== c) assetUrls[bn] = videoUrl;
-          }
-          break;
+          // 同步注册到 assetUrls（用实际文件名和原始引用名），方便 storyboard 视频精灵引用
+          assetUrls[matchedKey] = videoUrl;
+          const bn = matchedKey.split("/").pop();
+          if (bn && bn !== matchedKey) assetUrls[bn] = videoUrl;
+          // 同时用 .osu 中声明的文件名注册一份（大小写不敏感查找时能命中）
+          assetUrls[videoName] = videoUrl;
         } catch {
           // 忽略
         }

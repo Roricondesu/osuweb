@@ -2998,12 +2998,6 @@ export abstract class GameEngine {
     if (this.storyboardVideoElements.size === 0) return;
     const sprites = this.beatmap.storyboard || [];
     const { ctx, width, height } = this.ctx;
-    // 固定逻辑分辨率 640x480，按短边等比缩放并居中
-    const SB_W = 640;
-    const SB_H = 480;
-    const scale = Math.min(width / SB_W, height / SB_H);
-    const offsetX = (width - SB_W * scale) / 2;
-    const offsetY = (height - SB_H * scale) / 2;
 
     for (const sprite of sprites) {
       if (sprite.type !== "video") continue;
@@ -3017,22 +3011,39 @@ export abstract class GameEngine {
       const state = this.evaluateStoryboardSprite(sprite, time, this.score.health);
       if (state.alpha <= 0.001) continue;
 
-      // 视频按原始尺寸绘制在 640x480 坐标系中（居中于 320,240）
-      const w = vw * state.scaleX;
-      const h = vh * state.scaleY;
-      const origin = this.originOffset(sprite.origin, w, h);
-      const x = state.x + origin.x;
-      const y = state.y + origin.y;
+      const hasExplicitPos = sprite.commands.length > 0;
+      if (!hasExplicitPos) {
+        // 无命令：和背景视频一样 cover 填充整个屏幕（保持宽高比，不拉伸）
+        ctx.save();
+        ctx.globalAlpha = clamp(state.alpha, 0, 1);
+        const scale = Math.max(width / vw, height / vh);
+        const dw = vw * scale;
+        const dh = vh * scale;
+        ctx.drawImage(video, (width - dw) / 2, (height - dh) / 2, dw, dh);
+        ctx.restore();
+      } else {
+        // 有命令：按 640x480 坐标系绘制（sprite.x/y 是逻辑坐标）
+        const SB_W = 640;
+        const SB_H = 480;
+        const sbScale = Math.min(width / SB_W, height / SB_H);
+        const offsetX = (width - SB_W * sbScale) / 2;
+        const offsetY = (height - SB_H * sbScale) / 2;
+        const w = vw * state.scaleX;
+        const h = vh * state.scaleY;
+        const origin = this.originOffset(sprite.origin, w, h);
+        const x = state.x + origin.x;
+        const y = state.y + origin.y;
 
-      ctx.save();
-      ctx.globalAlpha = clamp(state.alpha, 0, 1);
-      ctx.translate(offsetX, offsetY);
-      ctx.scale(scale, scale);
-      ctx.translate(x + w / 2, y + h / 2);
-      ctx.rotate((state.rotation * Math.PI) / 180);
-      ctx.scale(state.flipH ? -1 : 1, state.flipV ? -1 : 1);
-      ctx.drawImage(video, -w / 2, -h / 2, w, h);
-      ctx.restore();
+        ctx.save();
+        ctx.globalAlpha = clamp(state.alpha, 0, 1);
+        ctx.translate(offsetX, offsetY);
+        ctx.scale(sbScale, sbScale);
+        ctx.translate(x + w / 2, y + h / 2);
+        ctx.rotate((state.rotation * Math.PI) / 180);
+        ctx.scale(state.flipH ? -1 : 1, state.flipV ? -1 : 1);
+        ctx.drawImage(video, -w / 2, -h / 2, w, h);
+        ctx.restore();
+      }
     }
   }
 

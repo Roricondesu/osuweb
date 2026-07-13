@@ -127,98 +127,104 @@ export default function Game() {
       const audio = audioRef.current;
       if (!canvas || !audio) return;
 
-      audio.src = set.audioUrl;
-      audio.volume = volume;
-      audio.preload = "auto";
-      audio.onerror = () => {
-        // 主音频加载失败时允许继续进入准备状态，避免页面卡住
-        console.warn("主音频加载失败", set.audioUrl);
-      };
+      try {
+        audio.src = set.audioUrl;
+        audio.volume = volume;
+        audio.preload = "auto";
+        audio.onerror = () => {
+          // 主音频加载失败时允许继续进入准备状态，避免页面卡住
+          console.warn("主音频加载失败", set.audioUrl);
+        };
 
-      const engine = createEngine(gameMode, {
-        canvas,
-        audio,
-        beatmap: beatmap.parsed,
-        offset,
-        isLandscape,
-        backgroundUrl: set.backgroundUrl || set.cover,
-        assetUrls: set.assetUrls,
-        auto,
-        showCursor,
-        showStoryboard,
-        showVideo,
-        videoUrl: set.videoUrl,
-        backgroundDim,
-        showLyrics,
-        lyricsEffect,
-        lyricsSize,
-        spectatorMode,
-        keyBindings,
-        lyrics,
-        showCursorTrail,
-        showCursorPress,
-        autoCursorSpeed,
-        autoCircleMode,
-        hitSoundVolume,
-        approachMultiplier,
-        backgroundBlur,
-        showFollowPoints,
-        showApproachCircles,
-        showComboNumbers,
-        showHitEffects,
-        showFPS,
-        hudScale,
-        cursorSize,
-        playbackRate,
-        mods,
-        useBeatmapSkin,
-        customSkinAssetUrls: useCustomSkin ? customSkinAssetUrls : undefined,
-        customComboColors,
-        useCustomComboColors,
-        circleBorderWidth,
-        sliderBorderWidth,
-        sliderBallScale,
-        hitCircleScale,
-        replay: selectedReplay ?? undefined,
-        callbacks: {
-          onScoreUpdate: (s) => {
-            setScore({ ...s });
-            updateRuntime({
-              score: s.score,
-              combo: s.combo,
-              maxCombo: s.maxCombo,
-              accuracy: s.accuracy,
-              health: s.health,
-              judgements: s.judgements,
-            });
+        const engine = createEngine(gameMode, {
+          canvas,
+          audio,
+          beatmap: beatmap.parsed,
+          offset,
+          isLandscape,
+          backgroundUrl: set.backgroundUrl || set.cover,
+          assetUrls: set.assetUrls,
+          auto,
+          showCursor,
+          showStoryboard,
+          showVideo,
+          videoUrl: set.videoUrl,
+          backgroundDim,
+          showLyrics,
+          lyricsEffect,
+          lyricsSize,
+          spectatorMode,
+          keyBindings,
+          lyrics,
+          showCursorTrail,
+          showCursorPress,
+          autoCursorSpeed,
+          autoCircleMode,
+          hitSoundVolume,
+          approachMultiplier,
+          backgroundBlur,
+          showFollowPoints,
+          showApproachCircles,
+          showComboNumbers,
+          showHitEffects,
+          showFPS,
+          hudScale,
+          cursorSize,
+          playbackRate,
+          mods,
+          useBeatmapSkin,
+          customSkinAssetUrls: useCustomSkin ? customSkinAssetUrls : undefined,
+          customComboColors,
+          useCustomComboColors,
+          circleBorderWidth,
+          sliderBorderWidth,
+          sliderBallScale,
+          hitCircleScale,
+          replay: selectedReplay ?? undefined,
+          callbacks: {
+            onScoreUpdate: (s) => {
+              setScore({ ...s });
+              updateRuntime({
+                score: s.score,
+                combo: s.combo,
+                maxCombo: s.maxCombo,
+                accuracy: s.accuracy,
+                health: s.health,
+                judgements: s.judgements,
+              });
+            },
+            onFinish: (s) => {
+              setScore({ ...s });
+              setPhase("finished");
+              endGame();
+              // 非回放模式下自动保存本次回放
+              const engine = engineRef.current;
+              if (engine && !engine.getIsReplay() && set && beatmap) {
+                const replay: Replay = {
+                  id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                  setId: set.setId,
+                  beatmapId: beatmap.id,
+                  mode: gameMode,
+                  version: beatmap.version,
+                  createdAt: Date.now(),
+                  events: engine.getReplayEvents(),
+                  score: engine.buildReplayScore(),
+                };
+                saveReplay(replay);
+                lastReplayRef.current = replay;
+                setJustSavedReplay(true);
+                setAvailableReplays(getReplaysForBeatmap(set.setId, beatmap.id));
+              }
+            },
           },
-          onFinish: (s) => {
-            setScore({ ...s });
-            setPhase("finished");
-            endGame();
-            // 非回放模式下自动保存本次回放
-            const engine = engineRef.current;
-            if (engine && !engine.getIsReplay() && set && beatmap) {
-              const replay: Replay = {
-                id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                setId: set.setId,
-                beatmapId: beatmap.id,
-                mode: gameMode,
-                version: beatmap.version,
-                createdAt: Date.now(),
-                events: engine.getReplayEvents(),
-                score: engine.buildReplayScore(),
-              };
-              saveReplay(replay);
-              lastReplayRef.current = replay;
-              setJustSavedReplay(true);
-              setAvailableReplays(getReplaysForBeatmap(set.setId, beatmap.id));
-            }
-          },
-        },
-      });
-      engineRef.current = engine;
-      setPhase("ready");
+        });
+        engineRef.current = engine;
+        setPhase("ready");
+      } catch (e) {
+        console.error("引擎创建失败", e);
+        setErrorMsg(e instanceof Error ? e.message : "引擎初始化失败");
+        setPhase("loading");
+      }
     };
 
     // 等下一帧让 canvas/audio 挂载
