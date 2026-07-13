@@ -185,6 +185,8 @@ export abstract class GameEngine {
   protected showVideo = true;
   protected videoElement: HTMLVideoElement | null = null;
   protected videoLoaded = false;
+  /** Storyboard 中是否包含视频精灵（用于去重背景视频） */
+  protected hasStoryboardVideo = false;
   protected keyBindings: KeyBindings = { ...DEFAULT_KEY_BINDINGS };
   protected backgroundDim = 0.68;
   protected approachMultiplier = 1.5;
@@ -303,7 +305,12 @@ export abstract class GameEngine {
     }
     if (opts.lyrics) this.lyrics = opts.lyrics;
     if (opts.backgroundUrl) this.loadBackground(opts.backgroundUrl);
-    if (opts.videoUrl && this.showVideo) this.loadVideo(opts.videoUrl);
+    // 检测 storyboard 是否含视频精灵
+    this.hasStoryboardVideo = (this.beatmap.storyboard || []).some((s) => s.type === "video");
+    // 背景视频：仅当无 storyboard 视频或 storyboard 关闭时才加载（避免重复播放）
+    if (opts.videoUrl && this.showVideo && !(this.showStoryboard && this.hasStoryboardVideo)) {
+      this.loadVideo(opts.videoUrl);
+    }
     if (opts.assetUrls) {
       this.assetUrls = opts.assetUrls;
       this.loadStoryboardImages();
@@ -315,6 +322,11 @@ export abstract class GameEngine {
     this.storyboardSamples = (this.beatmap.storyboardSamples || []).slice().sort((a, b) => a.time - b.time);
     this.samplePlayIndex = 0;
     this.prepareStoryboardCommands();
+  }
+
+  /** 是否应使用背景视频（非 storyboard 视频） */
+  protected get useBackgroundVideo(): boolean {
+    return !!this.videoElement && this.showVideo && !(this.showStoryboard && this.hasStoryboardVideo);
   }
 
   /** 判断是否启用了某个 Mod */
@@ -499,11 +511,12 @@ export abstract class GameEngine {
 
   /** 同步 storyboard 视频精灵到当前游戏时间 */
   private syncStoryboardVideos(time: number): void {
+    if (!this.showStoryboard) return; // storyboard 关闭时不播放视频
     for (const [fileName, video] of this.storyboardVideoElements) {
       if (!this.storyboardVideoReady.has(fileName)) continue;
-      // 视频从游戏时间 0 开始播放；视频时间 = (time - offset) / 1000
-      const targetTime = time / 1000;
       if (video.readyState < 2) continue;
+      // 视频从游戏时间 0 开始播放；视频时间 = time / 1000
+      const targetTime = time / 1000;
       // 偏差 > 0.3s 时纠正
       if (Math.abs(video.currentTime - targetTime) > 0.3) {
         try { video.currentTime = targetTime; } catch { /* 忽略 */ }
@@ -812,10 +825,11 @@ export abstract class GameEngine {
     return 0;
   }
 
-  /** 同步视频到音频当前时间 */
+  /** 同步背景视频到音频当前时间 */
   private syncVideo(): void {
     const video = this.videoElement;
     if (!video || !this.videoLoaded) return;
+    if (video.readyState < 2) return;
     const targetTime = this.audio.currentTime;
     // 仅在偏差 > 0.3s 时纠正，避免频繁 seek 导致卡顿
     if (Math.abs(video.currentTime - targetTime) > 0.3) {
@@ -824,6 +838,11 @@ export abstract class GameEngine {
       } catch {
         // 忽略
       }
+    }
+    // 确保视频在播放（首次加载完成后可能未自动播放）
+    if (this.status === "playing" && video.paused) {
+      video.playbackRate = this.playbackRate;
+      video.play().catch(() => {});
     }
   }
 
@@ -841,19 +860,20 @@ export abstract class GameEngine {
     this.audio.play().catch(() => {
       // 自动播放可能被阻拦，等用户首次交互
     });
-    // 视频与音频同步启动
-    if (this.videoElement && this.showVideo) {
-      try { this.videoElement.currentTime = 0; } catch { /* 忽略 */ }
-      this.videoElement.playbackRate = this.playbackRate;
-      this.videoElement.play().catch(() => {});
+    // 背景视频与音频同步启动（storyboard 有视频时跳过）
+    if (this.useBackgroundVideo) {
+      try { this.videoElement!.currentTime = 0; } catch { /* 忽略 */ }
+      this.videoElement!.playbackRate = this.playbackRate;
+      this.videoElement!.play().catch(() => {});
     }
-    // Storyboard 视频精灵同步启动
-    for (const [, video] of this.storyboardVideoElements) {
-      try { video.currentTime = 0; } catch { /* 忽略 */ }
-      video.playbackRate = this.playbackRate;
-      video.play().catch(() => {});
+    // Storyboard 视频精灵同步启动（仅 storyboard 开启时）
+    if (this.showStoryboard) {
+      for (const [, video] of this.storyboardVideoElements) {
+        try { video.currentTime = 0; } catch { /* 忽略 */ }
+        video.playbackRate = this.playbackRate;
+        video.play().catch(() => {});
+      }
     }
-    // 用户点击启动，统一解锁音频（Web Audio + HTMLAudio）
     this.unlockAudio();
     this.startTime = performance.now();
     this.audioStartedAt = 0;
@@ -866,7 +886,9 @@ export abstract class GameEngine {
     this.status = "paused";
     this.audio.pause();
     if (this.videoElement) this.videoElement.pause();
-    for (const [, video] of this.storyboardVideoElements) video.pause();
+    for (const [, video] of this.storyboardVideoElements) {
+      if (!video.paused) video.pause();
+    }
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
@@ -878,15 +900,17 @@ export abstract class GameEngine {
     this.status = "playing";
     this.audio.playbackRate = this.playbackRate;
     this.audio.play().catch(() => {});
-    if (this.videoElement && this.showVideo) {
+    if (this.useBackgroundVideo) {
       this.syncVideo();
-      this.videoElement.playbackRate = this.playbackRate;
-      this.videoElement.play().catch(() => {});
+      this.videoElement!.playbackRate = this.playbackRate;
+      this.videoElement!.play().catch(() => {});
     }
-    // Storyboard 视频精灵恢复播放
-    for (const [, video] of this.storyboardVideoElements) {
-      video.playbackRate = this.playbackRate;
-      video.play().catch(() => {});
+    // Storyboard 视频精灵恢复播放（仅 storyboard 开启时）
+    if (this.showStoryboard) {
+      for (const [, video] of this.storyboardVideoElements) {
+        video.playbackRate = this.playbackRate;
+        video.play().catch(() => {});
+      }
     }
     this.lastFrameAt = 0;
     this.fpsFrameCount = 0;
@@ -905,16 +929,18 @@ export abstract class GameEngine {
     this.status = "playing";
     this.audio.playbackRate = this.playbackRate;
     this.audio.play().catch(() => {});
-    if (this.videoElement && this.showVideo) {
-      try { this.videoElement.currentTime = 0; } catch { /* 忽略 */ }
-      this.videoElement.playbackRate = this.playbackRate;
-      this.videoElement.play().catch(() => {});
+    if (this.useBackgroundVideo) {
+      try { this.videoElement!.currentTime = 0; } catch { /* 忽略 */ }
+      this.videoElement!.playbackRate = this.playbackRate;
+      this.videoElement!.play().catch(() => {});
     }
-    // Storyboard 视频精灵重启
-    for (const [, video] of this.storyboardVideoElements) {
-      try { video.currentTime = 0; } catch { /* 忽略 */ }
-      video.playbackRate = this.playbackRate;
-      video.play().catch(() => {});
+    // Storyboard 视频精灵重启（仅 storyboard 开启时）
+    if (this.showStoryboard) {
+      for (const [, video] of this.storyboardVideoElements) {
+        try { video.currentTime = 0; } catch { /* 忽略 */ }
+        video.playbackRate = this.playbackRate;
+        video.play().catch(() => {});
+      }
     }
     this.lastFrameAt = 0;
     this.fpsFrameCount = 0;
@@ -970,8 +996,8 @@ export abstract class GameEngine {
 
     const time = this.getCurrentTime();
 
-    // 每帧同步视频到音频时间
-    if (this.videoElement && this.showVideo) this.syncVideo();
+    // 每帧同步背景视频到音频时间（storyboard 有视频时不同步背景视频）
+    if (this.useBackgroundVideo) this.syncVideo();
     // 同步 Storyboard 视频精灵
     if (this.storyboardVideoElements.size > 0) this.syncStoryboardVideos(time);
     // 播放 Storyboard Sample 事件
@@ -2978,8 +3004,11 @@ export abstract class GameEngine {
   /** 标准背景+Storyboard流程，子类 render() 应先调用此方法 */
   protected renderBackground(time: number): void {
     clear(this.ctx);
-    // 视频背景优先（若存在且启用），否则回退到背景图
-    if (this.videoElement && this.showVideo) {
+    // 背景视频：仅当无 storyboard 视频时使用；视频未就绪时回退到背景图（避免闪烁）
+    const videoReady = this.useBackgroundVideo
+      && this.videoLoaded
+      && this.videoElement!.readyState >= 2;
+    if (videoReady) {
       this.drawVideoBackground();
     } else {
       this.drawBackgroundImage();

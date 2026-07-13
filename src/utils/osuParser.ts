@@ -464,24 +464,21 @@ export const parseStoryboardEvents = (text: string): { sprites: StoryboardSprite
       continue;
     }
 
-    // Video 事件作为 storyboard 视频精灵：Video,layer,"filename",x,y
-    // 旧格式：1,0,"filename"（layer 省略，仅作为背景视频）
+    // Video 事件作为 storyboard 视频精灵：Video,layer,"filename"
+    // osu! 中 Video 始终居中于 640x480 画面中心 (320,240)
     if (head === "video") {
       closeLoopsToIndent(-1);
       if (current) sprites.push(current);
       current = null;
       const layer = parseLayer(parts[1] || "Background");
       const fileName = stripQuotes(parts[2] || parts[3] || "");
-      // 新格式：Video,layer,"filename",x,y
-      const x = parts.length > 4 ? Number(parts[3]) || 0 : 0;
-      const y = parts.length > 4 ? Number(parts[4]) || 0 : 0;
       sprites.push({
         type: "video",
         layer,
         origin: "Centre",
         fileName,
-        x,
-        y,
+        x: 320,
+        y: 240,
         commands: [],
       });
       continue;
