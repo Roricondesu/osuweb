@@ -332,6 +332,14 @@ export abstract class GameEngine {
     // 背景视频：始终加载作为兜底；storyboard 视频真正可用时由 useBackgroundVideo 让位
     if (opts.videoUrl && this.showVideo) {
       this.loadVideo(opts.videoUrl);
+      console.log("[video] 引擎构造：加载背景视频", opts.videoUrl.slice(0, 50));
+    } else {
+      console.log("[video] 引擎构造：无背景视频可加载", {
+        hasVideoUrl: !!opts.videoUrl,
+        showVideo: this.showVideo,
+        videoFilename: this.beatmap.videoFilename,
+        storyboardVideoCount: (this.beatmap.storyboard || []).filter((s) => s.type === "video").length,
+      });
     }
     if (opts.assetUrls) {
       this.assetUrls = opts.assetUrls;
@@ -467,7 +475,8 @@ export abstract class GameEngine {
     video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "");
     video.preload = "auto";
-    video.crossOrigin = "anonymous";
+    // blob: URL 无需 crossOrigin；远程 URL 设 anonymous 避免 CORS 污染 canvas
+    if (!url.startsWith("blob:")) video.crossOrigin = "anonymous";
     video.oncanplay = () => {
       this.videoLoaded = true;
       // 若游戏已开始但视频未自动播放，立即补一次播放
@@ -478,6 +487,7 @@ export abstract class GameEngine {
     };
     video.onerror = () => {
       this.videoLoaded = false;
+      console.warn("[video] 背景视频加载失败", url, video.error);
     };
     video.src = url;
     video.load();
@@ -524,6 +534,7 @@ export abstract class GameEngine {
     for (const s of sprites) {
       if (s.type !== "video") continue;
       const url = this.findAssetUrl(s.fileName);
+      console.log("[video] storyboard 视频精灵查找资源", s.fileName, "→", url ? "找到" : "未找到");
       if (!url) continue;
       anyAvailable = true;
       if (this.storyboardVideoElements.has(s.fileName)) continue;
@@ -3210,6 +3221,7 @@ export abstract class GameEngine {
 
   /** 标准背景+Storyboard流程，子类 render() 应先调用此方法 */
   protected renderBackground(time: number): void {
+    this.logVideoDiag();
     clear(this.ctx);
     // 背景视频：仅当无 storyboard 视频时使用；视频未就绪时回退到背景图（避免闪烁）
     const videoReady = this.useBackgroundVideo
@@ -3222,6 +3234,24 @@ export abstract class GameEngine {
     }
     this.drawStoryboardAll(time);
     this.drawDimOverlay();
+  }
+
+  private _videoDiagLogged = false;
+  /** 每帧渲染前输出一次视频诊断（仅首帧） */
+  private logVideoDiag(): void {
+    if (this._videoDiagLogged) return;
+    this._videoDiagLogged = true;
+    console.log("[video] 渲染诊断", {
+      showVideo: this.showVideo,
+      showStoryboard: this.showStoryboard,
+      hasStoryboardVideo: this.hasStoryboardVideo,
+      storyboardVideoAvailable: this.storyboardVideoAvailable,
+      videoElementExists: !!this.videoElement,
+      videoLoaded: this.videoLoaded,
+      useBackgroundVideo: this.useBackgroundVideo,
+      storyboardVideoElementsSize: this.storyboardVideoElements.size,
+      storyboardVideoReadySize: this.storyboardVideoReady.size,
+    });
   }
 
   /** 标准前景流程，子类 render() 末尾应调用此方法 */

@@ -140,6 +140,19 @@ export default function Game() {
           console.warn("主音频加载失败", set.audioUrl);
         };
 
+        console.log("[video] Game.tsx 创建引擎", {
+          setId: set.setId,
+          beatmapId: beatmap.id,
+          hasVideoUrl: !!set.videoUrl,
+          videoUrlPrefix: set.videoUrl ? set.videoUrl.slice(0, 60) : null,
+          videoFilename: beatmap.parsed?.videoFilename,
+          assetUrlsCount: set.assetUrls ? Object.keys(set.assetUrls).length : 0,
+          assetUrlsVideoEntries: set.assetUrls
+            ? Object.keys(set.assetUrls).filter((k) => /\.(mp4|webm|avi|mov|mkv|m4v)$/i.test(k))
+            : [],
+          showVideo,
+          showStoryboard,
+        });
         const engine = createEngine(gameMode, {
           canvas,
           audio,
