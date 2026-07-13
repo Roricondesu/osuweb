@@ -401,6 +401,8 @@ export abstract class GameEngine {
         arr.push(c);
         byType[c.type] = arr;
       }
+      // 填充缺失的起始值：使用同类型上一条命令的结束值，避免平移跳跃
+      this.resolveStartValues(byType);
       // 统计所有 F 命令（含触发器内）的最早开始时间；存在 F 命令的元素默认隐藏
       let firstFadeTime = Infinity;
       const collectFade = (commands: StoryboardCommand[]) => {
@@ -2390,6 +2392,36 @@ export abstract class GameEngine {
 
   // ===== Storyboard 渲染 =====
 
+  /** 填充命令中缺失的起始值：使用同类型上一条命令的结束值 */
+  private resolveStartValues(byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>>): void {
+    const config: { type: string; start: string; end: string }[] = [
+      { type: "F", start: "startOpacity", end: "endOpacity" },
+      { type: "M", start: "startX", end: "endX" },
+      { type: "M", start: "startY", end: "endY" },
+      { type: "MX", start: "startX", end: "endX" },
+      { type: "MY", start: "startY", end: "endY" },
+      { type: "S", start: "startScale", end: "endScale" },
+      { type: "V", start: "startScaleX", end: "endScaleX" },
+      { type: "V", start: "startScaleY", end: "endScaleY" },
+      { type: "R", start: "startRotation", end: "endRotation" },
+      { type: "C", start: "startR", end: "endR" },
+      { type: "C", start: "startG", end: "endG" },
+      { type: "C", start: "startB", end: "endB" },
+    ];
+    const byTypeMap = byType as unknown as Record<string, StoryboardCommand[]>;
+    for (const { type, start, end } of config) {
+      const list = byTypeMap[type];
+      if (!list || list.length < 2) continue;
+      for (let i = 1; i < list.length; i++) {
+        const cmd = list[i] as unknown as Record<string, unknown>;
+        const prev = list[i - 1] as unknown as Record<string, unknown>;
+        if (cmd[start] === undefined || cmd[start] === null) {
+          cmd[start] = prev[end];
+        }
+      }
+    }
+  }
+
   /** 递归查找最早的移动命令开始时间（含触发器内） */
   private findFirstMoveTime(commands: StoryboardCommand[]): number {
     let t = Infinity;
@@ -2520,6 +2552,8 @@ export abstract class GameEngine {
         arr.push(c);
         byType[c.type] = arr;
       }
+      // 触发器命令可能缺失起始值，合并后需重新解析
+      this.resolveStartValues(byType);
       expansion = { all, byType };
       cached.triggerCache.set(triggerKey, expansion);
       // 清理过期的血量触发器缓存（保留最新一个）
@@ -2555,6 +2589,8 @@ export abstract class GameEngine {
       }
     }
     mergedAll.sort((a, b) => a.startTime - b.startTime);
+    // 合并 HitSound 命令后需重新解析起始值
+    this.resolveStartValues(mergedByType);
     return { all: mergedAll, byType: mergedByType };
   }
 

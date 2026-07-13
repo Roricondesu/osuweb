@@ -376,7 +376,7 @@ const parseCommand = (line: string): StoryboardCommand | null => {
   return null;
 };
 
-/** 将循环命令展开为绝对时间 */
+/** 将循环命令展开为绝对时间，保留触发器供运行时展开 */
 const flattenCommands = (
   commands: StoryboardCommand[],
   baseTime = 0,
@@ -393,9 +393,10 @@ const flattenCommands = (
         out.push(...flattenCommands(c.commands, loopBase + i * loopDuration));
       }
     } else if (c.type === "T") {
-      // 触发器依赖运行时条件（血量/音效等），当前无法准确判断，
-      // 直接展开会导致大量元素在不该出现时显示，因此暂不展开。
-      continue;
+      // 触发器需要保留，运行时根据血量/命中条件展开
+      // startTime/endTime 按所在循环偏移；内部 commands 保持相对时间不变
+      const shifted = { ...c, startTime: baseTime + c.startTime, endTime: baseTime + c.endTime };
+      out.push(shifted);
     } else {
       const shifted = { ...c, startTime: baseTime + c.startTime, endTime: baseTime + c.endTime };
       out.push(shifted);
@@ -406,7 +407,44 @@ const flattenCommands = (
 
 /** 解析 Storyboard 的 Events 区段原始文本 */
 export const parseStoryboardEvents = (text: string): { sprites: StoryboardSprite[]; samples: StoryboardSample[] } => {
-  const lines = text.split(/\r?\n/);
+  // 提取 [Variables] 并替换 $var
+  const variables = new Map<string, string>();
+  const allLines = text.split(/\r?\n/);
+  let inVariables = false;
+  for (const line of allLines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("[")) {
+      inVariables = trimmed.toLowerCase() === "[variables]";
+      continue;
+    }
+    if (inVariables && trimmed.startsWith("$")) {
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx > 0) {
+        const name = trimmed.slice(0, eqIdx).trim();
+        const value = trimmed.slice(eqIdx + 1).trim();
+        variables.set(name, value);
+      }
+    }
+  }
+
+  // 变量替换：将所有 $var 替换为其值（支持多轮替换）
+  const substitute = (s: string): string => {
+    if (variables.size === 0) return s;
+    let result = s;
+    for (let round = 0; round < 5; round++) {
+      let changed = false;
+      for (const [name, value] of variables) {
+        if (result.includes(name)) {
+          result = result.split(name).join(value);
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+    return result;
+  };
+
+  const lines = allLines.map(substitute);
   const sprites: StoryboardSprite[] = [];
   const samples: StoryboardSample[] = [];
   let current: StoryboardSprite | null = null;
@@ -568,7 +606,9 @@ export const parseEventsSection = (
 ): { backgroundFilename?: string; videoFilename?: string; storyboard: StoryboardSprite[]; samples: StoryboardSample[] } => {
   const lines = text.split(/\r?\n/);
   let inEvents = false;
+  let inVariables = false;
   const eventLines: string[] = [];
+  const variableLines: string[] = [];
   let backgroundFilename: string | undefined;
   let videoFilename: string | undefined;
 
@@ -578,6 +618,11 @@ export const parseEventsSection = (
     const sec = parseSection(line);
     if (sec) {
       inEvents = sec === "Events";
+      inVariables = sec === "Variables";
+      continue;
+    }
+    if (inVariables && line.startsWith("$")) {
+      variableLines.push(line);
       continue;
     }
     if (!inEvents) continue;
@@ -598,7 +643,11 @@ export const parseEventsSection = (
     }
   }
 
-  const { sprites, samples } = parseStoryboardEvents(eventLines.join("\n"));
+  // 将 Variables 区段前置到 Events 文本，使 parseStoryboardEvents 能提取并替换 $var
+  const fullText = variableLines.length > 0
+    ? "[Variables]\n" + variableLines.join("\n") + "\n" + eventLines.join("\n")
+    : eventLines.join("\n");
+  const { sprites, samples } = parseStoryboardEvents(fullText);
   return {
     backgroundFilename,
     videoFilename,
