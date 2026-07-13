@@ -13,7 +13,6 @@ import {
   searchBeatmapsets as apiSearch,
   fetchFeatured as apiFeatured,
   fetchBeatmapSet as apiFetchSet,
-  downloadOsz as apiDownloadOsz,
   searchSayobot,
   fetchSayobotFeatured,
   searchKitsu,
@@ -21,8 +20,8 @@ import {
   searchAllSources,
   downloadOszRacing,
 } from "@/api/osuDirect";
-import { extractOsz, extractOszFromFile, extractOsk } from "@/utils/oszLoader";
-import { saveDownload, loadAllDownloads, deleteDownload, clearAllDownloads } from "@/utils/indexedDb";
+import { extractOsz, extractOszFromFile, extractOsk, extractHitSounds } from "@/utils/oszLoader";
+import { saveDownload, loadAllDownloads, deleteDownload, clearAllDownloads, saveCustomHitSounds, loadCustomHitSounds, deleteCustomHitSounds } from "@/utils/indexedDb";
 import { fetchLyrics } from "@/utils/lyricsProvider";
 
 const EMPTY_RUNTIME: GameRuntime = {
@@ -70,6 +69,10 @@ interface GameState {
 
   // 皮肤
   importSkinFile: (file: File) => Promise<boolean>;
+
+  // 音效采样
+  importHitSoundsFromFile: (file: File) => Promise<boolean>;
+  clearCustomHitSounds: () => Promise<void>;
 
   // 游戏
   runtime: GameRuntime;
@@ -248,6 +251,14 @@ export const useGameStore = create<GameState>()(
           // IndexedDB 不可用时不阻断应用
           console.warn("加载本地下载失败", e);
         }
+        try {
+          const urls = await loadCustomHitSounds();
+          if (Object.keys(urls).length > 0) {
+            set((s) => ({ settings: { ...s.settings, customHitSoundUrls: urls } }));
+          }
+        } catch (e) {
+          console.warn("加载自定义音效失败", e);
+        }
       },
       importBeatmapFile: async (file) => {
         try {
@@ -290,6 +301,48 @@ export const useGameStore = create<GameState>()(
         }
       },
 
+      importHitSoundsFromFile: async (file) => {
+        try {
+          const buf = await file.arrayBuffer();
+          const assetUrls = await extractHitSounds(buf);
+          // 释放旧的自定义音效 Blob URL
+          const oldUrls = get().settings.customHitSoundUrls;
+          if (oldUrls) {
+            for (const url of Object.values(oldUrls)) {
+              try { URL.revokeObjectURL(url); } catch { /* 忽略 */ }
+            }
+          }
+          await saveCustomHitSounds(assetUrls);
+          set((s) => ({
+            settings: {
+              ...s.settings,
+              customHitSoundUrls: assetUrls,
+              useHitSamples: true,
+            },
+          }));
+          return true;
+        } catch (e) {
+          console.error("导入音效失败", e);
+          return false;
+        }
+      },
+
+      clearCustomHitSounds: async () => {
+        const oldUrls = get().settings.customHitSoundUrls;
+        if (oldUrls) {
+          for (const url of Object.values(oldUrls)) {
+            try { URL.revokeObjectURL(url); } catch { /* 忽略 */ }
+          }
+        }
+        await deleteCustomHitSounds();
+        set((s) => ({
+          settings: {
+            ...s.settings,
+            customHitSoundUrls: undefined,
+          },
+        }));
+      },
+
       runtime: EMPTY_RUNTIME,
       startGame: (set_, beatmap, mode) => {
         set({
@@ -314,12 +367,13 @@ export const useGameStore = create<GameState>()(
       merge: (persisted, current) => ({
         ...current,
         ...(persisted as GameState),
-        // blob URL 不跨会话保留，重载后清空自定义皮肤资源，避免引用失效 URL
+        // blob URL 不跨会话保留，重载后清空自定义皮肤 / 音效资源，避免引用失效 URL
         settings: {
           ...DEFAULT_SETTINGS,
           ...(persisted as GameState).settings,
           customSkinAssetUrls: undefined,
           useCustomSkin: false,
+          customHitSoundUrls: undefined,
         },
       }),
     },

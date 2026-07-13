@@ -43,6 +43,9 @@ export default function Game() {
   const autoCursorSpeed = useGameStore((s) => s.settings.autoCursorSpeed);
   const autoCircleMode = useGameStore((s) => s.settings.autoCircleMode);
   const hitSoundVolume = useGameStore((s) => s.settings.hitSoundVolume);
+  const useHitSamples = useGameStore((s) => s.settings.useHitSamples);
+  const defaultSampleSet = useGameStore((s) => s.settings.defaultSampleSet);
+  const customHitSoundUrls = useGameStore((s) => s.settings.customHitSoundUrls);
   const approachMultiplier = useGameStore((s) => s.settings.approachMultiplier);
   const backgroundBlur = useGameStore((s) => s.settings.backgroundBlur);
   const showFollowPoints = useGameStore((s) => s.settings.showFollowPoints);
@@ -161,6 +164,9 @@ export default function Game() {
           autoCursorSpeed,
           autoCircleMode,
           hitSoundVolume,
+          useHitSamples,
+          defaultSampleSet,
+          customHitSoundUrls,
           approachMultiplier,
           backgroundBlur,
           showFollowPoints,
@@ -236,7 +242,7 @@ export default function Game() {
     };
     // 引擎创建依赖较多，避免音量/offset 等运行时可调设置导致整引擎重建
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, showVideo, backgroundDim, showLyrics, lyricsEffect, lyricsSize, spectatorMode, keyBindings, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume, approachMultiplier, backgroundBlur, showFollowPoints, showApproachCircles, showComboNumbers, showHitEffects, showFPS, hudScale, cursorSize, playbackRate, mods, useBeatmapSkin, useCustomSkin, customSkinAssetUrls, customComboColors, useCustomComboColors, circleBorderWidth, sliderBorderWidth, sliderBallScale, hitCircleScale, selectedReplay]);
+  }, [set, beatmap, gameMode, isLandscape, auto, showCursor, showStoryboard, showVideo, backgroundDim, showLyrics, lyricsEffect, lyricsSize, spectatorMode, keyBindings, lyrics, showCursorTrail, showCursorPress, autoCursorSpeed, autoCircleMode, hitSoundVolume, useHitSamples, defaultSampleSet, customHitSoundUrls, approachMultiplier, backgroundBlur, showFollowPoints, showApproachCircles, showComboNumbers, showHitEffects, showFPS, hudScale, cursorSize, playbackRate, mods, useBeatmapSkin, useCustomSkin, customSkinAssetUrls, customComboColors, useCustomComboColors, circleBorderWidth, sliderBorderWidth, sliderBallScale, hitCircleScale, selectedReplay]);
 
   // 同步音量
   useEffect(() => {

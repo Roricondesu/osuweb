@@ -14,7 +14,6 @@ import {
   Music,
   Activity,
   ChevronDown,
-  Maximize,
   RotateCcw,
   Trash2,
   Zap,
@@ -187,6 +186,8 @@ export default function Settings() {
   const settings = useGameStore((s) => s.settings);
   const updateSetting = useGameStore((s) => s.updateSetting);
   const importSkinFile = useGameStore((s) => s.importSkinFile);
+  const importHitSoundsFromFile = useGameStore((s) => s.importHitSoundsFromFile);
+  const clearCustomHitSounds = useGameStore((s) => s.clearCustomHitSounds);
   const scheme = settings.theme === "dark" ? "dark" : "light";
   const [health, setHealth] = React.useState<ApiHealthResult | null>(null);
   const [checking, setChecking] = React.useState(false);
@@ -196,6 +197,10 @@ export default function Settings() {
   const [skinImporting, setSkinImporting] = useState(false);
   const [skinImportMsg, setSkinImportMsg] = useState<string>("");
   const skinInputRef = useRef<HTMLInputElement>(null);
+
+  const [hitSoundImporting, setHitSoundImporting] = useState(false);
+  const [hitSoundImportMsg, setHitSoundImportMsg] = useState<string>("");
+  const hitSoundInputRef = useRef<HTMLInputElement>(null);
 
   const toggleSection = useCallback((id: string) => {
     setOpenSections((prev) => {
@@ -234,6 +239,31 @@ export default function Settings() {
       if (skinInputRef.current) skinInputRef.current.value = "";
     }
   }, [importSkinFile, updateSetting]);
+
+  const handleHitSoundImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setHitSoundImporting(true);
+    setHitSoundImportMsg("");
+    try {
+      const ok = await importHitSoundsFromFile(file);
+      if (ok) {
+        setHitSoundImportMsg(`已导入音效采样：${file.name}`);
+      } else {
+        setHitSoundImportMsg("导入失败：未找到可用的音效采样文件");
+      }
+    } catch {
+      setHitSoundImportMsg("导入失败：文件损坏或格式不支持");
+    } finally {
+      setHitSoundImporting(false);
+      if (hitSoundInputRef.current) hitSoundInputRef.current.value = "";
+    }
+  }, [importHitSoundsFromFile]);
+
+  const handleClearHitSounds = useCallback(async () => {
+    await clearCustomHitSounds();
+    setHitSoundImportMsg("已清除自定义音效采样");
+  }, [clearCustomHitSounds]);
 
   const resetSettings = useCallback(() => {
     (Object.keys(DEFAULT_SETTINGS) as Array<keyof Settings>).forEach((key) => {
@@ -322,7 +352,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section icon={<Volume2 size={18} />} title="音量" delay={2} open={openSections.has("audio")} onToggle={() => toggleSection("audio")}>
+      <Section icon={<Volume2 size={18} />} title="音量与音效" delay={2} open={openSections.has("audio")} onToggle={() => toggleSection("audio")}>
         <div className="flex flex-col gap-4">
           <div>
             <div className="mb-1 flex items-center justify-between text-sm">
@@ -358,6 +388,100 @@ export default function Settings() {
               scheme={scheme}
               ariaLabel="播放速度"
             />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>使用采样音效</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>优先使用谱面 / 皮肤 / 自定义采样，关闭后使用合成音效</div>
+            </div>
+            <GlassSwitch
+              checked={settings.useHitSamples}
+              onCheckedChange={(c) => updateSetting("useHitSamples", c)}
+              scheme={scheme}
+              ariaLabel="使用采样音效"
+            />
+          </div>
+
+          <div>
+            <div className="mb-2 text-sm font-medium" style={{ color: "var(--text-primary)" }}>默认采样集</div>
+            <div className="flex flex-wrap gap-2">
+              {(["normal", "soft", "drum"] as const).map((set) => {
+                const selected = settings.defaultSampleSet === set;
+                return (
+                  <button
+                    key={set}
+                    onClick={() => updateSetting("defaultSampleSet", set)}
+                    disabled={!settings.useHitSamples}
+                    className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95 disabled:opacity-40"
+                    style={{
+                      border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
+                      color: selected ? "#fff" : "var(--text-primary)",
+                      background: selected ? "var(--accent)" : "transparent",
+                      cursor: settings.useHitSamples ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    {set === "normal" ? "Normal" : set === "soft" ? "Soft" : "Drum"}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+              谱面未指定采样集时使用的默认音色
+            </p>
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>导入音效采样包</div>
+                <div className="text-xs" style={{ color: "var(--text-secondary)" }}>从 .osz / .osk / .zip 中提取 .wav / .mp3 / .ogg</div>
+              </div>
+              <div className="flex items-center gap-2">
+                {settings.customHitSoundUrls && Object.keys(settings.customHitSoundUrls).length > 0 && (
+                  <button
+                    onClick={handleClearHitSounds}
+                    className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95"
+                    style={{
+                      border: "1px solid var(--border)",
+                      color: "var(--text-secondary)",
+                      background: "transparent",
+                      cursor: "pointer",
+                    }}
+                  >
+                    清除
+                  </button>
+                )}
+                <button
+                  onClick={() => hitSoundInputRef.current?.click()}
+                  disabled={hitSoundImporting}
+                  className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95 disabled:opacity-50"
+                  style={{
+                    border: "1px solid var(--accent)",
+                    color: "var(--accent)",
+                    background: "var(--accent-soft)",
+                    cursor: hitSoundImporting ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {hitSoundImporting ? "导入中..." : "选择文件"}
+                </button>
+                <input
+                  ref={hitSoundInputRef}
+                  type="file"
+                  accept=".osz,.osk,.zip"
+                  onChange={handleHitSoundImport}
+                  style={{ display: "none" }}
+                />
+              </div>
+            </div>
+            {hitSoundImportMsg && (
+              <p className="text-xs" style={{ color: "var(--accent)" }}>{hitSoundImportMsg}</p>
+            )}
+            {settings.customHitSoundUrls && Object.keys(settings.customHitSoundUrls).length > 0 && (
+              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                当前已加载 {Object.keys(settings.customHitSoundUrls).length} 个音效采样文件
+              </p>
+            )}
           </div>
         </div>
       </Section>

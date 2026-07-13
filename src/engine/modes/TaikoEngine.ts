@@ -7,7 +7,7 @@
  */
 import type { HitObject } from "@/types";
 import { GameEngine, type EngineOptions } from "../GameEngine";
-import { drawRect, drawText, drawRing, clamp } from "../renderer/Canvas2D";
+import { drawRect, drawRing, clamp } from "../renderer/Canvas2D";
 
 const NOTE_R = 36;
 const APPROACH_TIME = 1500;

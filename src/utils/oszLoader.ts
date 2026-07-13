@@ -346,7 +346,6 @@ export const extractOsk = async (data: ArrayBuffer): Promise<Record<string, stri
   for (const name of fileNames) {
     const file = zip.files[name];
     if (file.dir) continue;
-    const lower = name.toLowerCase();
     // 跳过 skin.ini 等非资源文件，只提取图片、音效与字体
     if (
       !lowerEndsWith(name, SKIN_IMAGE_EXT) &&
@@ -370,6 +369,37 @@ export const extractOsk = async (data: ArrayBuffer): Promise<Record<string, stri
 
   if (Object.keys(assetUrls).length === 0) {
     throw new Error("皮肤包内未找到任何可用的图片或音效资源");
+  }
+  return assetUrls;
+};
+
+/** 从任意 zip（.osz / .osk / .zip）中提取音效采样文件为 Blob URL 映射
+ *  只保留 .wav / .mp3 / .ogg，同时提供不带路径的文件名作为别名
+ */
+export const extractHitSounds = async (data: ArrayBuffer): Promise<Record<string, string>> => {
+  const zip = await JSZip.loadAsync(data);
+  const fileNames = Object.keys(zip.files);
+  const assetUrls: Record<string, string> = {};
+
+  for (const name of fileNames) {
+    const file = zip.files[name];
+    if (file.dir) continue;
+    if (!lowerEndsWith(name, SKIN_AUDIO_EXT)) continue;
+    try {
+      const blob = await file.async("blob");
+      const url = blobToUrl(blob);
+      assetUrls[name] = url;
+      const baseName = name.split("/").pop() || name;
+      if (baseName && baseName !== name) {
+        assetUrls[baseName] = url;
+      }
+    } catch {
+      // 忽略损坏音频
+    }
+  }
+
+  if (Object.keys(assetUrls).length === 0) {
+    throw new Error("未找到任何音效采样文件（.wav / .mp3 / .ogg）");
   }
   return assetUrls;
 };

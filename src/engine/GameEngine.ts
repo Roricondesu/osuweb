@@ -83,6 +83,10 @@ export interface EngineOptions {
   mods?: ModType[];
   useBeatmapSkin?: boolean;
   customSkinAssetUrls?: Record<string, string>;
+  // 音效采样
+  useHitSamples?: boolean;
+  defaultSampleSet?: "normal" | "soft" | "drum";
+  customHitSoundUrls?: Record<string, string>;
   // 默认皮肤自定义属性
   customComboColors?: string[];
   useCustomComboColors?: boolean;
@@ -202,6 +206,10 @@ export abstract class GameEngine {
   protected mods: ModType[] = [];
   protected useBeatmapSkin = true;
   protected customSkinAssetUrls: Record<string, string> = {};
+  // 音效采样
+  protected useHitSamples = true;
+  protected defaultSampleSet: "normal" | "soft" | "drum" = "normal";
+  protected customHitSoundUrls: Record<string, string> = {};
   // 自定义皮肤纹理（优先于谱面皮肤）
   protected customSkinTextures: Map<string, HTMLImageElement> = new Map();
   // 皮肤字体（若皮肤包内含 default.ttf 等字体则加载，渲染时优先使用）
@@ -277,6 +285,12 @@ export abstract class GameEngine {
     this.useBeatmapSkin = opts.useBeatmapSkin ?? true;
     if (opts.customSkinAssetUrls) {
       this.customSkinAssetUrls = opts.customSkinAssetUrls;
+    }
+    // 音效采样
+    this.useHitSamples = opts.useHitSamples ?? true;
+    this.defaultSampleSet = opts.defaultSampleSet ?? "normal";
+    if (opts.customHitSoundUrls) {
+      this.customHitSoundUrls = opts.customHitSoundUrls;
     }
     // 默认皮肤自定义属性
     this.useCustomComboColors = opts.useCustomComboColors ?? false;
@@ -1134,7 +1148,7 @@ export abstract class GameEngine {
       }
     }
 
-    let current: import("@/types").TimingPoint | null = tps[idx];
+    const current: import("@/types").TimingPoint | null = tps[idx];
     let lastUninherited: import("@/types").TimingPoint | null = null;
     for (let i = idx; i >= 0; i--) {
       if (tps[i].uninherited) {
@@ -1143,14 +1157,19 @@ export abstract class GameEngine {
       }
     }
     const base = current || lastUninherited;
-    if (!base) return { set: 1, index: 0 };
+    if (!base) return { set: this.sampleSetToNumber(this.defaultSampleSet), index: 0 };
     let set = base.sampleSet || 0;
     const index = base.sampleIndex || 0;
     if (!base.uninherited && set === 0 && lastUninherited) {
-      set = lastUninherited.sampleSet || 1;
+      set = lastUninherited.sampleSet || 0;
     }
-    if (set === 0) set = 1;
+    if (set === 0) set = this.sampleSetToNumber(this.defaultSampleSet);
     return { set, index };
+  }
+
+  /** 将采样集名称转为 timing point 中的数字 */
+  private sampleSetToNumber(set: "normal" | "soft" | "drum"): number {
+    return set === "soft" ? 2 : set === "drum" ? 3 : 1;
   }
 
   /** 解析按键音 URL（带缓存，避免每次遍历 assetUrls） */
@@ -1168,12 +1187,16 @@ export abstract class GameEngine {
     return url;
   }
 
-  /** 按基础名（如 "normal-hitnormal"）在 assetUrls / customSkinAssetUrls 中查找采样 URL（大小写、扩展名不敏感） */
+  /** 按基础名（如 "normal-hitnormal"）在 customHitSoundUrls / customSkinAssetUrls / assetUrls 中查找采样 URL（大小写、扩展名不敏感） */
   protected findSampleUrl(baseName: string): string | undefined {
     const cached = this.hitSoundUrlCache.get(baseName);
     if (cached !== undefined) return cached || undefined;
+    if (!this.useHitSamples) {
+      this.hitSoundUrlCache.set(baseName, null);
+      return undefined;
+    }
     const exts = [".wav", ".mp3", ".ogg"];
-    const sources = [this.customSkinAssetUrls, this.assetUrls];
+    const sources = [this.customHitSoundUrls, this.customSkinAssetUrls, this.assetUrls];
     let url: string | undefined;
     // 精确匹配
     for (const src of sources) {

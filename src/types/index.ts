@@ -443,6 +443,9 @@ export interface Settings {
   // 音效
   hitSoundVolume: number;
   playbackRate: number; // 0.5-1.5，播放速度
+  useHitSamples: boolean; // 是否优先使用谱面/皮肤采样音效
+  defaultSampleSet: "normal" | "soft" | "drum"; // 无明确采样集时的默认采样集
+  customHitSoundUrls?: Record<string, string>; // 用户自定义音效采样（文件名 -> blob URL）
 
   // Mod
   mods: ModType[]; // 启用的 Mod 列表
@@ -498,6 +501,8 @@ export const DEFAULT_SETTINGS: Settings = {
   spectatorMode: false,
   hitSoundVolume: 0.6,
   playbackRate: 1,
+  useHitSamples: true,
+  defaultSampleSet: "normal",
   mods: [],
   useBeatmapSkin: true,
   useCustomSkin: false,

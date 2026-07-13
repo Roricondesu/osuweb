@@ -1,26 +1,28 @@
-/** osu!catch 引擎 - 扁平现代视觉
- *  - 水果：纯色几何图形（圆/三角/菱形）
- *  - 盘子：扁平弧形托盘
- *  - 命中爆点
+/** osu!catch 引擎 - 优化后的视觉与交互
+ *  - 水果：官方皮肤纹理映射（apple / bananas / drop / grapes / orange / pear）
+ *  - 盘子：扁平托盘 + 皮肤 catcher 纹理
+ *  - 轨道：判定区高亮 + 边界虚线 + 中心参考线
+ *  - 滑条物件渲染为水滴，转盘物件渲染为香蕉
  *  - 横屏：左右飞，盘子上下移动
  *  - 竖屏：上下落，盘子左右移动
- *  - 性能：活动物件指针
  */
-import type { HitObject, ParsedBeatmap } from "@/types";
-import { GameEngine } from "../GameEngine";
-import { drawCircle, drawRect, clamp } from "../renderer/Canvas2D";
+import type { HitObject } from "@/types";
+import { GameEngine, type EngineOptions } from "../GameEngine";
+import { drawCircle, clamp } from "../renderer/Canvas2D";
 
 const APPROACH_TIME = 1500;
-const FRUIT_R = 22;
-const PLATE_HALF = 54;
+const FRUIT_R = 24;
+const DROP_R = 14;
+const PLATE_HALF = 58;
 const MODE_COLOR = "#4ade80";
 
+/** 水果颜色：与官方 combo 色对应 */
 const FRUIT_COLORS = ["#f472b6", "#fbbf24", "#4ade80", "#38bdf8", "#a78bfa"];
-const FRUIT_SHAPES = ["circle", "triangle", "diamond", "drop"] as const;
 
 interface CachedFruit {
-  shape: typeof FRUIT_SHAPES[number];
+  type: "fruit" | "drop" | "banana";
   color: string;
+  spin: number;
 }
 
 export class CatchEngine extends GameEngine {
@@ -33,18 +35,9 @@ export class CatchEngine extends GameEngine {
   private lastTime = 0;
   private cached: CachedFruit[] = [];
   private lastFocusIndex = -1;
+  private hyperStart = 0;
 
-  constructor(opts: {
-    canvas: HTMLCanvasElement;
-    audio: HTMLAudioElement;
-    beatmap: ParsedBeatmap;
-    offset?: number;
-    isLandscape?: boolean;
-    callbacks?: import("../GameEngine").EngineCallbacks;
-    backgroundUrl?: string;
-    auto?: boolean;
-    showCursor?: boolean;
-  }) {
+  constructor(opts: EngineOptions) {
     super(opts);
     this.precomputeFruits();
     this.computeLayout();
@@ -57,11 +50,12 @@ export class CatchEngine extends GameEngine {
     this.cached = new Array(objs.length);
     for (let i = 0; i < objs.length; i++) {
       const obj = objs[i];
-      const shapeIdx = (Math.floor(obj.time / 1000) + (obj.x | 0)) % FRUIT_SHAPES.length;
-      const colorIdx = (Math.floor(obj.time / 1000) + (obj.y | 0)) % FRUIT_COLORS.length;
+      const colorIdx = (obj.newCombo ? i : i + Math.floor(obj.time / 200)) % FRUIT_COLORS.length;
+      const color = obj.type === "slider" ? "#fbbf24" : FRUIT_COLORS[colorIdx];
       this.cached[i] = {
-        shape: FRUIT_SHAPES[shapeIdx],
-        color: obj.type === "slider" ? "#fbbf24" : FRUIT_COLORS[colorIdx],
+        type: obj.type === "spinner" ? "banana" : obj.type === "slider" ? "drop" : "fruit",
+        color,
+        spin: (Math.random() - 0.5) * 0.02,
       };
     }
   }
@@ -69,10 +63,10 @@ export class CatchEngine extends GameEngine {
   private computeLayout(): void {
     const { width, height } = this.ctx;
     if (this.isLandscape) {
-      this.judgeAxis = width * 0.2;
+      this.judgeAxis = width * 0.22;
       this.platePos = height / 2;
     } else {
-      this.judgeAxis = height - 80;
+      this.judgeAxis = height - 100;
       this.platePos = width / 2;
     }
     this.targetPos = this.platePos;
@@ -108,9 +102,10 @@ export class CatchEngine extends GameEngine {
     } else if (this.leftHeld || this.rightHeld) {
       const dir = (this.rightHeld ? 1 : 0) - (this.leftHeld ? 1 : 0);
       const max = this.isLandscape ? this.ctx.height : this.ctx.width;
-      this.targetPos = clamp(this.platePos + dir * 0.8 * dt, 0, max);
+      const speed = 1.1 + (this.hyperStart > 0 && time - this.hyperStart < 200 ? 0.6 : 0);
+      this.targetPos = clamp(this.platePos + dir * speed * dt, 0, max);
     }
-    this.platePos += (this.targetPos - this.platePos) * 0.42;
+    this.platePos += (this.targetPos - this.platePos) * 0.45;
 
     const objs = this.beatmap.hitObjects;
     const len = objs.length;
@@ -155,7 +150,6 @@ export class CatchEngine extends GameEngine {
     const len = objs.length;
     const win300 = this.windows["300"];
 
-    // 选择 focus：优先接即将到达判断轴的水果，参考 standard 的 focus 选择逻辑
     let focus: HitObject | null = null;
     let focusIndex = -1;
     let bestScore = Infinity;
@@ -167,19 +161,15 @@ export class CatchEngine extends GameEngine {
       const dt = obj.time - time;
       const flow = this.fruitFlow(obj, time);
 
-      // 已经飞过判断线太多的水果不再考虑
       const passed = this.isLandscape
         ? this.judgeAxis - flow
         : flow - this.judgeAxis;
       if (passed > FRUIT_R + PLATE_HALF) continue;
 
       let score = Math.abs(dt);
-
-      // 越接近判断线优先级越高
       const approachT = clamp(1 - dt / APPROACH_TIME, 0, 1);
       score -= approachT * 1200;
 
-      // 已经进入判定窗口的 urgency 最高
       if (Math.abs(dt) <= win300) {
         const urgency = (win300 - Math.abs(dt)) / win300;
         score -= 2000 + urgency * 3000;
@@ -191,7 +181,6 @@ export class CatchEngine extends GameEngine {
         focusIndex = i;
       }
 
-      // 太远的水果先不看
       if (dt > APPROACH_TIME) break;
     }
 
@@ -199,7 +188,6 @@ export class CatchEngine extends GameEngine {
 
     const targetCross = this.fruitCross(focus);
 
-    // 预测未来路径方向：加权接下来几个未判定水果，用于光标进入角度
     let nextCross = targetCross;
     let futureDx = 0;
     let futureWeight = 0;
@@ -217,13 +205,11 @@ export class CatchEngine extends GameEngine {
       nextCross = targetCross + futureDx / futureWeight;
     }
 
-    // 盘子目标位置：cross 轴移动，judge 轴固定
     const targetX = this.isLandscape ? this.judgeAxis : targetCross;
     const targetY = this.isLandscape ? targetCross : this.judgeAxis;
     const nextX = this.isLandscape ? this.judgeAxis : nextCross;
     const nextY = this.isLandscape ? nextCross : this.judgeAxis;
 
-    // focus 切换时记录贝塞尔移动参数，参考 standard 的 cursor 切换逻辑
     if (focusIndex !== this.lastFocusIndex) {
       this.lastFocusIndex = focusIndex;
       this.cursorMoveStartTime = time;
@@ -262,7 +248,7 @@ export class CatchEngine extends GameEngine {
       this.drawFruit(x, y, i, time);
     }
 
-    this.drawPlate();
+    this.drawPlate(time);
     this.drawHitEffects(time);
     this.drawJudgePopups(time);
     this.drawHUD({ comboColor: MODE_COLOR, modeLabel: "osu!catch", modeColor: MODE_COLOR });
@@ -270,92 +256,238 @@ export class CatchEngine extends GameEngine {
 
   private drawTrack(): void {
     const { width, height, ctx } = this.ctx;
+    const trackHalf = FRUIT_R + 16;
+
+    ctx.save();
     if (this.isLandscape) {
-      const x = this.judgeAxis - FRUIT_R - 12;
-      drawRect(this.ctx, x, 0, (FRUIT_R + 12) * 2, height, "rgba(74,222,128,0.06)", 0);
-      ctx.strokeStyle = "rgba(255,255,255,0.1)";
+      const x = this.judgeAxis - trackHalf;
+      const w = trackHalf * 2;
+      // 判定区背景
+      const grad = ctx.createLinearGradient(x, 0, x + w, 0);
+      grad.addColorStop(0, "rgba(74,222,128,0.0)");
+      grad.addColorStop(0.5, "rgba(74,222,128,0.08)");
+      grad.addColorStop(1, "rgba(74,222,128,0.0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, 0, w, height);
+      // 边界
+      ctx.strokeStyle = "rgba(255,255,255,0.12)";
       ctx.lineWidth = 1;
-      ctx.strokeRect(x, 0, (FRUIT_R + 12) * 2, height);
-      drawRect(this.ctx, this.judgeAxis - 2, 0, 4, height, "rgba(255,255,255,0.2)", 0);
+      ctx.setLineDash([6, 6]);
+      ctx.strokeRect(x, 0, w, height);
+      ctx.setLineDash([]);
+      // 判定线
+      ctx.fillStyle = "rgba(255,255,255,0.18)";
+      ctx.fillRect(this.judgeAxis - 1.5, 0, 3, height);
+      // 上下边界粗线
+      ctx.strokeStyle = MODE_COLOR;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.moveTo(0, trackHalf);
+      ctx.lineTo(width, trackHalf);
+      ctx.moveTo(0, height - trackHalf);
+      ctx.lineTo(width, height - trackHalf);
+      ctx.stroke();
     } else {
-      const y = this.judgeAxis - FRUIT_R - 12;
-      drawRect(this.ctx, 0, y, width, (FRUIT_R + 12) * 2, "rgba(74,222,128,0.06)", 0);
-      ctx.strokeStyle = "rgba(255,255,255,0.1)";
+      const y = this.judgeAxis - trackHalf;
+      const h = trackHalf * 2;
+      const grad = ctx.createLinearGradient(0, y, 0, y + h);
+      grad.addColorStop(0, "rgba(74,222,128,0.0)");
+      grad.addColorStop(0.5, "rgba(74,222,128,0.08)");
+      grad.addColorStop(1, "rgba(74,222,128,0.0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, y, width, h);
+      ctx.strokeStyle = "rgba(255,255,255,0.12)";
       ctx.lineWidth = 1;
-      ctx.strokeRect(0, y, width, (FRUIT_R + 12) * 2);
-      drawRect(this.ctx, 0, this.judgeAxis - 2, width, 4, "rgba(255,255,255,0.2)", 0);
+      ctx.setLineDash([6, 6]);
+      ctx.strokeRect(0, y, width, h);
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(255,255,255,0.18)";
+      ctx.fillRect(0, this.judgeAxis - 1.5, width, 3);
+      ctx.strokeStyle = MODE_COLOR;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.moveTo(trackHalf, 0);
+      ctx.lineTo(trackHalf, height);
+      ctx.moveTo(width - trackHalf, 0);
+      ctx.lineTo(width - trackHalf, height);
+      ctx.stroke();
     }
+    ctx.restore();
   }
 
   private drawFruit(x: number, y: number, idx: number, time: number): void {
     const c = this.cached[idx];
     const { ctx } = this.ctx;
-    // 按形状选取皮肤纹理（若皮肤提供）
-    const shapeToTex: Record<string, string> = {
-      circle: "fruit-apple.png",
-      triangle: "fruit-pear.png",
-      diamond: "fruit-grapes.png",
-      drop: "fruit-orange.png",
-    };
-    const fruitSkin = this.getSkinTexture(shapeToTex[c.shape] || "fruit-apple.png");
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate((time / 500) % (Math.PI * 2));
-    if (fruitSkin) {
-      const size = FRUIT_R * 2;
-      this.drawTintedTexture(fruitSkin, -size / 2, -size / 2, size, size, c.color);
+    ctx.rotate((time / 800) * (c.spin + 1));
+
+    if (c.type === "banana") {
+      this.drawBanana(ctx);
+    } else if (c.type === "drop") {
+      this.drawDrop(ctx, c.color);
     } else {
-      ctx.fillStyle = c.color;
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      if (c.shape === "circle") {
-        ctx.arc(0, 0, FRUIT_R, 0, Math.PI * 2);
-      } else if (c.shape === "triangle") {
-        for (let i = 0; i < 3; i++) {
-          const a = -Math.PI / 2 + i * (Math.PI * 2 / 3);
-          const px = Math.cos(a) * FRUIT_R;
-          const py = Math.sin(a) * FRUIT_R;
-          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-      } else if (c.shape === "diamond") {
-        ctx.moveTo(0, -FRUIT_R); ctx.lineTo(FRUIT_R, 0); ctx.lineTo(0, FRUIT_R); ctx.lineTo(-FRUIT_R, 0); ctx.closePath();
-      } else {
-        ctx.arc(0, 0, FRUIT_R, 0, Math.PI * 2);
-      }
-      ctx.fill(); ctx.stroke();
+      this.drawRegularFruit(ctx, c.color, idx);
     }
+
     ctx.restore();
   }
 
-  private drawPlate(): void {
+  private drawRegularFruit(ctx: CanvasRenderingContext2D, color: string, idx: number): void {
+    // 优先使用官方皮肤纹理
+    const skinNames = ["fruit-apple.png", "fruit-pear.png", "fruit-grapes.png", "fruit-orange.png"];
+    const skinName = skinNames[idx % skinNames.length];
+    const skin = this.getSkinTexture(skinName);
+    const r = FRUIT_R;
+    if (skin) {
+      const size = r * 2;
+      this.drawTintedTexture(skin, -size / 2, -size / 2, size, size, color);
+      // 水果高光描边
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, r - 1, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // 几何水果：带阴影的圆形 + 内部高光
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      // 内阴影
+      ctx.fillStyle = "rgba(0,0,0,0.12)";
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+      // 高光
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
+      ctx.beginPath();
+      ctx.arc(-r * 0.35, -r * 0.35, r * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+      // 外框
+      ctx.strokeStyle = "rgba(255,255,255,0.45)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  private drawBanana(ctx: CanvasRenderingContext2D): void {
+    const r = FRUIT_R;
+    const skin = this.getSkinTexture("fruit-bananas.png");
+    if (skin) {
+      const size = r * 2.2;
+      this.drawTintedTexture(skin, -size / 2, -size / 2, size, size, "#fbbf24");
+    } else {
+      ctx.fillStyle = "#fbbf24";
+      ctx.strokeStyle = "#f59e0b";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.3, -r);
+      ctx.quadraticCurveTo(r * 0.8, -r * 0.3, r * 0.4, r);
+      ctx.quadraticCurveTo(-r * 0.2, r * 0.6, -r * 0.6, r * 0.2);
+      ctx.quadraticCurveTo(-r * 0.9, -r * 0.4, -r * 0.3, -r);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // 香蕉纹理线
+      ctx.strokeStyle = "rgba(120,90,20,0.25)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.2, -r * 0.6);
+      ctx.quadraticCurveTo(r * 0.3, 0, -r * 0.1, r * 0.5);
+      ctx.stroke();
+    }
+  }
+
+  private drawDrop(ctx: CanvasRenderingContext2D, color: string): void {
+    const r = DROP_R;
+    const skin = this.getSkinTexture("fruit-drop.png");
+    if (skin) {
+      const size = r * 2.4;
+      this.drawTintedTexture(skin, -size / 2, -size / 2, size, size, color);
+    } else {
+      // 水滴形状
+      ctx.fillStyle = color;
+      ctx.strokeStyle = "rgba(255,255,255,0.45)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 1.2);
+      ctx.bezierCurveTo(r * 0.9, -r * 0.4, r * 0.9, r * 0.7, 0, r);
+      ctx.bezierCurveTo(-r * 0.9, r * 0.7, -r * 0.9, -r * 0.4, 0, -r * 1.2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // 高光
+      ctx.fillStyle = "rgba(255,255,255,0.4)";
+      ctx.beginPath();
+      ctx.arc(-r * 0.25, -r * 0.15, r * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  private drawPlate(time: number): void {
     const { ctx } = this.ctx;
     let px: number, py: number;
     if (this.isLandscape) { px = this.judgeAxis; py = this.platePos; }
     else { px = this.platePos; py = this.judgeAxis; }
+
+    const half = PLATE_HALF;
+    const hyper = this.hyperStart > 0 && time - this.hyperStart < 200;
+
     ctx.save();
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.moveTo(px - PLATE_HALF, py);
-    ctx.quadraticCurveTo(px, py + 16, px + PLATE_HALF, py);
-    ctx.lineTo(px + PLATE_HALF, py - 10);
-    ctx.lineTo(px - PLATE_HALF, py - 10);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(px - PLATE_HALF, py - 10);
-    ctx.lineTo(px + PLATE_HALF, py - 10);
-    ctx.strokeStyle = MODE_COLOR;
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    drawCircle(this.ctx, px, py - 5, 3, "rgba(0,0,0,0.3)");
+    ctx.translate(px, py);
+
+    // 皮肤 catcher 纹理（正常 / kiai）
+    const catcherSkin = this.getSkinTexture(hyper ? "catcher-kiai.png" : "catcher-idle.png");
+    if (catcherSkin) {
+      const w = half * 2.4;
+      const h = w * (catcherSkin.height / catcherSkin.width || 1);
+      this.drawTintedTexture(catcherSkin, -w / 2, -h / 2, w, h, "#fff");
+    } else {
+      // 托盘主体
+      ctx.fillStyle = "rgba(255,255,255,0.95)";
+      ctx.beginPath();
+      ctx.moveTo(-half, -6);
+      ctx.quadraticCurveTo(-half * 0.5, 14, 0, 18);
+      ctx.quadraticCurveTo(half * 0.5, 14, half, -6);
+      ctx.lineTo(half, -14);
+      ctx.lineTo(-half, -14);
+      ctx.closePath();
+      ctx.fill();
+
+      // 托盘底部绿色发光条
+      ctx.shadowColor = MODE_COLOR;
+      ctx.shadowBlur = hyper ? 18 : 10;
+      ctx.fillStyle = MODE_COLOR;
+      ctx.beginPath();
+      ctx.roundRect(-half + 4, -10, half * 2 - 8, 6, 3);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // 托盘边缘
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-half, -6);
+      ctx.quadraticCurveTo(-half * 0.5, 14, 0, 18);
+      ctx.quadraticCurveTo(half * 0.5, 14, half, -6);
+      ctx.stroke();
+
+      // 中心小点
+      drawCircle(this.ctx, 0, -8, 3, "rgba(0,0,0,0.25)");
+    }
+
     ctx.restore();
   }
 
   protected handlePointerDown(x: number, y: number): void {
     if (this.status !== "playing") return;
     this.pointerDown = true;
+    this.hyperStart = this.currentTime;
     const max = this.isLandscape ? this.ctx.height : this.ctx.width;
     this.targetPos = clamp(this.pointerToPlate(x, y), 0, max);
   }
@@ -369,8 +501,8 @@ export class CatchEngine extends GameEngine {
   protected handleKeyDown(key: string): void {
     const k = key.toLowerCase();
     const [left, right] = this.keyBindings.catch;
-    if (k === left) this.leftHeld = true;
-    else if (k === right) this.rightHeld = true;
+    if (k === left) { this.leftHeld = true; this.hyperStart = this.currentTime; }
+    else if (k === right) { this.rightHeld = true; this.hyperStart = this.currentTime; }
   }
   protected handleKeyUp = (key: string): void => {
     const k = key.toLowerCase();
@@ -386,6 +518,7 @@ export class CatchEngine extends GameEngine {
     this.rightHeld = false;
     this.lastTime = 0;
     this.lastFocusIndex = -1;
+    this.hyperStart = 0;
     this.precomputeFruits();
   }
 
