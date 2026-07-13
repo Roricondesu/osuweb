@@ -105,28 +105,30 @@ export class CatchEngine extends GameEngine {
       this.plateX += (this.targetX - this.plateX) * 0.6;
     }
 
-    // 判定：只处理当前 active 指针指向的第一个未判定物件
-    // 避免一次循环吃掉多个水果，让节奏更清晰
+    // 判定：遍历所有已到达判定线且未判定的水果
     const objs = this.beatmap.hitObjects;
     const len = objs.length;
-    if (this.activeIndex < len) {
-      const obj = objs[this.activeIndex];
-      if (!obj.judged) {
-        const y = this.fruitY(obj, time);
-        const x = this.fruitX(obj);
-        if (y >= this.judgeY) {
-          const halfPlate = PLATE_W / 2;
-          const caught = x >= this.plateX - halfPlate - FRUIT_R * 0.3 && x <= this.plateX + halfPlate + FRUIT_R * 0.3;
-          if (caught) {
-            const j = this.judgeHit(obj, time);
-            this.spawnHitEffect(x, this.judgeY, j, time);
-          } else {
-            obj.judged = true;
-            obj.judgement = "miss";
-            this.submitJudgement("miss");
-            this.spawnHitEffect(x, this.judgeY, "miss", time);
-          }
-        }
+    const halfPlate = PLATE_W / 2;
+    for (let i = this.activeIndex; i < len; i++) {
+      const obj = objs[i];
+      if (obj.judged) continue;
+      const objDt = obj.time - time;
+      // 超过判定窗口下方还没接住 → miss
+      if (objDt < -this.windows["50"]) {
+        obj.judged = true;
+        obj.judgement = "miss";
+        this.submitJudgement("miss");
+        this.spawnHitEffect(this.fruitX(obj), this.judgeY, "miss", time);
+        continue;
+      }
+      // 还没到判定线
+      if (objDt > 0) break;
+
+      const x = this.fruitX(obj);
+      const caught = x >= this.plateX - halfPlate - FRUIT_R * 0.3 && x <= this.plateX + halfPlate + FRUIT_R * 0.3;
+      if (caught) {
+        const j = this.judgeHit(obj, time, x, this.judgeY);
+        this.spawnHitEffect(x, this.judgeY, j, time);
       }
     }
 
@@ -137,41 +139,37 @@ export class CatchEngine extends GameEngine {
     const objs = this.beatmap.hitObjects;
     const len = objs.length;
 
-    // 收集未来窗口内所有未判定水果，按时间倒数加权预测目标位置
-    const horizon = 900;
-    let targetX = 0;
-    let totalWeight = 0;
-    let hasTarget = false;
-
+    // 找到下一个需要接的未判定水果
+    let next: HitObject | null = null;
     for (let i = this.activeIndex; i < len; i++) {
       const obj = objs[i];
       if (obj.judged) continue;
-      const t = obj.time - time;
-      if (t > horizon) break;
-      if (t < -200) continue;
+      next = obj;
+      break;
+    }
+    if (!next) return;
 
-      const x = this.fruitX(obj);
-      // 越近的水果权重越高，同时考虑到达判定线所需时间
-      const timeToJudge = Math.max(0, t);
-      const weight = 1 / (1 + timeToJudge / 150);
+    const targetX = this.fruitX(next);
+    const timeUntilJudge = Math.max(0, next.time - time);
 
-      targetX += x * weight;
-      totalWeight += weight;
-      hasTarget = true;
+    if (timeUntilJudge <= 0) {
+      // 已到判定线，直接对准
+      this.plateX = clamp(targetX, PLATE_W / 2, this.ctx.width - PLATE_W / 2);
+      this.targetX = this.plateX;
+    } else {
+      // 计算所需速度，确保在水果到达前到位
+      const distance = Math.abs(targetX - this.plateX);
+      const requiredSpeed = distance / (timeUntilJudge / 1000);
+      // 实际速度取所需速度和最大速度的较大值，确保不 miss
+      const maxSpeed = this.ctx.width * 3;
+      const speed = Math.min(Math.max(requiredSpeed * 1.2, 200), maxSpeed);
+      const maxDelta = speed * (dt / 1000);
+      const diff = targetX - this.plateX;
+      const move = clamp(diff, -maxDelta, maxDelta);
+      this.plateX = clamp(this.plateX + move, PLATE_W / 2, this.ctx.width - PLATE_W / 2);
+      this.targetX = this.plateX;
     }
 
-    if (!hasTarget) return;
-    targetX /= totalWeight;
-
-    // 速度限制：每秒最多移动屏幕宽度的 75%
-    const maxSpeed = this.ctx.width * 0.75;
-    const maxDelta = maxSpeed * (dt / 1000);
-    const diff = targetX - this.plateX;
-    const move = clamp(diff, -maxDelta, maxDelta);
-    this.plateX = clamp(this.plateX + move, PLATE_W / 2, this.ctx.width - PLATE_W / 2);
-    this.targetX = this.plateX;
-
-    // 光标跟随盘子，用于显示 auto 位置
     this.cursorTargetX = this.plateX;
     this.cursorTargetY = this.judgeY;
   }
