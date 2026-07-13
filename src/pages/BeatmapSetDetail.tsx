@@ -72,6 +72,18 @@ export default function BeatmapSetDetail() {
     setDownloading(false);
   };
 
+  // 已下载但缺少视频（谱面声明有视频但 videoUrl 为空）时，提供补充下载入口
+  const loadedHasVideoMissing = !!loaded && !loaded.videoUrl &&
+    (loaded.beatmaps || []).some((b) => b.parsed?.videoFilename);
+
+  const handleDownloadFull = async () => {
+    if (!detailSet) return;
+    setDownloading(true);
+    // force=true 强制重新下载完整包（含视频）
+    await downloadSet(detailSet, true, true);
+    setDownloading(false);
+  };
+
   const handleStart = (beatmap: Beatmap, mode: GameMode) => {
     if (!detailSet) return;
     startGame(detailSet, beatmap, mode);
@@ -174,14 +186,38 @@ export default function BeatmapSetDetail() {
           {/* 下载操作区 */}
           <div className="p-4 md:p-5">
             {loaded ? (
-              <div className="flex items-center gap-3">
-                <CheckCircle2 size={20} style={{ color: "var(--accent)" }} />
-                <span className="flex-1 text-sm" style={{ color: "var(--text-primary)" }}>
-                  已下载 {loaded.beatmaps.length} 个难度
-                </span>
-                <GlassButton onClick={() => {}} active>
-                  <Play size={14} /> 已就绪
-                </GlassButton>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 size={20} style={{ color: "var(--accent)" }} />
+                  <span className="flex-1 text-sm" style={{ color: "var(--text-primary)" }}>
+                    已下载 {loaded.beatmaps.length} 个难度
+                  </span>
+                  <GlassButton onClick={() => {}} active>
+                    <Play size={14} /> 已就绪
+                  </GlassButton>
+                </div>
+                {loadedHasVideoMissing && (
+                  <div className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "var(--surface-elevated)" }}>
+                    <Download size={14} style={{ color: "var(--accent)", flexShrink: 0 }} />
+                    <span className="flex-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+                      当前为 mini 包（无视频），可下载完整包以启用视频背景
+                    </span>
+                    <button
+                      onClick={handleDownloadFull}
+                      disabled={downloading}
+                      className="rounded-full px-3 py-1 text-xs font-medium transition-transform active:scale-95"
+                      style={{
+                        border: "1px solid var(--accent)",
+                        color: "var(--accent)",
+                        background: "var(--accent-soft)",
+                        cursor: downloading ? "not-allowed" : "pointer",
+                        opacity: downloading ? 0.6 : 1,
+                      }}
+                    >
+                      下载完整包
+                    </button>
+                  </div>
+                )}
               </div>
             ) : downloading ? (
               <div>

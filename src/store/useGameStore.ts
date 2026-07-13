@@ -193,13 +193,21 @@ export const useGameStore = create<GameState>()(
       downloadError: null,
       downloadSet: async (set_, force = false, fullPackage?: boolean) => {
         const cached = get().downloaded.get(set_.id);
+        const full = fullPackage ?? get().settings.downloadFullPackage;
+        // 缓存命中时仍需检查是否需要重新下载：
+        // 用户请求 full 包但缓存无视频，且谱面声明有视频 → 视为缓存不完整，强制重新下载
         if (cached && !force) {
-          set({ downloadProgress: 1 });
-          return cached;
+          const needsVideo = full && !cached.videoUrl && (cached.beatmaps || []).some(
+            (b) => b.parsed?.videoFilename,
+          );
+          if (!needsVideo) {
+            set({ downloadProgress: 1 });
+            return cached;
+          }
+          // 缓存不完整，继续重新下载
         }
         set({ downloadProgress: 0, downloadError: null });
         try {
-          const full = fullPackage ?? get().settings.downloadFullPackage;
           const title = set_.title_unicode || set_.title;
           const artist = set_.artist_unicode || set_.artist;
 
