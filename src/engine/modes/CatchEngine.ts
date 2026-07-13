@@ -21,6 +21,7 @@ const FRUIT_COLORS = ["#f472b6", "#fbbf24", "#4ade80", "#38bdf8", "#a78bfa", "#f
 interface CachedFruit {
   type: "fruit" | "drop" | "banana";
   color: string;
+  vertices?: { x: number; y: number }[];
 }
 
 export class CatchEngine extends GameEngine {
@@ -47,12 +48,36 @@ export class CatchEngine extends GameEngine {
     this.cached = new Array(objs.length);
     for (let i = 0; i < objs.length; i++) {
       const obj = objs[i];
+      const type = obj.type === "spinner" ? "banana" : obj.type === "slider" ? "drop" : "fruit";
       const colorIdx = (obj.newCombo ? i : i + Math.floor(obj.time / 200)) % FRUIT_COLORS.length;
+      const color = type === "drop" ? "#fbbf24" : FRUIT_COLORS[colorIdx];
       this.cached[i] = {
-        type: obj.type === "spinner" ? "banana" : obj.type === "slider" ? "drop" : "fruit",
-        color: obj.type === "slider" ? "#fbbf24" : FRUIT_COLORS[colorIdx],
+        type,
+        color,
+        vertices: type === "fruit" ? this.generatePolygon(i, FRUIT_R) : undefined,
       };
     }
+  }
+
+  /** 基于 idx 作为 seed 生成随机多边形顶点 */
+  private generatePolygon(seed: number, r: number): { x: number; y: number }[] {
+    let s = seed * 9301 + 49297;
+    const rand = () => {
+      s = (s * 16807) % 2147483647;
+      return (s % 1000) / 1000;
+    };
+    const sides = 6 + Math.floor(rand() * 3); // 6 ~ 8
+    const rotation = rand() * Math.PI * 2;
+    const vertices: { x: number; y: number }[] = [];
+    for (let i = 0; i < sides; i++) {
+      const angle = rotation + (i / sides) * Math.PI * 2;
+      const radius = r * (0.75 + rand() * 0.25);
+      vertices.push({
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+      });
+    }
+    return vertices;
   }
 
   private computeLayout(): void {
@@ -247,10 +272,13 @@ export class CatchEngine extends GameEngine {
     ctx.restore();
   }
 
-  private drawRegularFruit(ctx: CanvasRenderingContext2D): void {
-    const r = FRUIT_R;
+  private drawRegularFruit(ctx: CanvasRenderingContext2D, vertices: { x: number; y: number }[]): void {
     ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    vertices.forEach((v, i) => {
+      if (i === 0) ctx.moveTo(v.x, v.y);
+      else ctx.lineTo(v.x, v.y);
+    });
+    ctx.closePath();
     ctx.fill();
   }
 
