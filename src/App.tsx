@@ -35,9 +35,22 @@ function AppRoutes() {
 
 export default function App() {
   const loadDownloads = useGameStore((s) => s.loadDownloads);
+  const pageScale = useGameStore((s) => s.settings.pageScale);
+
   useEffect(() => {
     loadDownloads();
   }, [loadDownloads]);
+
+  // 全局页面缩放：实时生效
+  useEffect(() => {
+    const html = document.documentElement;
+    const scale = Number.isFinite(pageScale) && pageScale > 0 ? pageScale : 1;
+    html.style.zoom = String(scale);
+    return () => {
+      html.style.zoom = "";
+    };
+  }, [pageScale]);
+
   useFullscreen();
 
   return (

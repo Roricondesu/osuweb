@@ -452,18 +452,26 @@ export abstract class GameEngine {
   /** 加载视频背景 */
   private loadVideo(url: string): void {
     const video = document.createElement("video");
-    video.src = url;
     video.muted = true;
     video.loop = false;
     video.playsInline = true;
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
     video.preload = "auto";
     video.crossOrigin = "anonymous";
     video.oncanplay = () => {
       this.videoLoaded = true;
+      // 若游戏已开始但视频未自动播放，立即补一次播放
+      if (this.status === "playing" && video.paused) {
+        video.playbackRate = this.playbackRate;
+        video.play().catch(() => {});
+      }
     };
     video.onerror = () => {
       this.videoLoaded = false;
     };
+    video.src = url;
+    video.load();
     this.videoElement = video;
   }
 
@@ -509,18 +517,26 @@ export abstract class GameEngine {
       if (!url) continue;
       if (this.storyboardVideoElements.has(s.fileName)) continue;
       const video = document.createElement("video");
-      video.src = url;
       video.muted = true;
       video.loop = false;
       video.playsInline = true;
+      video.setAttribute("playsinline", "");
+      video.setAttribute("webkit-playsinline", "");
       video.preload = "auto";
       if (!url.startsWith("blob:")) video.crossOrigin = "anonymous";
       video.oncanplay = () => {
         this.storyboardVideoReady.add(s.fileName);
+        // 若游戏已开始但视频未自动播放，立即补一次播放
+        if (this.status === "playing" && video.paused) {
+          video.playbackRate = this.playbackRate;
+          video.play().catch(() => {});
+        }
       };
       video.onerror = () => {
         this.storyboardVideoReady.delete(s.fileName);
       };
+      video.src = url;
+      video.load();
       this.storyboardVideoElements.set(s.fileName, video);
     }
   }

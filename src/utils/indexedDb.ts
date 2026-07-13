@@ -43,9 +43,34 @@ async function blobFromUrl(url: string): Promise<Blob | undefined> {
   }
 }
 
-function urlFromBlob(blob?: Blob): string | undefined {
+const MIME_MAP: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  mp3: "audio/mpeg",
+  ogg: "audio/ogg",
+  wav: "audio/wav",
+  m4a: "audio/mp4",
+  flac: "audio/flac",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  avi: "video/x-msvideo",
+  mov: "video/quicktime",
+  mkv: "video/x-matroska",
+  m4v: "video/mp4",
+};
+
+const mimeTypeFor = (name: string): string | undefined => {
+  const ext = name.split(".").pop()?.toLowerCase();
+  return ext ? MIME_MAP[ext] : undefined;
+};
+
+function urlFromBlob(blob?: Blob, name?: string): string | undefined {
   if (!blob) return undefined;
-  return URL.createObjectURL(blob);
+  const type = mimeTypeFor(name || "") || blob.type;
+  if (!type || blob.type === type) return URL.createObjectURL(blob);
+  return URL.createObjectURL(new Blob([blob], { type }));
 }
 
 export async function saveDownload(set: LoadedBeatmapSet): Promise<void> {
@@ -110,7 +135,7 @@ export async function loadAllDownloads(): Promise<Map<number, LoadedBeatmapSet>>
         const assetUrls: Record<string, string> = {};
         if (s.assetBlobs) {
           for (const [name, blob] of Object.entries(s.assetBlobs)) {
-            assetUrls[name] = urlFromBlob(blob) || "";
+            assetUrls[name] = urlFromBlob(blob, name) || "";
           }
         }
         const loaded: LoadedBeatmapSet = {

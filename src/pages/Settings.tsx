@@ -1073,6 +1073,27 @@ export default function Settings() {
             />
           </div>
 
+          <div>
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <span style={{ color: "var(--text-primary)" }}>页面缩放</span>
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                ×{settings.pageScale.toFixed(2)}
+              </span>
+            </div>
+            <p className="mb-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+              实时缩放整个页面（0.5x - 1.5x）
+            </p>
+            <GlassSlider
+              value={settings.pageScale}
+              min={0.5}
+              max={1.5}
+              step={0.05}
+              onChange={(v) => updateSetting("pageScale", v)}
+              scheme={scheme}
+              ariaLabel="页面缩放"
+            />
+          </div>
+
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示 Storyboard</div>

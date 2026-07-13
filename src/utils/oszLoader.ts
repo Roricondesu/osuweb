@@ -28,7 +28,34 @@ const lowerEndsWith = (name: string, exts: string[]): boolean => {
   return exts.some((e) => n.endsWith(e));
 };
 
-const blobToUrl = (blob: Blob): string => URL.createObjectURL(blob);
+const MIME_MAP: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  mp3: "audio/mpeg",
+  ogg: "audio/ogg",
+  wav: "audio/wav",
+  m4a: "audio/mp4",
+  flac: "audio/flac",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  avi: "video/x-msvideo",
+  mov: "video/quicktime",
+  mkv: "video/x-matroska",
+  m4v: "video/mp4",
+};
+
+const mimeTypeFor = (name: string): string | undefined => {
+  const ext = name.split(".").pop()?.toLowerCase();
+  return ext ? MIME_MAP[ext] : undefined;
+};
+
+const blobToUrl = (blob: Blob, name?: string): string => {
+  const type = mimeTypeFor(name || "") || blob.type;
+  if (!type || blob.type === type) return URL.createObjectURL(blob);
+  return URL.createObjectURL(new Blob([blob], { type }));
+};
 
 const extractBeatmapSet = async (
   zip: JSZip,
@@ -96,7 +123,7 @@ const extractBeatmapSet = async (
       const file = zip.files[matched];
       if (file && !file.dir) {
         const blob = await file.async("blob");
-        audioUrl = blobToUrl(blob);
+        audioUrl = blobToUrl(blob, matched);
       }
     }
   }
@@ -110,7 +137,7 @@ const extractBeatmapSet = async (
     const file = zip.files[fallback];
     if (file && !file.dir) {
       const blob = await file.async("blob");
-      audioUrl = blobToUrl(blob);
+      audioUrl = blobToUrl(blob, fallback);
     }
   }
 
@@ -121,7 +148,7 @@ const extractBeatmapSet = async (
     if (file.dir) continue;
     try {
       const blob = await file.async("blob");
-      assetUrls[name] = blobToUrl(blob);
+      assetUrls[name] = blobToUrl(blob, name);
       // 同时存一份不带路径的文件名，方便 storyboard 引用匹配
       const baseName = name.split("/").pop();
       if (baseName && baseName !== name) {
@@ -138,13 +165,29 @@ const extractBeatmapSet = async (
     if (file.dir) continue;
     try {
       const blob = await file.async("blob");
-      assetUrls[name] = blobToUrl(blob);
+      assetUrls[name] = blobToUrl(blob, name);
       const baseName = name.split("/").pop();
       if (baseName && baseName !== name) {
         assetUrls[baseName] = assetUrls[name];
       }
     } catch {
       // 忽略损坏音频
+    }
+  }
+
+  // 提取视频资源（背景视频 / Storyboard 视频精灵）
+  for (const name of videoFiles) {
+    const file = zip.files[name];
+    if (file.dir) continue;
+    try {
+      const blob = await file.async("blob");
+      assetUrls[name] = blobToUrl(blob, name);
+      const baseName = name.split("/").pop();
+      if (baseName && baseName !== name) {
+        assetUrls[baseName] = assetUrls[name];
+      }
+    } catch {
+      // 忽略损坏视频
     }
   }
 
@@ -187,7 +230,7 @@ const extractBeatmapSet = async (
       if (file && !file.dir) {
         try {
           const blob = await file.async("blob");
-          videoUrl = blobToUrl(blob);
+          videoUrl = blobToUrl(blob, matchedKey);
           // 同步注册到 assetUrls（用实际文件名和原始引用名），方便 storyboard 视频精灵引用
           assetUrls[matchedKey] = videoUrl;
           const bn = matchedKey.split("/").pop();
@@ -206,7 +249,7 @@ const extractBeatmapSet = async (
     if (file && !file.dir) {
       try {
         const blob = await file.async("blob");
-        videoUrl = blobToUrl(blob);
+        videoUrl = blobToUrl(blob, name);
         assetUrls[name] = videoUrl;
         const bn = name.split("/").pop();
         if (bn && bn !== name) assetUrls[bn] = videoUrl;
@@ -354,7 +397,7 @@ export const extractOsk = async (data: ArrayBuffer): Promise<Record<string, stri
     ) continue;
     try {
       const blob = await file.async("blob");
-      const url = blobToUrl(blob);
+      const url = blobToUrl(blob, name);
       // 保留原始路径
       assetUrls[name] = url;
       // 同时存一份不带路径的文件名，方便按文件名匹配
@@ -387,7 +430,7 @@ export const extractHitSounds = async (data: ArrayBuffer): Promise<Record<string
     if (!lowerEndsWith(name, SKIN_AUDIO_EXT)) continue;
     try {
       const blob = await file.async("blob");
-      const url = blobToUrl(blob);
+      const url = blobToUrl(blob, name);
       assetUrls[name] = url;
       const baseName = name.split("/").pop() || name;
       if (baseName && baseName !== name) {

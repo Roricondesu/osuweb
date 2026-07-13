@@ -424,6 +424,7 @@ export interface Settings {
   hudScale: number; // 0.8-1.5，HUD 缩放
   forceLandscape: boolean;
   fullscreen: boolean;
+  pageScale: number; // 0.5-1.5，整页缩放
 
   // 光标 / Auto
   showCursorTrail: boolean;
@@ -490,6 +491,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hudScale: 1,
   forceLandscape: false,
   fullscreen: false,
+  pageScale: 1,
   showCursorTrail: true,
   showCursorPress: true,
   cursorSize: 1,
