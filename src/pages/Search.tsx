@@ -143,7 +143,7 @@ export default function Search() {
               </button>
             ))}
             <span className="mx-1 text-xs" style={{ color: "var(--border)" }}>|</span>
-            {(["osu", "sayobot"] as const).map((src) => (
+            {(["all", "osu", "sayobot", "kitsu", "chimu"] as const).map((src) => (
               <button
                 key={src}
                 onClick={() => updateSetting("searchSource", src)}
@@ -156,9 +156,10 @@ export default function Search() {
                   cursor: "pointer",
                 }}
               >
-                {src === "osu" ? "osu.direct" : "Sayobot"}
+                {src === "all" ? "全部竞速" : src === "osu" ? "osu.direct" : src === "sayobot" ? "Sayobot" : src === "kitsu" ? "Kitsu" : "Chimu"}
               </button>
             ))}
+            <span className="mx-1 text-xs" style={{ color: "var(--border)" }}>|</span>
             <button
               onClick={() => updateSetting("storyboardOnly", !settings.storyboardOnly)}
               className="rounded-full px-2.5 py-1 text-xs font-medium transition-transform active:scale-95"
@@ -171,6 +172,19 @@ export default function Search() {
               }}
             >
               Storyboard
+            </button>
+            <button
+              onClick={() => updateSetting("videoOnly", !settings.videoOnly)}
+              className="rounded-full px-2.5 py-1 text-xs font-medium transition-transform active:scale-95"
+              style={{
+                border: "1px solid",
+                borderColor: settings.videoOnly ? "var(--accent)" : "var(--border)",
+                color: settings.videoOnly ? "var(--accent)" : "var(--text-primary)",
+                background: settings.videoOnly ? "var(--accent-soft)" : "transparent",
+                cursor: "pointer",
+              }}
+            >
+              视频
             </button>
           </div>
 

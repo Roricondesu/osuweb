@@ -219,6 +219,15 @@ export default function BeatmapSetDetail() {
                 <GlassButton onClick={handleDownload} accent style={{ width: "100%" }}>
                   <Download size={16} /> 下载谱面（{sorted.length} 个难度）
                 </GlassButton>
+                <div className="flex items-center justify-center gap-1.5 text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                  <span>下载源：</span>
+                  <span style={{ color: "var(--text-primary)" }}>osu.direct</span>
+                  <span>·</span>
+                  <span style={{ color: "var(--text-primary)" }}>Kitsu</span>
+                  <span>·</span>
+                  <span style={{ color: "var(--text-primary)" }}>Chimu</span>
+                  <span style={{ color: "var(--accent)" }}>（并行竞速）</span>
+                </div>
               </div>
             )}
             {downloadError && (
