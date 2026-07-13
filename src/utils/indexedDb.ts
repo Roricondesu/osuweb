@@ -21,9 +21,10 @@ function openDB(): Promise<IDBDatabase> {
 }
 
 /** 序列化：Blob URL 无法直接存 IndexedDB，需要把 Blob 拿出来存 */
-type StoredBeatmapSet = Omit<LoadedBeatmapSet, "audioUrl" | "backgroundUrl" | "cover" | "assetUrls"> & {
+type StoredBeatmapSet = Omit<LoadedBeatmapSet, "audioUrl" | "backgroundUrl" | "videoUrl" | "cover" | "assetUrls"> & {
   audioBlob?: Blob;
   backgroundBlob?: Blob;
+  videoBlob?: Blob;
   coverBlob?: Blob;
   assetBlobs?: Record<string, Blob>;
 };
@@ -44,9 +45,10 @@ function urlFromBlob(blob?: Blob): string | undefined {
 
 export async function saveDownload(set: LoadedBeatmapSet): Promise<void> {
   // 先提取所有 Blob，再开启事务，避免 await 期间事务自动结束
-  const [audioBlob, backgroundBlob, coverBlob] = await Promise.all([
+  const [audioBlob, backgroundBlob, videoBlob, coverBlob] = await Promise.all([
     blobFromUrl(set.audioUrl),
     set.backgroundUrl ? blobFromUrl(set.backgroundUrl) : Promise.resolve(undefined),
+    set.videoUrl ? blobFromUrl(set.videoUrl) : Promise.resolve(undefined),
     set.cover ? blobFromUrl(set.cover) : Promise.resolve(undefined),
   ]);
 
@@ -64,9 +66,16 @@ export async function saveDownload(set: LoadedBeatmapSet): Promise<void> {
     ...set,
     audioBlob,
     backgroundBlob,
+    videoBlob,
     coverBlob,
     assetBlobs,
   };
+  // 序列化时移除 Blob URL 字段，避免存入失效的 URL
+  delete (stored as Partial<LoadedBeatmapSet>).audioUrl;
+  delete (stored as Partial<LoadedBeatmapSet>).backgroundUrl;
+  delete (stored as Partial<LoadedBeatmapSet>).videoUrl;
+  delete (stored as Partial<LoadedBeatmapSet>).cover;
+  delete (stored as Partial<LoadedBeatmapSet>).assetUrls;
 
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, "readwrite");
@@ -103,6 +112,7 @@ export async function loadAllDownloads(): Promise<Map<number, LoadedBeatmapSet>>
           ...s,
           audioUrl: urlFromBlob(s.audioBlob) || "",
           backgroundUrl: urlFromBlob(s.backgroundBlob),
+          videoUrl: urlFromBlob(s.videoBlob),
           cover: urlFromBlob(s.coverBlob) || "",
           assetUrls,
         };

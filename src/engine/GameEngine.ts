@@ -5,7 +5,7 @@
  *  - 调用子类的 update / render / onInput
  *  - 维护分数状态（通过 Judger）
  */
-import type { ParsedBeatmap, HitObject, Judgement, StoryboardSprite, StoryboardCommand, Replay, ReplayEvent, ReplayScore, ModType, KeyBindings } from "@/types";
+import type { ParsedBeatmap, HitObject, Judgement, StoryboardSprite, StoryboardCommand, Replay, ReplayEvent, ReplayScore, ModType, KeyBindings, StoryboardSample, StoryboardTriggerCommand } from "@/types";
 import { DEFAULT_KEY_BINDINGS } from "@/types";
 import { MOD_LABEL, MOD_COLOR } from "@/types";
 import type { LyricLine } from "@/utils/lrclibLyrics";
@@ -158,19 +158,29 @@ export abstract class GameEngine {
   protected skinLoaded = false;
   protected storyboardImages: Map<string, HTMLImageElement> = new Map();
   protected storyboardLoaded = false;
+  /** Storyboard 视频精灵：fileName -> HTMLVideoElement */
+  protected storyboardVideoElements: Map<string, HTMLVideoElement> = new Map();
+  /** Storyboard 视频精灵加载状态：fileName -> 是否就绪 */
+  protected storyboardVideoReady: Set<string> = new Set();
   protected storyboardFlat = new Map<
     StoryboardSprite,
     {
       all: StoryboardCommand[];
       byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>>;
-      triggers: import("@/types").StoryboardTriggerCommand[];
+      triggers: StoryboardTriggerCommand[];
       firstFadeTime: number;
       hasFadeCommand: boolean;
       hideUntilMove: boolean;
       firstMoveTime: number;
       lifetimeEnd: number;
+      /** 触发器展开缓存：key = `${health}_${triggerStartTime}` */
+      triggerCache: Map<string, { all: StoryboardCommand[]; byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>> }>;
     }
   >();
+  /** Storyboard Sample 事件（按时间排序） */
+  protected storyboardSamples: StoryboardSample[] = [];
+  /** 已播放的 sample 索引（用于避免重复播放） */
+  protected samplePlayIndex = 0;
   protected showStoryboard = true;
   protected showVideo = true;
   protected videoElement: HTMLVideoElement | null = null;
@@ -297,9 +307,13 @@ export abstract class GameEngine {
     if (opts.assetUrls) {
       this.assetUrls = opts.assetUrls;
       this.loadStoryboardImages();
+      this.loadStoryboardVideos();
       this.loadSkinTextures();
       this.preloadAudioBuffers();
     }
+    // 收集 Storyboard Sample 事件并按时间排序
+    this.storyboardSamples = (this.beatmap.storyboardSamples || []).slice().sort((a, b) => a.time - b.time);
+    this.samplePlayIndex = 0;
     this.prepareStoryboardCommands();
   }
 
@@ -380,11 +394,16 @@ export abstract class GameEngine {
         firstFadeTime,
         hasFadeCommand: firstFadeTime !== Infinity,
         // 启发式：没有 F 命令但有移动命令的元素，常因作者未写初始隐藏而在开局堆叠
-        hideUntilMove: firstFadeTime === Infinity,
+        // 视频精灵默认始终可见（背景视频），不应用此启发式
+        hideUntilMove: firstFadeTime === Infinity && s.type !== "video",
         firstMoveTime:
           firstFadeTime === Infinity ? this.findFirstMoveTime(s.commands) : Infinity,
         // 元素生命周期：所有命令（含触发器、循环展开后）的最大结束时间；超过后强制隐藏
-        lifetimeEnd: this.computeStoryboardLifetimeEnd(s.commands),
+        // 视频精灵无命令时生命周期为无限，始终可见
+        lifetimeEnd: s.type === "video" && s.commands.length === 0
+          ? Infinity
+          : this.computeStoryboardLifetimeEnd(s.commands),
+        triggerCache: new Map(),
       });
     }
   }
@@ -424,6 +443,7 @@ export abstract class GameEngine {
     const sprites = this.beatmap.storyboard || [];
     const needed = new Set<string>();
     for (const s of sprites) {
+      if (s.type === "video") continue; // 视频精灵单独加载
       for (const url of this.collectStoryboardImageUrls(s)) {
         needed.add(url);
       }
@@ -449,6 +469,54 @@ export abstract class GameEngine {
       };
       img.src = url;
       this.storyboardImages.set(url, img);
+    }
+  }
+
+  /** 加载 Storyboard 中的视频精灵 */
+  private loadStoryboardVideos(): void {
+    const sprites = this.beatmap.storyboard || [];
+    for (const s of sprites) {
+      if (s.type !== "video") continue;
+      const url = this.findAssetUrl(s.fileName);
+      if (!url) continue;
+      if (this.storyboardVideoElements.has(s.fileName)) continue;
+      const video = document.createElement("video");
+      video.src = url;
+      video.muted = true;
+      video.loop = false;
+      video.playsInline = true;
+      video.preload = "auto";
+      if (!url.startsWith("blob:")) video.crossOrigin = "anonymous";
+      video.oncanplay = () => {
+        this.storyboardVideoReady.add(s.fileName);
+      };
+      video.onerror = () => {
+        this.storyboardVideoReady.delete(s.fileName);
+      };
+      this.storyboardVideoElements.set(s.fileName, video);
+    }
+  }
+
+  /** 同步 storyboard 视频精灵到当前游戏时间 */
+  private syncStoryboardVideos(time: number): void {
+    for (const [fileName, video] of this.storyboardVideoElements) {
+      if (!this.storyboardVideoReady.has(fileName)) continue;
+      // 视频从游戏时间 0 开始播放；视频时间 = (time - offset) / 1000
+      const targetTime = time / 1000;
+      if (video.readyState < 2) continue;
+      // 偏差 > 0.3s 时纠正
+      if (Math.abs(video.currentTime - targetTime) > 0.3) {
+        try { video.currentTime = targetTime; } catch { /* 忽略 */ }
+      }
+      // 播放/暂停状态同步
+      if (this.status === "playing") {
+        if (video.paused) {
+          video.playbackRate = this.playbackRate;
+          video.play().catch(() => {});
+        }
+      } else {
+        if (!video.paused) video.pause();
+      }
     }
   }
 
@@ -779,6 +847,12 @@ export abstract class GameEngine {
       this.videoElement.playbackRate = this.playbackRate;
       this.videoElement.play().catch(() => {});
     }
+    // Storyboard 视频精灵同步启动
+    for (const [, video] of this.storyboardVideoElements) {
+      try { video.currentTime = 0; } catch { /* 忽略 */ }
+      video.playbackRate = this.playbackRate;
+      video.play().catch(() => {});
+    }
     // 用户点击启动，统一解锁音频（Web Audio + HTMLAudio）
     this.unlockAudio();
     this.startTime = performance.now();
@@ -792,6 +866,7 @@ export abstract class GameEngine {
     this.status = "paused";
     this.audio.pause();
     if (this.videoElement) this.videoElement.pause();
+    for (const [, video] of this.storyboardVideoElements) video.pause();
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
@@ -807,6 +882,11 @@ export abstract class GameEngine {
       this.syncVideo();
       this.videoElement.playbackRate = this.playbackRate;
       this.videoElement.play().catch(() => {});
+    }
+    // Storyboard 视频精灵恢复播放
+    for (const [, video] of this.storyboardVideoElements) {
+      video.playbackRate = this.playbackRate;
+      video.play().catch(() => {});
     }
     this.lastFrameAt = 0;
     this.fpsFrameCount = 0;
@@ -829,6 +909,12 @@ export abstract class GameEngine {
       try { this.videoElement.currentTime = 0; } catch { /* 忽略 */ }
       this.videoElement.playbackRate = this.playbackRate;
       this.videoElement.play().catch(() => {});
+    }
+    // Storyboard 视频精灵重启
+    for (const [, video] of this.storyboardVideoElements) {
+      try { video.currentTime = 0; } catch { /* 忽略 */ }
+      video.playbackRate = this.playbackRate;
+      video.play().catch(() => {});
     }
     this.lastFrameAt = 0;
     this.fpsFrameCount = 0;
@@ -853,6 +939,13 @@ export abstract class GameEngine {
       this.videoElement.src = "";
       this.videoElement = null;
     }
+    // 清理 Storyboard 视频精灵
+    for (const [, video] of this.storyboardVideoElements) {
+      video.pause();
+      video.src = "";
+    }
+    this.storyboardVideoElements.clear();
+    this.storyboardVideoReady.clear();
     if (this.audioCtx) {
       this.audioCtx.close().catch(() => {});
       this.audioCtx = null;
@@ -879,6 +972,10 @@ export abstract class GameEngine {
 
     // 每帧同步视频到音频时间
     if (this.videoElement && this.showVideo) this.syncVideo();
+    // 同步 Storyboard 视频精灵
+    if (this.storyboardVideoElements.size > 0) this.syncStoryboardVideos(time);
+    // 播放 Storyboard Sample 事件
+    this.playStoryboardSamples(time);
 
     // 回放模式：按时间注入已录制的输入事件
     if (this.isReplay) {
@@ -933,6 +1030,11 @@ export abstract class GameEngine {
 
   /** 是否所有对象都已处理完 */
   protected isFinished(time: number): boolean {
+    // 观赏模式：只要音频未结束就继续播放（让 Storyboard / 视频播完）
+    if (this.spectatorMode) {
+      if (!this.audio.ended && this.audio.currentTime < this.audio.duration - 0.1) return false;
+      return true;
+    }
     const lastObj = this.beatmap.hitObjects[this.beatmap.hitObjects.length - 1];
     if (!lastObj) return true;
     const lastTime = lastObj.endTime || lastObj.time;
@@ -1205,11 +1307,13 @@ export abstract class GameEngine {
     }
   }
 
-  /** 在用户手势中统一解锁 Web Audio + HTMLAudio，防止首次击打被浏览器自动播放策略拦截 */
+  /** 在用户手势中统一解锁 Web Audio + HTMLAudio，防止首次击打被浏览器自动播放策略拦截
+   *  即使已解锁，仍会尝试恢复被浏览器重新挂起的 AudioContext */
   protected unlockAudio(): void {
+    // 始终尝试恢复 AudioContext（浏览器可能在 tab 切换后重新挂起）
+    this.ensureAudio();
     if (this.audioUnlocked) return;
     this.audioUnlocked = true;
-    this.ensureAudio();
     try {
       const silent = new Audio(
         "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAAAAAA==",
@@ -1342,6 +1446,78 @@ export abstract class GameEngine {
       const url = this.resolveHitSoundUrl(setName, sound, indexSuffix);
       if (!url) continue;
       this.playSampleUrl(url);
+    }
+
+    // 触发 HitSound 类型的 storyboard 触发器
+    this.fireHitSoundTriggers(obj, sounds);
+  }
+
+  /** 触发 HitSound 类型的 storyboard 触发器（命中物件时播放对应音效动画） */
+  private fireHitSoundTriggers(_obj: HitObject, sounds: string[]): void {
+    // HitSound 触发器在 osu! 中是按命中音效类型触发的，但完整实现复杂；
+    // 这里简化处理：命中时激活所有 HitSound 触发器，持续时间短暂
+    for (const sprite of this.beatmap.storyboard || []) {
+      const flat = this.storyboardFlat.get(sprite);
+      if (!flat || flat.triggers.length === 0) continue;
+      for (const trigger of flat.triggers) {
+        const name = trigger.triggerName.trim().toLowerCase();
+        if (!name.startsWith("hitsound")) continue;
+        // 检查是否匹配具体音效（如 HitSoundClap）
+        const suffix = name.slice("hitsound".length);
+        if (suffix && !sounds.some((s) => s.toLowerCase() === suffix)) continue;
+        // 标记触发器在本帧激活（通过 triggerCache 实现）
+        const key = `hitsound_${this.currentTime}`;
+        if (flat.triggerCache.has(key)) continue;
+        flat.triggerCache.set(key, this.expandTriggerCommands(trigger, this.currentTime));
+        // 清理过期的缓存
+        if (flat.triggerCache.size > 10) {
+          const firstKey = flat.triggerCache.keys().next().value;
+          if (firstKey) flat.triggerCache.delete(firstKey);
+        }
+      }
+    }
+  }
+
+  /** 展开触发器内命令为绝对时间的命令列表 */
+  private expandTriggerCommands(trigger: StoryboardTriggerCommand, baseTime: number): {
+    all: StoryboardCommand[];
+    byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>>;
+  } {
+    const flattened = this.flattenStoryboardCommands(trigger.commands);
+    const all: StoryboardCommand[] = [];
+    for (const c of flattened) {
+      all.push({
+        ...c,
+        startTime: baseTime + c.startTime,
+        endTime: baseTime + c.endTime,
+      });
+    }
+    all.sort((a, b) => a.startTime - b.startTime);
+    const byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>> = {};
+    for (const c of all) {
+      const arr = byType[c.type] || [];
+      arr.push(c);
+      byType[c.type] = arr;
+    }
+    return { all, byType };
+  }
+
+  /** 播放 Storyboard Sample 事件（按时间触发） */
+  private playStoryboardSamples(time: number): void {
+    if (this.storyboardSamples.length === 0) return;
+    // 推进到当前时间之后的所有未播放 sample
+    while (
+      this.samplePlayIndex < this.storyboardSamples.length &&
+      this.storyboardSamples[this.samplePlayIndex].time <= time
+    ) {
+      const sample = this.storyboardSamples[this.samplePlayIndex];
+      // 先按完整文件名在 assetUrls 中查找，再按基础名（去扩展名）在采样缓存中查找
+      const url = this.findAssetUrl(sample.fileName) || this.findSampleUrl(sample.fileName.replace(/\.[^.]+$/, ""));
+      if (url) {
+        const vol = (sample.volume / 100) * this.hitSoundVolume;
+        this.playSampleUrl(url, vol);
+      }
+      this.samplePlayIndex++;
     }
   }
 
@@ -2037,6 +2213,11 @@ export abstract class GameEngine {
       this.replayEvents = [];
     }
     this.replayIndex = 0;
+    this.samplePlayIndex = 0;
+    // 清空触发器缓存
+    for (const [, flat] of this.storyboardFlat) {
+      flat.triggerCache.clear();
+    }
     this.cursorX = -100;
     this.cursorY = -100;
     this.cursorTargetX = -100;
@@ -2234,11 +2415,13 @@ export abstract class GameEngine {
   }
 
   /** 根据当前血量判断触发器是否生效（支持 Passing / Failing） */
-  private isTriggerActive(trigger: import("@/types").StoryboardTriggerCommand, health: number): boolean {
+  private isTriggerActive(trigger: StoryboardTriggerCommand, health: number): boolean {
     const name = trigger.triggerName.trim().toLowerCase();
     if (name === "passing") return health > 0;
     if (name === "failing") return health <= 0;
-    // 其他触发器（如 HitSound）暂不支持，默认不触发以避免错误显示
+    // HitSound 触发器在命中物件时由 fireHitSoundTriggers 激活，此处不处理
+    if (name.startsWith("hitsound")) return false;
+    // 其他触发器（如变量触发器）暂不支持，默认不触发以避免错误显示
     return false;
   }
 
@@ -2253,32 +2436,79 @@ export abstract class GameEngine {
   } {
     const cached = this.storyboardFlat.get(sprite);
     if (!cached) return { all: [], byType: {} };
+
+    // 收集当前生效的 Passing/Failing 触发器（使用缓存避免每帧重展开）
     const activeTriggers = cached.triggers.filter(
       (t) => this.isTriggerActive(t, health) && time >= t.startTime && time <= t.endTime,
     );
-    if (activeTriggers.length === 0) return cached;
 
-    const triggerCommands: StoryboardCommand[] = [];
-    for (const t of activeTriggers) {
-      // 触发器内命令时间是相对于触发器 startTime 的，需要平移；同时展开内部循环
-      const base = t.startTime;
-      const flattened = this.flattenStoryboardCommands(t.commands);
-      for (const c of flattened) {
-        triggerCommands.push({
-          ...c,
-          startTime: base + c.startTime,
-          endTime: base + c.endTime,
-        });
+    // 收集 HitSound 触发器的缓存命令
+    const hitSoundCommands: { all: StoryboardCommand[]; byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>> }[] = [];
+    for (const [, expansion] of cached.triggerCache) {
+      hitSoundCommands.push(expansion);
+    }
+
+    if (activeTriggers.length === 0 && hitSoundCommands.length === 0) return cached;
+
+    // Passing/Failing 触发器展开（带缓存）
+    const triggerKey = `pf_${health > 0 ? "pass" : "fail"}_${activeTriggers.map((t) => t.startTime).join("_")}`;
+    let expansion = cached.triggerCache.get(triggerKey);
+    if (!expansion && activeTriggers.length > 0) {
+      const triggerCommands: StoryboardCommand[] = [];
+      for (const t of activeTriggers) {
+        const base = t.startTime;
+        const flattened = this.flattenStoryboardCommands(t.commands);
+        for (const c of flattened) {
+          triggerCommands.push({
+            ...c,
+            startTime: base + c.startTime,
+            endTime: base + c.endTime,
+          });
+        }
+      }
+      const all = [...cached.all, ...triggerCommands].sort((a, b) => a.startTime - b.startTime);
+      const byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>> = {};
+      for (const c of all) {
+        const arr = byType[c.type] || [];
+        arr.push(c);
+        byType[c.type] = arr;
+      }
+      expansion = { all, byType };
+      cached.triggerCache.set(triggerKey, expansion);
+      // 清理过期的血量触发器缓存（保留最新一个）
+      if (cached.triggerCache.size > 5) {
+        const keys = Array.from(cached.triggerCache.keys());
+        for (const k of keys) {
+          if (k.startsWith("pf_") && k !== triggerKey) cached.triggerCache.delete(k);
+        }
       }
     }
-    const all = [...cached.all, ...triggerCommands].sort((a, b) => a.startTime - b.startTime);
-    const byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>> = {};
-    for (const c of all) {
-      const arr = byType[c.type] || [];
-      arr.push(c);
-      byType[c.type] = arr;
+
+    if (!expansion && hitSoundCommands.length === 0) return cached;
+
+    // 合并血量触发器 + HitSound 触发器命令
+    if (hitSoundCommands.length === 0) {
+      return expansion || cached;
     }
-    return { all, byType };
+    // 合并所有 HitSound 命令
+    const mergedAll = [...(expansion?.all || cached.all)];
+    const mergedByType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>> = {};
+    // 先复制基础 byType
+    const baseByType = expansion?.byType || cached.byType;
+    for (const [t, list] of Object.entries(baseByType)) {
+      mergedByType[t as StoryboardCommand["type"]] = [...(list || [])];
+    }
+    // 合并 HitSound 命令
+    for (const hc of hitSoundCommands) {
+      for (const c of hc.all) {
+        mergedAll.push(c);
+        const arr = mergedByType[c.type] || [];
+        arr.push(c);
+        mergedByType[c.type] = arr;
+      }
+    }
+    mergedAll.sort((a, b) => a.startTime - b.startTime);
+    return { all: mergedAll, byType: mergedByType };
   }
 
   private lastCommandBefore<T extends StoryboardCommand["type"]>(
@@ -2612,19 +2842,47 @@ export abstract class GameEngine {
     return undefined;
   }
 
-  private getStoryboardImage(sprite: StoryboardSprite, time: number): HTMLImageElement | null {
+  private getStoryboardImage(sprite: StoryboardSprite, time: number): HTMLImageElement | HTMLVideoElement | null {
+    // 视频精灵：返回 video 元素
+    if (sprite.type === "video") {
+      const video = this.storyboardVideoElements.get(sprite.fileName);
+      if (!video || !this.storyboardVideoReady.has(sprite.fileName) || video.readyState < 2) return null;
+      return video;
+    }
     let name = sprite.fileName;
     if (sprite.type === "animation" && sprite.frameCount && sprite.frameDelay) {
       const cycle = sprite.frameCount * sprite.frameDelay;
       let frame = 0;
       if (cycle > 0) {
-        frame = Math.floor((time % cycle) / sprite.frameDelay) % sprite.frameCount;
+        const t = time % cycle;
+        frame = Math.floor(t / sprite.frameDelay) % sprite.frameCount;
+      }
+      // LoopOnce：播放完一轮后停在最后一帧
+      if (sprite.loopType === "LoopOnce" && cycle > 0 && time >= cycle) {
+        frame = sprite.frameCount - 1;
       }
       const normFile = name.replace(/\\/g, "/");
       const extMatch = normFile.match(/(\.[^.]+)$/);
       const base = extMatch ? normFile.slice(0, -extMatch[1].length) : normFile;
       const ext = extMatch ? extMatch[1] : "";
-      name = `${base}${frame}${ext}`;
+      // 文件名无扩展名时，按 .png/.jpg/.jpeg/.webp 依次尝试
+      if (ext) {
+        name = `${base}${frame}${ext}`;
+      } else {
+        // 无扩展名：依次尝试常见扩展名
+        const exts = [".png", ".jpg", ".jpeg", ".webp"];
+        for (const e of exts) {
+          const candidate = `${base}${frame}${e}`;
+          if (this.findAssetUrl(candidate)) {
+            name = candidate;
+            break;
+          }
+        }
+        // 若都找不到，用无扩展名（findAssetUrl 仍会兜底查找）
+        if (name === sprite.fileName) {
+          name = `${base}${frame}`;
+        }
+      }
     }
     const url = this.findAssetUrl(name);
     return url ? this.storyboardImages.get(url) || null : null;
@@ -2632,7 +2890,7 @@ export abstract class GameEngine {
 
   private drawStoryboardLayer(time: number, layers: string[]): void {
     if (!this.showStoryboard) return;
-    if (!this.storyboardLoaded) return;
+    if (!this.storyboardLoaded && this.storyboardVideoElements.size === 0) return;
     const sprites = this.beatmap.storyboard || [];
     if (sprites.length === 0) return;
 
@@ -2654,11 +2912,19 @@ export abstract class GameEngine {
       const state = this.evaluateStoryboardSprite(sprite, time, this.score.health);
       if (state.alpha <= 0.001) continue;
       const img = this.getStoryboardImage(sprite, time);
-      if (!img || !img.complete || img.naturalWidth === 0) continue;
+      if (!img) continue;
+
+      // 获取元素尺寸：图片用 naturalWidth，视频用 videoWidth
+      const isVideo = img instanceof HTMLVideoElement;
+      const naturalW = isVideo ? (img as HTMLVideoElement).videoWidth : (img as HTMLImageElement).naturalWidth;
+      const naturalH = isVideo ? (img as HTMLVideoElement).videoHeight : (img as HTMLImageElement).naturalHeight;
+      if (naturalW === 0 || naturalH === 0) continue;
+      // 图片还需检查 complete
+      if (!isVideo && !(img as HTMLImageElement).complete) continue;
 
       // 逻辑尺寸，最终由 ctx.scale 统一缩放到屏幕
-      const w = img.naturalWidth * state.scaleX;
-      const h = img.naturalHeight * state.scaleY;
+      const w = naturalW * state.scaleX;
+      const h = naturalH * state.scaleY;
       const origin = this.originOffset(sprite.origin, w, h);
       const x = state.x + origin.x;
       const y = state.y + origin.y;
@@ -2674,7 +2940,7 @@ export abstract class GameEngine {
       // 颜色着色：在离屏 canvas 上先画原图，再用 source-atop 叠色，
       // 这样透明像素不会被背景/其他物件染色
       const hasColor = state.colorR !== 255 || state.colorG !== 255 || state.colorB !== 255;
-      if (hasColor) {
+      if (hasColor && !isVideo) {
         const cw = Math.ceil(w);
         const ch = Math.ceil(h);
         const c = this.getStoryboardColorCanvas(w, h);

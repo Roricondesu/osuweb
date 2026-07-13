@@ -290,11 +290,12 @@ export class TaikoEngine extends GameEngine {
     const time = this.currentTime;
     const side = blue ? 1 : 0;
 
-    // 1. 冷却：同侧在 40ms 内只能触发一次判定
-    if (time - this.lastHitTime[side] < this.HIT_COOLDOWN) return;
-
-    // 2. osu! 官方行为：每次按键先播放 don/ka 按键反馈音（空按也有声）
+    // 1. osu! 官方行为：每次按键先播放 don/ka 按键反馈音（空按也有声）
+    //    反馈音不受冷却限制，连打时每次按键都应发声
     this.playTaikoFeedback(blue);
+
+    // 2. 冷却：同侧在 40ms 内只能触发一次判定（防止键盘自动重复事件导致多次判定）
+    if (time - this.lastHitTime[side] < this.HIT_COOLDOWN) return;
 
     // 3. 命中目标：普通音符必须颜色匹配；大音符任意一侧都可命中
     const best = this.findHitTarget(

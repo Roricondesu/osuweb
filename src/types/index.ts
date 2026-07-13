@@ -80,6 +80,8 @@ export interface BeatmapSet {
   beatmaps: Beatmap[];
   /** 是否存在 Storyboard（osu.direct 不一定返回，下载后重新判定） */
   hasStoryboard?: boolean;
+  /** 是否包含视频背景 */
+  hasVideo?: boolean;
 }
 
 /** 单个难度 */
@@ -212,7 +214,7 @@ export type StoryboardCommand =
   | StoryboardTriggerCommand;
 
 export interface StoryboardSprite {
-  type: "sprite" | "animation";
+  type: "sprite" | "animation" | "video";
   layer: StoryboardLayer;
   origin: StoryboardOrigin;
   fileName: string;
@@ -222,6 +224,14 @@ export interface StoryboardSprite {
   frameDelay?: number;
   loopType?: "LoopOnce" | "LoopForever";
   commands: StoryboardCommand[];
+}
+
+/** Storyboard Sample 事件：在指定时间播放音效 */
+export interface StoryboardSample {
+  time: number;
+  layer: StoryboardLayer;
+  volume: number;
+  fileName: string;
 }
 
 /** .osu 文件解析结果 */
@@ -250,6 +260,8 @@ export interface ParsedBeatmap {
   videoFilename?: string;
   /** Storyboard 物件（.osu Events 或 .osb 合并而来） */
   storyboard: StoryboardSprite[];
+  /** Storyboard Sample 事件（按时间播放音效） */
+  storyboardSamples: StoryboardSample[];
   /** 谱面自定义 combo 颜色（[Colours] 段） */
   comboColors?: string[];
 }
@@ -393,8 +405,9 @@ export interface Settings {
   showCursor: boolean; // 显示光标
 
   // 搜索 / 下载
-  searchSource: "osu" | "sayobot";
+  searchSource: "osu" | "sayobot" | "kitsu" | "chimu" | "all";
   storyboardOnly: boolean;
+  videoOnly: boolean;
   downloadFullPackage: boolean;
 
   // 画面
@@ -457,8 +470,9 @@ export const DEFAULT_SETTINGS: Settings = {
   offset: 0,
   auto: false,
   showCursor: false,
-  searchSource: "sayobot",
+  searchSource: "all",
   storyboardOnly: false,
+  videoOnly: false,
   downloadFullPackage: false,
   showStoryboard: true,
   showVideo: true,

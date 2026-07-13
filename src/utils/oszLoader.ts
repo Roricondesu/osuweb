@@ -134,13 +134,37 @@ const extractBeatmapSet = async (
     backgroundUrl = assetUrls[imageFiles[0]];
   }
 
-  // 提取视频文件（Events 中 Video 事件指定的文件优先）
+  // 提取视频文件（Events 中 Video 事件指定的文件优先，再回退到第一个视频文件）
   let videoUrl: string | undefined;
   const videoName = firstParsed?.videoFilename;
   if (videoName) {
     const norm = videoName.replace(/\\/g, "/");
     const base = norm.split("/").pop() || norm;
     videoUrl = assetUrls[norm] || assetUrls[base] || assetUrls[videoName];
+  }
+  if (!videoUrl) {
+    // 从 zip 中按候选名查找并提取
+    const candidates = videoName
+      ? [videoName.replace(/\\/g, "/"), videoName, videoName.replace(/\\/g, "/").split("/").pop() || ""]
+      : [];
+    for (const c of candidates) {
+      const file = zip.files[c];
+      if (file && !file.dir) {
+        try {
+          const blob = await file.async("blob");
+          videoUrl = blobToUrl(blob);
+          // 同步注册到 assetUrls，方便 storyboard 视频精灵引用
+          if (c) {
+            assetUrls[c] = videoUrl;
+            const bn = c.split("/").pop();
+            if (bn && bn !== c) assetUrls[bn] = videoUrl;
+          }
+          break;
+        } catch {
+          // 忽略
+        }
+      }
+    }
   }
   if (!videoUrl && videoFiles.length > 0) {
     const name = videoFiles[0];
@@ -149,25 +173,11 @@ const extractBeatmapSet = async (
       try {
         const blob = await file.async("blob");
         videoUrl = blobToUrl(blob);
+        assetUrls[name] = videoUrl;
+        const bn = name.split("/").pop();
+        if (bn && bn !== name) assetUrls[bn] = videoUrl;
       } catch {
         // 忽略损坏视频
-      }
-    }
-  }
-  // 若 Video 事件指定了文件但尚未提取，从 zip 中提取
-  if (!videoUrl && videoName) {
-    const norm = videoName.replace(/\\/g, "/");
-    const candidates = [norm, videoName, norm.split("/").pop() || ""];
-    for (const c of candidates) {
-      const file = zip.files[c];
-      if (file && !file.dir) {
-        try {
-          const blob = await file.async("blob");
-          videoUrl = blobToUrl(blob);
-          break;
-        } catch {
-          // 忽略
-        }
       }
     }
   }
@@ -175,12 +185,15 @@ const extractBeatmapSet = async (
   // 解析 .osb（谱面集级 storyboard）并合并到每个难度的 storyboard
   const osbFiles = fileNames.filter((n) => n.toLowerCase().endsWith(".osb"));
   const osbSprites: import("@/types").StoryboardSprite[] = [];
+  const osbSamples: import("@/types").StoryboardSample[] = [];
   for (const name of osbFiles) {
     const file = zip.files[name];
     if (file.dir) continue;
     try {
       const text = await file.async("text");
-      osbSprites.push(...parseStoryboardEvents(text));
+      const { sprites, samples } = parseStoryboardEvents(text);
+      osbSprites.push(...sprites);
+      osbSamples.push(...samples);
     } catch {
       // 忽略损坏的 .osb
     }
@@ -188,6 +201,11 @@ const extractBeatmapSet = async (
   if (osbSprites.length > 0) {
     for (const p of parsed) {
       p.parsed.storyboard.push(...osbSprites);
+    }
+  }
+  if (osbSamples.length > 0) {
+    for (const p of parsed) {
+      p.parsed.storyboardSamples.push(...osbSamples);
     }
   }
 

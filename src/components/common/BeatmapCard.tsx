@@ -3,7 +3,7 @@ import type { BeatmapSet } from "@/types";
 import { DifficultyBadge } from "./DifficultyBadge";
 import { ModeBadge } from "./ModeBadge";
 import { BeatmapCover } from "./BeatmapCover";
-import { StoryboardBadge } from "./StoryboardBadge";
+import { StoryboardBadge, VideoBadge } from "./StoryboardBadge";
 import { useNavigate } from "react-router-dom";
 
 interface BeatmapCardProps {
@@ -71,6 +71,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             <ModeBadge key={m} mode={modeNames[m]} />
           ))}
           {set.hasStoryboard && <StoryboardBadge />}
+          {set.hasVideo && <VideoBadge />}
         </div>
         <div
           style={{

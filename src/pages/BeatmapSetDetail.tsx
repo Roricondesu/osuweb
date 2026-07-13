@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "@/store/useGameStore";
 import { GlassButton } from "@/components/glass/GlassButton";
-import { DifficultyBadge, ModeBadge, BeatmapCover, StoryboardBadge } from "@/components/common";
+import { DifficultyBadge, ModeBadge, BeatmapCover, StoryboardBadge, VideoBadge } from "@/components/common";
 import { ArrowLeft, Download, Play, Loader2, CheckCircle2 } from "lucide-react";
 import type { GameMode, Beatmap } from "@/types";
 import { MODE_LABEL, MODE_COLOR } from "@/types";
@@ -127,9 +127,10 @@ export default function BeatmapSetDetail() {
                 right: 16,
               }}
             >
-              {detailSet?.hasStoryboard && (
-                <div className="mb-2">
-                  <StoryboardBadge size="md" />
+              {(detailSet?.hasStoryboard || detailSet?.hasVideo) && (
+                <div className="mb-2" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {detailSet?.hasStoryboard && <StoryboardBadge size="md" />}
+                  {detailSet?.hasVideo && <VideoBadge size="md" />}
                 </div>
               )}
               <h1 className="text-xl font-bold md:text-2xl" style={{ color: "#fff", letterSpacing: "-0.02em" }}>

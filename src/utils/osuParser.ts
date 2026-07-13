@@ -15,6 +15,7 @@ import type {
   StoryboardOrigin,
   StoryboardLoopCommand,
   StoryboardTriggerCommand,
+  StoryboardSample,
 } from "@/types";
 import { MODE_FROM_ID } from "@/types";
 
@@ -404,9 +405,10 @@ const flattenCommands = (
 };
 
 /** 解析 Storyboard 的 Events 区段原始文本 */
-export const parseStoryboardEvents = (text: string): StoryboardSprite[] => {
+export const parseStoryboardEvents = (text: string): { sprites: StoryboardSprite[]; samples: StoryboardSample[] } => {
   const lines = text.split(/\r?\n/);
   const sprites: StoryboardSprite[] = [];
+  const samples: StoryboardSample[] = [];
   let current: StoryboardSprite | null = null;
   // 记录每个循环/触发器行自身的缩进；子命令缩进必须严格更大
   let stack: { loop: StoryboardCommand; indent: number }[] = [];
@@ -458,6 +460,46 @@ export const parseStoryboardEvents = (text: string): StoryboardSprite[] => {
         current.frameCount = Number(parts[6]) || 1;
         current.frameDelay = Number(parts[7]) || 0;
         current.loopType = (parts[8] || "LoopForever") as "LoopOnce" | "LoopForever";
+      }
+      continue;
+    }
+
+    // Video 事件作为 storyboard 视频精灵：Video,layer,"filename",x,y
+    // 旧格式：1,0,"filename"（layer 省略，仅作为背景视频）
+    if (head === "video") {
+      closeLoopsToIndent(-1);
+      if (current) sprites.push(current);
+      current = null;
+      const layer = parseLayer(parts[1] || "Background");
+      const fileName = stripQuotes(parts[2] || parts[3] || "");
+      // 新格式：Video,layer,"filename",x,y
+      const x = parts.length > 4 ? Number(parts[3]) || 0 : 0;
+      const y = parts.length > 4 ? Number(parts[4]) || 0 : 0;
+      sprites.push({
+        type: "video",
+        layer,
+        origin: "Centre",
+        fileName,
+        x,
+        y,
+        commands: [],
+      });
+      continue;
+    }
+
+    // Sample 事件：Sample,time,layer,"filename",volume
+    if (head === "sample") {
+      closeLoopsToIndent(-1);
+      if (current) {
+        sprites.push(current);
+        current = null;
+      }
+      const time = Number(parts[1]) || 0;
+      const layer = parseLayer(parts[2] || "Background");
+      const fileName = stripQuotes(parts[3] || "");
+      const volume = parts.length > 4 ? Number(parts[4]) || 100 : 100;
+      if (fileName) {
+        samples.push({ time, layer, fileName, volume });
       }
       continue;
     }
@@ -520,13 +562,13 @@ export const parseStoryboardEvents = (text: string): StoryboardSprite[] => {
     s.commands = flattenCommands(s.commands);
   }
 
-  return sprites;
+  return { sprites, samples };
 };
 
 /** 解析 [Events] 区段，返回背景、视频和 storyboard 精灵 */
 export const parseEventsSection = (
   text: string,
-): { backgroundFilename?: string; videoFilename?: string; storyboard: StoryboardSprite[] } => {
+): { backgroundFilename?: string; videoFilename?: string; storyboard: StoryboardSprite[]; samples: StoryboardSample[] } => {
   const lines = text.split(/\r?\n/);
   let inEvents = false;
   const eventLines: string[] = [];
@@ -559,10 +601,12 @@ export const parseEventsSection = (
     }
   }
 
+  const { sprites, samples } = parseStoryboardEvents(eventLines.join("\n"));
   return {
     backgroundFilename,
     videoFilename,
-    storyboard: parseStoryboardEvents(eventLines.join("\n")),
+    storyboard: sprites,
+    samples,
   };
 };
 
@@ -589,6 +633,7 @@ export const parseOsu = (text: string): ParsedBeatmap => {
     timingPoints: [],
     hitObjects: [],
     storyboard: [],
+    storyboardSamples: [],
   };
 
   const timingPoints: TimingPoint[] = [];
@@ -702,7 +747,9 @@ export const parseOsu = (text: string): ParsedBeatmap => {
 
   // 解析 Storyboard
   if (eventLines.length > 0) {
-    result.storyboard = parseStoryboardEvents(eventLines.join("\n"));
+    const { sprites, samples } = parseStoryboardEvents(eventLines.join("\n"));
+    result.storyboard = sprites;
+    result.storyboardSamples = samples;
   }
 
   return result;

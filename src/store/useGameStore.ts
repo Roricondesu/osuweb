@@ -16,6 +16,10 @@ import {
   downloadOsz as apiDownloadOsz,
   searchSayobot,
   fetchSayobotFeatured,
+  searchKitsu,
+  searchChimu,
+  searchAllSources,
+  downloadOszRacing,
 } from "@/api/osuDirect";
 import { extractOsz, extractOszFromFile, extractOsk } from "@/utils/oszLoader";
 import { saveDownload, loadAllDownloads, deleteDownload, clearAllDownloads } from "@/utils/indexedDb";
@@ -77,25 +81,41 @@ interface GameState {
 const initSearch = async (
   query: string,
   mode: GameMode | null,
-  source: "osu" | "sayobot",
+  source: "osu" | "sayobot" | "kitsu" | "chimu" | "all",
   storyboardOnly: boolean,
+  videoOnly: boolean,
   set: (patch: Partial<GameState>) => void,
 ): Promise<void> => {
   set({ searchLoading: true, searchError: null, searchQuery: query, searchMode: mode });
   try {
     let results: BeatmapSet[];
     const hasQuery = query.trim().length > 0;
-    if (source === "sayobot") {
-      results = hasQuery
-        ? await searchSayobot(query, mode || undefined, 50)
-        : await fetchSayobotFeatured(mode || undefined, 50);
-    } else {
-      results = hasQuery
-        ? await apiSearch(query, mode || undefined, 50)
-        : await apiFeatured(mode || undefined, 50);
+    switch (source) {
+      case "sayobot":
+        results = hasQuery
+          ? await searchSayobot(query, mode || undefined, 50)
+          : await fetchSayobotFeatured(mode || undefined, 50);
+        break;
+      case "kitsu":
+        results = await searchKitsu(query, mode || undefined, 50);
+        break;
+      case "chimu":
+        results = await searchChimu(query, mode || undefined, 50);
+        break;
+      case "all":
+        results = await searchAllSources(query, mode, 50);
+        break;
+      default:
+        results = hasQuery
+          ? await apiSearch(query, mode || undefined, 50)
+          : await apiFeatured(mode || undefined, 50);
+        break;
     }
     if (storyboardOnly) {
       results = results.filter((s) => s.hasStoryboard === true);
+    }
+    if (videoOnly) {
+      results = results.filter((s) => s.hasVideo === true);
     }
     set({ searchResults: results, searchLoading: false });
   } catch (e) {
@@ -124,12 +144,12 @@ export const useGameStore = create<GameState>()(
       search: async (query, mode) => {
         const m = mode !== undefined ? mode : get().searchMode;
         const { settings } = get();
-        await initSearch(query, m, settings.searchSource, settings.storyboardOnly, set);
+        await initSearch(query, m, settings.searchSource, settings.storyboardOnly, settings.videoOnly, set);
       },
       loadFeatured: async (mode) => {
         const m = mode !== undefined ? mode : get().searchMode;
         const { settings } = get();
-        await initSearch("", m, settings.searchSource, settings.storyboardOnly, set);
+        await initSearch("", m, settings.searchSource, settings.storyboardOnly, settings.videoOnly, set);
       },
 
       detailSet: null,
@@ -183,7 +203,8 @@ export const useGameStore = create<GameState>()(
           // 歌词与谱面下载并行进行
           const lyricsPromise = fetchLyrics(title, artist).catch(() => []);
 
-          const buf = await apiDownloadOsz(set_.id, full, (r) => set({ downloadProgress: r }));
+          // 竞速下载：多个源同时请求，取最先成功的结果
+          const buf = await downloadOszRacing(set_.id, full, (r) => set({ downloadProgress: r }));
           const loaded = await extractOsz(buf, {
             id: set_.id,
             title,

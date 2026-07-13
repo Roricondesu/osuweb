@@ -244,6 +244,11 @@ export default function Settings() {
   const updateKeyBinding = useCallback((mode: keyof KeyBindings, index: number, key: string) => {
     const current = settings.keyBindings[mode] as string[];
     const next = [...current] as string[];
+    // 冲突检测：同模式内若新键已绑定到其他槽位，则交换两个槽位的键
+    const conflictIdx = next.findIndex((k, i) => i !== index && k === key);
+    if (conflictIdx >= 0) {
+      next[conflictIdx] = next[index];
+    }
     next[index] = key;
     updateSetting("keyBindings", { ...settings.keyBindings, [mode]: next });
   }, [settings.keyBindings, updateSetting]);
@@ -819,8 +824,8 @@ export default function Settings() {
         <div className="flex flex-col gap-4">
           <div>
             <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>搜索源</div>
-            <div className="mt-2 flex gap-2">
-              {(["osu", "sayobot"] as const).map((src) => (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {(["all", "osu", "sayobot", "kitsu", "chimu"] as const).map((src) => (
                 <button
                   key={src}
                   onClick={() => updateSetting("searchSource", src)}
@@ -833,22 +838,38 @@ export default function Settings() {
                     cursor: "pointer",
                   }}
                 >
-                  {src === "osu" ? "osu.direct" : "Sayobot"}
+                  {src === "all" ? "全部竞速" : src === "osu" ? "osu.direct" : src === "sayobot" ? "Sayobot" : src === "kitsu" ? "Kitsu" : "Chimu"}
                 </button>
               ))}
+            </div>
+            <div className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+              "全部竞速" 同时请求所有源，取最快返回的结果
             </div>
           </div>
 
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>仅显示有 Storyboard</div>
-              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>osu.direct 结果过滤（Sayobot 不支持）</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>过滤搜索结果</div>
             </div>
             <GlassSwitch
               checked={settings.storyboardOnly}
               onCheckedChange={(c) => updateSetting("storyboardOnly", c)}
               scheme={scheme}
               ariaLabel="仅显示有 Storyboard"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>仅显示有视频</div>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>过滤搜索结果</div>
+            </div>
+            <GlassSwitch
+              checked={settings.videoOnly}
+              onCheckedChange={(c) => updateSetting("videoOnly", c)}
+              scheme={scheme}
+              ariaLabel="仅显示有视频"
             />
           </div>
         </div>
