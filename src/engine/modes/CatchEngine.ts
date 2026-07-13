@@ -20,11 +20,16 @@ const MODE_COLOR = "#4ade80";
 const FRUIT_COLORS = ["#f472b6", "#fbbf24", "#4ade80", "#38bdf8", "#a78bfa", "#fb7185"];
 const DROP_COLOR = "#38bdf8";
 
+/** 普通水果皮肤纹理循环（osu! 约定四种水果） */
+const FRUIT_SKINS = ["fruit-apple.png", "fruit-grapes.png", "fruit-orange.png", "fruit-pear.png"];
+
 interface CachedFruit {
   type: "fruit" | "drop" | "banana";
   color: string;
   sides: number;
   rotationOffset: number;
+  /** 皮肤纹理文件名（若存在） */
+  skinName: string;
 }
 
 export class CatchEngine extends GameEngine {
@@ -65,6 +70,11 @@ export class CatchEngine extends GameEngine {
         color,
         sides: type === "fruit" ? 3 + Math.floor(rand() * 3) : 0, // 3 ~ 5
         rotationOffset: rand() * Math.PI * 2,
+        skinName: type === "fruit"
+          ? FRUIT_SKINS[i % FRUIT_SKINS.length]
+          : type === "banana"
+            ? "fruit-bananas.png"
+            : "fruit-drop.png",
       };
     }
   }
@@ -220,6 +230,24 @@ export class CatchEngine extends GameEngine {
   private drawFruit(x: number, y: number, idx: number, time: number): void {
     const c = this.cached[idx];
     const { ctx } = this.ctx;
+    // 优先使用皮肤纹理（自定义皮肤 > 谱面皮肤）
+    const tex = this.getSkinTexture(c.skinName);
+    if (tex) {
+      const r = c.type === "drop" ? DROP_R : FRUIT_R;
+      const size = r * 2;
+      ctx.save();
+      // 普通水果轻微旋转以保持视觉活力
+      if (c.type === "fruit") {
+        ctx.translate(x, y);
+        ctx.rotate(c.rotationOffset + time / 800);
+        ctx.drawImage(tex, -size / 2, -size / 2, size, size);
+      } else {
+        ctx.drawImage(tex, x - size / 2, y - size / 2, size, size);
+      }
+      ctx.restore();
+      return;
+    }
+    // 无皮肤：Canvas 原语回退
     ctx.save();
     ctx.translate(x, y);
     ctx.fillStyle = c.color;
@@ -272,6 +300,15 @@ export class CatchEngine extends GameEngine {
     const x = this.plateX;
     const y = this.judgeY;
 
+    // 优先使用 fruit-ryuta.png 皮肤纹理（接物盘）
+    const plateTex = this.getSkinTexture("fruit-ryuta.png");
+    if (plateTex) {
+      const w = PLATE_W;
+      const h = PLATE_W * (plateTex.height / plateTex.width);
+      ctx.drawImage(plateTex, x - w / 2, y - h / 2, w, h);
+      return;
+    }
+    // 无皮肤：简约圆角矩形
     ctx.save();
     ctx.translate(x, y);
     ctx.fillStyle = "rgba(255,255,255,0.95)";

@@ -84,6 +84,17 @@ export class ManiaEngine extends GameEngine {
     return this.judgeY - (dt / APPROACH_TIME) * (this.judgeY - 10);
   }
 
+  /** mania 皮肤纹理：1-indexed 奇数列(col%2===0)用 note1/key1，偶数列用 note2/key2
+   *  suffix: "" 普通头部, "L" 长条体, "T" 长条尾标记 */
+  private noteTexture(col: number, suffix: "" | "L" | "T"): HTMLImageElement | null {
+    const n = (col % 2 === 0) ? 1 : 2;
+    return this.getSkinTexture(`mania-note${n}${suffix}.png`);
+  }
+  private keyTexture(col: number, down: boolean): HTMLImageElement | null {
+    const n = (col % 2 === 0) ? 1 : 2;
+    return this.getSkinTexture(`mania-key${n}${down ? "D" : ""}.png`);
+  }
+
   protected update(time: number): void {
     this.advanceActiveIndex(time);
     const objs = this.beatmap.hitObjects;
@@ -206,25 +217,44 @@ export class ManiaEngine extends GameEngine {
         const top = Math.min(tailY, headY);
         const bottom = Math.max(tailY, headY);
         if (bottom > top) {
-          // 简约 hold 体：半透明色块
-          drawRect(this.ctx, x - noteW / 2, top, noteW, bottom - top, hexToRgba(color, isHeld ? 0.55 : 0.32), 3);
+          const bodyTex = this.noteTexture(col, "L");
+          if (bodyTex) {
+            this.ctx.ctx.drawImage(bodyTex, x - noteW / 2, top, noteW, bottom - top);
+          } else {
+            drawRect(this.ctx, x - noteW / 2, top, noteW, bottom - top, hexToRgba(color, isHeld ? 0.55 : 0.32), 3);
+          }
         }
         // 头部 note（仅未按住时显示，按住后头部已"消失"在判定线）
         if (!isHeld && headY > -40 && headY < this.ctx.height + 40) {
-          drawRect(this.ctx, x - noteW / 2, headY - noteH / 2, noteW, noteH, color, 4);
-          drawRect(this.ctx, x - noteW / 2, headY - noteH / 2, noteW, 5, "#ffffff", 4);
+          const headTex = this.noteTexture(col, "");
+          if (headTex) {
+            this.ctx.ctx.drawImage(headTex, x - noteW / 2, headY - noteH / 2, noteW, noteH);
+          } else {
+            drawRect(this.ctx, x - noteW / 2, headY - noteH / 2, noteW, noteH, color, 4);
+            drawRect(this.ctx, x - noteW / 2, headY - noteH / 2, noteW, 5, "#ffffff", 4);
+          }
         }
         // 尾部标记（仅当尾部还在屏幕内时显示）
         if (tailY > -40 && tailY < this.ctx.height + 40) {
-          drawRect(this.ctx, x - noteW / 2, tailY - 3, noteW, 6, "#ffffff", 2);
+          const tailTex = this.noteTexture(col, "T");
+          if (tailTex) {
+            this.ctx.ctx.drawImage(tailTex, x - noteW / 2, tailY - noteH / 2, noteW, noteH);
+          } else {
+            drawRect(this.ctx, x - noteW / 2, tailY - 3, noteW, 6, "#ffffff", 2);
+          }
         }
       } else {
-        // 普通 note：简约圆角矩形 + 顶部高光
+        // 普通 note：优先皮肤纹理，无则简约圆角矩形 + 顶部高光
         const alpha = clamp(1 - (this.judgeY - y) / (this.judgeY - 10), 0.5, 1);
+        const noteTex = this.noteTexture(col, "");
         this.ctx.ctx.save();
         this.ctx.ctx.globalAlpha = alpha;
-        drawRect(this.ctx, x - noteW / 2, y - noteH / 2, noteW, noteH, color, 4);
-        drawRect(this.ctx, x - noteW / 2, y - noteH / 2, noteW, 5, "#ffffff", 4);
+        if (noteTex) {
+          this.ctx.ctx.drawImage(noteTex, x - noteW / 2, y - noteH / 2, noteW, noteH);
+        } else {
+          drawRect(this.ctx, x - noteW / 2, y - noteH / 2, noteW, noteH, color, 4);
+          drawRect(this.ctx, x - noteW / 2, y - noteH / 2, noteW, 5, "#ffffff", 4);
+        }
         this.ctx.ctx.restore();
       }
     }
@@ -234,11 +264,18 @@ export class ManiaEngine extends GameEngine {
     this.drawHUD({ comboColor: MODE_COLOR, modeLabel: "osu!mania", modeColor: MODE_COLOR });
   }
 
-  /** 简约舞台：列背景 + 判定线 + 按键面板 */
+  /** 简约舞台：列背景 + 判定线 + 按键面板（优先皮肤纹理，无则回退 Canvas 原语） */
   private drawStage(): void {
     const { ctx, height } = this.ctx;
     // 整体舞台背景（半透明深色）
     drawRect(this.ctx, this.startX, 0, this.cols * this.colWidth, height, "rgba(0,0,0,0.35)", 0);
+
+    // 左右边框：mania-stage-left / mania-stage-right（拉伸至舞台高度）
+    const stageLeft = this.getSkinTexture("mania-stage-left.png");
+    const stageRight = this.getSkinTexture("mania-stage-right.png");
+    const borderW = Math.min(this.colWidth * 0.3, 16);
+    if (stageLeft) ctx.drawImage(stageLeft, this.startX - borderW, 0, borderW, height);
+    if (stageRight) ctx.drawImage(stageRight, this.startX + this.cols * this.colWidth, 0, borderW, height);
 
     for (let c = 0; c < this.cols; c++) {
       const x = this.startX + c * this.colWidth;
@@ -246,16 +283,24 @@ export class ManiaEngine extends GameEngine {
       // 列背景：奇偶交替微差
       const bg = c % 2 === 0 ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.05)";
       drawRect(this.ctx, x, 0, this.colWidth, height, bg, 0);
-      // 按住时列发光（从判定线向上渐隐）
+      // 按住时列发光：优先 mania-stage-light 纹理，无则渐变
       if (this.heldCols.has(c)) {
         const glowH = 140;
-        const grad = ctx.createLinearGradient(0, this.judgeY - glowH, 0, this.judgeY);
-        grad.addColorStop(0, hexToRgba(color, 0));
-        grad.addColorStop(1, hexToRgba(color, 0.35));
-        ctx.fillStyle = grad;
-        ctx.fillRect(x, this.judgeY - glowH, this.colWidth, glowH);
+        const lightTex = this.getSkinTexture("mania-stage-light.png");
+        if (lightTex) {
+          ctx.save();
+          ctx.globalAlpha = 0.7;
+          ctx.drawImage(lightTex, x, this.judgeY - glowH, this.colWidth, glowH);
+          ctx.restore();
+        } else {
+          const grad = ctx.createLinearGradient(0, this.judgeY - glowH, 0, this.judgeY);
+          grad.addColorStop(0, hexToRgba(color, 0));
+          grad.addColorStop(1, hexToRgba(color, 0.35));
+          ctx.fillStyle = grad;
+          ctx.fillRect(x, this.judgeY - glowH, this.colWidth, glowH);
+        }
       }
-      // 列分隔线
+      // 列分隔线（皮肤有 stage 边框时弱化）
       ctx.strokeStyle = "rgba(255,255,255,0.08)";
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -273,7 +318,7 @@ export class ManiaEngine extends GameEngine {
     // 判定线
     drawRect(this.ctx, this.startX, this.judgeY - 2, this.cols * this.colWidth, 3, "#ffffff", 0);
 
-    // 底部按键面板
+    // 底部按键面板：优先 mania-key1/2 (松开) / mania-key1D/2D (按下)
     const panelH = 40;
     const py = this.judgeY + 8;
     for (let c = 0; c < this.cols; c++) {
@@ -281,16 +326,21 @@ export class ManiaEngine extends GameEngine {
       const color = colColor(c, this.cols);
       const isHeld = this.heldCols.has(c);
       const pad = 4;
-      drawRect(
-        this.ctx,
-        x + pad, py, this.colWidth - pad * 2, panelH,
-        isHeld ? hexToRgba(color, 0.4) : "rgba(255,255,255,0.06)",
-        8,
-      );
-      ctx.strokeStyle = isHeld ? hexToRgba(color, 0.8) : "rgba(255,255,255,0.12)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + pad, py, this.colWidth - pad * 2, panelH);
-      // 按键标签
+      const keyTex = this.keyTexture(c, isHeld);
+      if (keyTex) {
+        ctx.drawImage(keyTex, x + pad, py, this.colWidth - pad * 2, panelH);
+      } else {
+        drawRect(
+          this.ctx,
+          x + pad, py, this.colWidth - pad * 2, panelH,
+          isHeld ? hexToRgba(color, 0.4) : "rgba(255,255,255,0.06)",
+          8,
+        );
+        ctx.strokeStyle = isHeld ? hexToRgba(color, 0.8) : "rgba(255,255,255,0.12)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + pad, py, this.colWidth - pad * 2, panelH);
+      }
+      // 按键标签（皮肤纹理通常不含键名，始终绘制以方便识别）
       const label = this.keyMap[c] === " " ? "␣" : (this.keyMap[c] || "").toUpperCase();
       drawText(this.ctx, label, x + this.colWidth / 2, py + panelH / 2 + 1, {
         font: `700 13px ${this.fontStack}`,
