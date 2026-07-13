@@ -2693,21 +2693,24 @@ export abstract class GameEngine {
     const lifetimeEnd = flat?.lifetimeEnd ?? -Infinity;
     const expired = Number.isFinite(lifetimeEnd) && time > lifetimeEnd;
 
-    if (cached.all.length === 0) {
-      return {
-        x: sprite.x,
-        y: sprite.y,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        alpha: expired || triggersHidden ? 0 : flat?.hasFadeCommand ? 0 : 1,
-        colorR: 255,
-        colorG: 255,
-        colorB: 255,
-        flipH: false,
-        flipV: false,
-        additive: false,
-      };
+    // 默认隐藏；没有生效命令的元素应被清除，避免残留
+    const baseState = {
+      x: sprite.x,
+      y: sprite.y,
+      scaleX: 1,
+      scaleY: 1,
+      rotation: 0,
+      alpha: 0,
+      colorR: 255,
+      colorG: 255,
+      colorB: 255,
+      flipH: false,
+      flipV: false,
+      additive: false,
+    };
+
+    if (cached.all.length === 0 || expired || triggersHidden) {
+      return baseState;
     }
     const { byType } = cached;
 
@@ -2721,31 +2724,43 @@ export abstract class GameEngine {
       return list && list.length > 0 ? list[0].startTime : Infinity;
     };
 
+    const lastCmdEnd = (type: StoryboardCommand["type"]): number => {
+      const list = byType[type] as (StoryboardCommand & { endTime: number })[] | undefined;
+      return list && list.length > 0 ? list[list.length - 1].endTime : -Infinity;
+    };
+
     // 仅 Fade 命令决定可见性；存在 F 命令或触发器未激活的元素默认隐藏
     const spriteFirstFade = flat?.firstFadeTime ?? Infinity;
     const activeFirstFade = firstCmdStart("F");
     const firstFadeTime = Math.min(spriteFirstFade, activeFirstFade);
+    const lastFadeEnd = lastCmdEnd("F");
+
+    // 命令活跃区间：有 F 命令时按 F 命令时间；无 F 命令时按所有普通命令时间
+    const hasFadeCmd = activeFirstFade !== Infinity;
+    const commandStart = hasFadeCmd ? firstFadeTime : flat?.firstMoveTime ?? Infinity;
+    const commandEnd = hasFadeCmd ? lastFadeEnd : Math.max(
+      lastCmdEnd("M"),
+      lastCmdEnd("MX"),
+      lastCmdEnd("MY"),
+      lastCmdEnd("S"),
+      lastCmdEnd("V"),
+      lastCmdEnd("R"),
+      lastCmdEnd("C"),
+    );
+    const inCommandRange = Number.isFinite(commandStart) && Number.isFinite(commandEnd)
+      && time >= commandStart && time <= commandEnd;
 
     // 启发式：没有 F 命令但有移动命令的元素，在首个移动命令前隐藏，避免开局堆叠
     const moveHidden =
       flat?.hideUntilMove && Number.isFinite(flat.firstMoveTime) && time < flat.firstMoveTime;
 
     const state = {
-      x: sprite.x,
-      y: sprite.y,
-      scaleX: 1,
-      scaleY: 1,
-      rotation: 0,
-      alpha: firstFadeTime === Infinity || time >= firstFadeTime ? 1 : 0,
-      colorR: 255,
-      colorG: 255,
-      colorB: 255,
-      flipH: false,
-      flipV: false,
-      additive: false,
+      ...baseState,
+      // 默认 alpha：有 F 命令时按 F 控制；无 F 命令时在命令活跃期间显示
+      alpha: hasFadeCmd ? (time >= firstFadeTime ? 1 : 0) : (inCommandRange ? 1 : 0),
     };
 
-    if (triggersHidden || moveHidden || expired) {
+    if (moveHidden) {
       state.alpha = 0;
     }
 

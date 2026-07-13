@@ -63,7 +63,7 @@ export class CatchEngine extends GameEngine {
       this.cached[i] = {
         type,
         color,
-        sides: type === "fruit" ? 2 + Math.floor(rand() * 4) : 0, // 2 ~ 5
+        sides: type === "fruit" ? 3 + Math.floor(rand() * 3) : 0, // 3 ~ 5
         rotationOffset: rand() * Math.PI * 2,
       };
     }
@@ -95,13 +95,15 @@ export class CatchEngine extends GameEngine {
     this.advanceActiveIndex(time);
 
     if (this.auto) {
-      this.autoPlay(time);
+      this.autoPlay(time, dt);
     } else if (this.leftHeld || this.rightHeld) {
       const dir = (this.rightHeld ? 1 : 0) - (this.leftHeld ? 1 : 0);
       const speed = 2.5;
       this.targetX = clamp(this.plateX + dir * speed * dt, PLATE_W / 2, this.ctx.width - PLATE_W / 2);
+      this.plateX += (this.targetX - this.plateX) * 0.6;
+    } else {
+      this.plateX += (this.targetX - this.plateX) * 0.6;
     }
-    this.plateX += (this.targetX - this.plateX) * 0.6;
 
     // 判定：只处理当前 active 指针指向的第一个未判定物件
     // 避免一次循环吃掉多个水果，让节奏更清晰
@@ -131,68 +133,47 @@ export class CatchEngine extends GameEngine {
     this.pruneHitEffects(time);
   }
 
-  private autoPlay(time: number): void {
+  private autoPlay(time: number, dt: number): void {
     const objs = this.beatmap.hitObjects;
     const len = objs.length;
 
-    let focus: HitObject | null = null;
-    let focusIndex = -1;
-    let bestScore = Infinity;
+    // 收集未来窗口内所有未判定水果，按时间倒数加权预测目标位置
+    const horizon = 900;
+    let targetX = 0;
+    let totalWeight = 0;
+    let hasTarget = false;
 
     for (let i = this.activeIndex; i < len; i++) {
       const obj = objs[i];
       if (obj.judged) continue;
-      const dt = obj.time - time;
-      if (dt > APPROACH_TIME) break;
+      const t = obj.time - time;
+      if (t > horizon) break;
+      if (t < -200) continue;
 
-      let score = Math.abs(dt);
-      const approachT = clamp(1 - dt / APPROACH_TIME, 0, 1);
-      score -= approachT * 1200;
+      const x = this.fruitX(obj);
+      // 越近的水果权重越高，同时考虑到达判定线所需时间
+      const timeToJudge = Math.max(0, t);
+      const weight = 1 / (1 + timeToJudge / 150);
 
-      if (score < bestScore) {
-        bestScore = score;
-        focus = obj;
-        focusIndex = i;
-      }
+      targetX += x * weight;
+      totalWeight += weight;
+      hasTarget = true;
     }
 
-    if (!focus) return;
+    if (!hasTarget) return;
+    targetX /= totalWeight;
 
-    const targetX = this.fruitX(focus);
+    // 速度限制：每秒最多移动屏幕宽度的 75%
+    const maxSpeed = this.ctx.width * 0.75;
+    const maxDelta = maxSpeed * (dt / 1000);
+    const diff = targetX - this.plateX;
+    const move = clamp(diff, -maxDelta, maxDelta);
+    this.plateX = clamp(this.plateX + move, PLATE_W / 2, this.ctx.width - PLATE_W / 2);
+    this.targetX = this.plateX;
 
-    let nextX = targetX;
-    let futureDx = 0;
-    let futureWeight = 0;
-    for (let j = focusIndex + 1, w = 1; j < len && w > 0.1; j++) {
-      const next = objs[j];
-      if (next.judged) continue;
-      const nextDt = next.time - time;
-      if (nextDt > APPROACH_TIME) break;
-      const nx = this.fruitX(next);
-      futureDx += (nx - targetX) * w;
-      futureWeight += w;
-      w *= 0.55;
-    }
-    if (futureWeight > 0) {
-      nextX = targetX + futureDx / futureWeight;
-    }
-
-    if (focusIndex !== this.lastFocusIndex) {
-      this.lastFocusIndex = focusIndex;
-      this.cursorMoveStartTime = time;
-      this.cursorMoveStartX = this.cursorX;
-      this.cursorMoveStartY = this.cursorY;
-      this.cursorLastTargetX = this.cursorTargetX;
-      this.cursorLastTargetY = this.cursorTargetY;
-      const baseDuration = Math.max(50, Math.min(APPROACH_TIME, focus.time - time));
-      this.cursorMoveDuration = Math.max(30, baseDuration / this.autoCursorSpeed);
-    }
-
-    this.targetX = targetX;
-    this.cursorTargetX = targetX;
+    // 光标跟随盘子，用于显示 auto 位置
+    this.cursorTargetX = this.plateX;
     this.cursorTargetY = this.judgeY;
-    this.cursorNextTargetX = nextX;
-    this.cursorNextTargetY = this.judgeY;
   }
 
   protected render(): void {
