@@ -4,7 +4,7 @@
  *  - 转盘：纯色圆环 + 旋转指针
  *  - 性能：预计算 combo、活动物件指针
  */
-import type { HitObject } from "@/types";
+import type { HitObject, Judgement } from "@/types";
 import { GameEngine, type EngineOptions } from "../GameEngine";
 import { drawCircle, drawRing, drawText, drawRect, drawGlassCircle, clamp, hexToRgba } from "../renderer/Canvas2D";
 
@@ -45,6 +45,11 @@ export class StandardEngine extends GameEngine {
   private cached: CachedObj[] = [];
   private lastFocusIndex = -1;
   private comboColors: string[] = DEFAULT_COMBO_COLORS;
+  // 手动 spinner 旋转追踪
+  private spinnerLastAngle: number | null = null;
+  private spinnerAccumRotation = 0; // 累积旋转弧度（绝对值）
+  private spinnerDirection = 0; // 当前旋转方向：-1 / 0 / 1
+  private spinnerRequiredRotations = 1; // 完成所需圈数
 
   constructor(opts: EngineOptions) {
     super(opts);
@@ -65,6 +70,9 @@ export class StandardEngine extends GameEngine {
   protected resetState(): void {
     super.resetState();
     this.spinnerRotation = 0;
+    this.spinnerLastAngle = null;
+    this.spinnerAccumRotation = 0;
+    this.spinnerDirection = 0;
     this.lastPointer = null;
     this.lastFocusIndex = -1;
     this.precomputeObjects();
@@ -179,6 +187,26 @@ export class StandardEngine extends GameEngine {
           const endPos = this.sliderEndPosition(obj, i);
           this.spawnHitEffect(endPos.x, endPos.y, "300", time);
           this.spawnJudgePopup("300", endPos.x, endPos.y, time);
+        } else if (obj.type === "spinner") {
+          // spinner 结束时按累积旋转比例判定
+          const required = this.spinnerRequiredRotations * 2 * Math.PI;
+          const ratio = required > 0 ? this.spinnerAccumRotation / required : 0;
+          let j: Judgement;
+          if (ratio >= 1) j = "300";
+          else if (ratio >= 0.9) j = "100";
+          else if (ratio >= 0.5) j = "50";
+          else j = "miss";
+          obj.judged = true;
+          obj.judgement = j;
+          this.submitJudgement(j);
+          const cx = this.ctx.width / 2;
+          const cy = this.offsetY + OSU_H * this.scale / 2;
+          this.spawnHitEffect(cx, cy, j, time);
+          this.spawnJudgePopup(j, cx, cy, time);
+          // 重置 spinner 状态，准备下一个
+          this.spinnerAccumRotation = 0;
+          this.spinnerLastAngle = null;
+          this.spinnerDirection = 0;
         } else {
           obj.judged = true;
           obj.judgement = "miss";
@@ -893,8 +921,13 @@ export class StandardEngine extends GameEngine {
     const start = obj.time;
     const end = obj.endTime || obj.time;
     if (time >= start && time <= end) {
-      const progress = (time - start) / (end - start);
-      const angle = progress * Math.PI * 10 + (this.auto ? time / 40 : 0);
+      // 完成所需圈数（基于时长与难度）
+      this.spinnerRequiredRotations = this.computeSpinnerRequiredRotations(obj);
+      const required = this.spinnerRequiredRotations * 2 * Math.PI;
+      const ratio = required > 0 ? Math.min(1, this.spinnerAccumRotation / required) : 0;
+
+      // 旋转指针角度：auto 用时间驱动，手动用真实累积旋转
+      const angle = this.auto ? time / 40 : this.spinnerAccumRotation;
       const { ctx } = this.ctx;
       ctx.save();
       ctx.translate(cx, cy);
@@ -906,6 +939,26 @@ export class StandardEngine extends GameEngine {
       ctx.lineTo(r, 0);
       ctx.stroke();
       ctx.restore();
+
+      // 进度环（底部灰色 + 上层高亮）
+      if (ratio > 0) {
+        ctx.save();
+        ctx.strokeStyle = MODE_COLOR;
+        ctx.lineWidth = 8;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + ratio * Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 进度百分比
+      drawText(this.ctx, `${Math.round(ratio * 100)}%`, cx, cy + r * 0.4, {
+        font: `800 16px ${this.fontStack}`,
+        fillStyle: "rgba(255,255,255,0.75)",
+        align: "center",
+        perfectCenter: true,
+      });
     }
 
     drawText(this.ctx, "SPIN", cx, cy, {
@@ -916,11 +969,26 @@ export class StandardEngine extends GameEngine {
     });
   }
 
+  /** 根据 spinner 时长与 OD 计算完成所需圈数 */
+  private computeSpinnerRequiredRotations(obj: HitObject): number {
+    const duration = (obj.endTime || obj.time) - obj.time;
+    if (duration <= 0) return 1;
+    // osu! 近似：每秒所需圈数随 OD 增加；基础约 1 圈/秒，OD 高时更多
+    const rotationsPerSec = Math.max(1, 1.5 + this.effectiveOD * 0.15);
+    return Math.max(1, (duration / 1000) * rotationsPerSec);
+  }
+
   protected handlePointerDown(x: number, y: number): void {
     if (this.status !== "playing") return;
     this.unlockAudio();
     const time = this.currentTime;
     this.pressCursor(time);
+    // spinner 期间按下：初始化旋转起点，不参与圆圈/滑条判定
+    const activeSpinner = this.findActiveSpinner(time);
+    if (activeSpinner) {
+      this.updateSpinnerRotation(x, y);
+      return;
+    }
     let best: HitObject | null = null;
     let bestScore = Infinity;
     const len = this.beatmap.hitObjects.length;
@@ -952,8 +1020,77 @@ export class StandardEngine extends GameEngine {
     }
   }
 
+  /** 查找当前时间区间内未判定的 spinner */
+  private findActiveSpinner(time: number): HitObject | null {
+    const objs = this.beatmap.hitObjects;
+    for (let i = this.activeIndex; i < objs.length; i++) {
+      const obj = objs[i];
+      if (obj.judged) continue;
+      if (obj.type !== "spinner") continue;
+      const end = obj.endTime || obj.time;
+      if (time >= obj.time && time <= end) return obj;
+      if (obj.time > time) break;
+    }
+    return null;
+  }
+
+  /** 根据光标位置更新 spinner 旋转累积 */
+  private updateSpinnerRotation(x: number, y: number): void {
+    const time = this.currentTime;
+    const cx = this.ctx.width / 2;
+    const cy = this.offsetY + OSU_H * this.scale / 2;
+    const dx = x - cx;
+    const dy = y - cy;
+    const dist = Math.hypot(dx, dy);
+    // 距中心太近时无法判断方向，保留上次角度
+    if (dist < 12) return;
+    const angle = Math.atan2(dy, dx);
+    if (this.spinnerLastAngle !== null) {
+      let delta = angle - this.spinnerLastAngle;
+      // 归一化到 [-PI, PI]
+      if (delta > Math.PI) delta -= 2 * Math.PI;
+      else if (delta < -Math.PI) delta += 2 * Math.PI;
+      if (Math.abs(delta) > 0.005) {
+        // 累积绝对旋转量；方向反转也计入（osu! 允许双向旋转）
+        this.spinnerAccumRotation += Math.abs(delta);
+        this.spinnerDirection = Math.sign(delta);
+      }
+    }
+    this.spinnerLastAngle = angle;
+    this.spinnerRotation = this.spinnerAccumRotation;
+
+    // 完成判定
+    const activeSpinner = this.findActiveSpinner(time);
+    if (activeSpinner) {
+      this.spinnerRequiredRotations = this.computeSpinnerRequiredRotations(activeSpinner);
+      const required = this.spinnerRequiredRotations * 2 * Math.PI;
+      if (this.spinnerAccumRotation >= required) {
+        const j: Judgement = "300";
+        activeSpinner.judged = true;
+        activeSpinner.judgement = j;
+        this.submitJudgement(j);
+        this.spawnHitEffect(cx, cy, j, time);
+        this.spawnJudgePopup(j, cx, cy, time);
+        this.playHitSound(activeSpinner);
+        this.spinnerAccumRotation = 0;
+        this.spinnerLastAngle = null;
+        this.spinnerDirection = 0;
+      }
+    }
+  }
+
   protected handlePointerMove = (x: number, y: number): void => {
     this.lastPointer = { x, y };
+    // auto 模式下 spinner 由 autoPlay 处理，不追踪手动旋转
+    if (this.auto) return;
+    // spinner 激活时追踪旋转
+    const time = this.currentTime;
+    if (this.findActiveSpinner(time)) {
+      this.updateSpinnerRotation(x, y);
+    } else {
+      // 离开 spinner 时重置角度，避免下次进入时产生大跳变
+      this.spinnerLastAngle = null;
+    }
   };
 
   protected handlePointerUp = (): void => {

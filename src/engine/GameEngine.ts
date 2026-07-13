@@ -149,6 +149,12 @@ export abstract class GameEngine {
   protected isReplay = false;
   protected replayEvents: ReplayEvent[] = [];
   protected replayIndex = 0;
+  // 回放移动事件节流：上次记录 move 的时间，避免事件爆炸
+  protected lastReplayMoveTime = -Infinity;
+  protected lastReplayMoveX = 0;
+  protected lastReplayMoveY = 0;
+  /** move 事件最小记录间隔（ms），光标快速移动时仍保留轨迹 */
+  protected static readonly REPLAY_MOVE_INTERVAL = 16;
   // 每个 URL 保留少量音频实例，避免连续播放同一音效时互相中断
   protected hitSoundAudioPool: Map<string, HTMLAudioElement[]> = new Map();
   protected hitSoundPoolIndex: Map<string, number> = new Map();
@@ -402,7 +408,7 @@ export abstract class GameEngine {
         byType[c.type] = arr;
       }
       // 填充缺失的起始值：使用同类型上一条命令的结束值，避免平移跳跃
-      this.resolveStartValues(byType);
+      this.resolveStartValues(byType, s);
       // 统计所有 F 命令（含触发器内）的最早开始时间；存在 F 命令的元素默认隐藏
       let firstFadeTime = Infinity;
       const collectFade = (commands: StoryboardCommand[]) => {
@@ -2278,6 +2284,9 @@ export abstract class GameEngine {
       this.replayEvents = [];
     }
     this.replayIndex = 0;
+    this.lastReplayMoveTime = -Infinity;
+    this.lastReplayMoveX = 0;
+    this.lastReplayMoveY = 0;
     this.samplePlayIndex = 0;
     // 清空触发器缓存
     for (const [, flat] of this.storyboardFlat) {
@@ -2357,6 +2366,11 @@ export abstract class GameEngine {
       case "keyup":
         this.handleKeyUp(ev.key ?? "");
         break;
+      case "move":
+        // 回放移动：同步光标位置并交给子类处理（spinner 旋转等）
+        this.setCursorPos(ev.x ?? 0, ev.y ?? 0);
+        this.handlePointerMove(ev.x ?? 0, ev.y ?? 0);
+        break;
     }
   }
 
@@ -2372,6 +2386,20 @@ export abstract class GameEngine {
   /** 输入：移动（子类可选实现） */
   public onPointerMove(x: number, y: number): void {
     if (this.isReplay) return;
+    // 节流记录 move 事件：按时间间隔 + 距离阈值，避免事件爆炸但保留轨迹
+    const t = this.currentTime;
+    const dx = x - this.lastReplayMoveX;
+    const dy = y - this.lastReplayMoveY;
+    const moved = Math.hypot(dx, dy);
+    if (
+      t - this.lastReplayMoveTime >= GameEngine.REPLAY_MOVE_INTERVAL ||
+      moved > 4
+    ) {
+      this.recordReplayEvent({ time: t, type: "move", x, y });
+      this.lastReplayMoveTime = t;
+      this.lastReplayMoveX = x;
+      this.lastReplayMoveY = y;
+    }
     this.handlePointerMove(x, y);
   }
 
@@ -2408,14 +2436,14 @@ export abstract class GameEngine {
 
   // ===== Storyboard 渲染 =====
 
-  /** 填充命令中缺失的起始值：使用同类型上一条命令的结束值 */
-  private resolveStartValues(byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>>): void {
+  /** 填充命令中缺失的起始值。
+   *  非位移命令：使用同类型上一条命令的结束值。
+   *  位移命令（M/MX/MY）：按时间排序统一解析，跨类型追踪当前位置，
+   *  使 MX 的 startX 可继承之前 M 命令的 endX，避免位移跳变。
+   */
+  private resolveStartValues(byType: Partial<Record<StoryboardCommand["type"], StoryboardCommand[]>>, sprite: StoryboardSprite): void {
     const config: { type: string; start: string; end: string }[] = [
       { type: "F", start: "startOpacity", end: "endOpacity" },
-      { type: "M", start: "startX", end: "endX" },
-      { type: "M", start: "startY", end: "endY" },
-      { type: "MX", start: "startX", end: "endX" },
-      { type: "MY", start: "startY", end: "endY" },
       { type: "S", start: "startScale", end: "endScale" },
       { type: "V", start: "startScaleX", end: "endScaleX" },
       { type: "V", start: "startScaleY", end: "endScaleY" },
@@ -2434,6 +2462,30 @@ export abstract class GameEngine {
         if (cmd[start] === undefined || cmd[start] === null) {
           cmd[start] = prev[end];
         }
+      }
+    }
+    // 位移命令统一解析：按 startTime 排序，维护运行中的 (x, y)
+    const posCmds: StoryboardCommand[] = [];
+    for (const t of ["M", "MX", "MY"] as const) {
+      const list = byTypeMap[t];
+      if (list) for (const c of list) posCmds.push(c);
+    }
+    posCmds.sort((a, b) => a.startTime - b.startTime);
+    let curX = sprite.x;
+    let curY = sprite.y;
+    for (const c of posCmds) {
+      const cmd = c as unknown as Record<string, unknown>;
+      if (c.type === "M") {
+        if (cmd.startX === undefined || cmd.startX === null) cmd.startX = curX;
+        if (cmd.startY === undefined || cmd.startY === null) cmd.startY = curY;
+        curX = cmd.endX as number;
+        curY = cmd.endY as number;
+      } else if (c.type === "MX") {
+        if (cmd.startX === undefined || cmd.startX === null) cmd.startX = curX;
+        curX = cmd.endX as number;
+      } else if (c.type === "MY") {
+        if (cmd.startY === undefined || cmd.startY === null) cmd.startY = curY;
+        curY = cmd.endY as number;
       }
     }
   }
@@ -2569,7 +2621,7 @@ export abstract class GameEngine {
         byType[c.type] = arr;
       }
       // 触发器命令可能缺失起始值，合并后需重新解析
-      this.resolveStartValues(byType);
+      this.resolveStartValues(byType, sprite);
       expansion = { all, byType };
       cached.triggerCache.set(triggerKey, expansion);
       // 清理过期的血量触发器缓存（保留最新一个）
@@ -2606,7 +2658,7 @@ export abstract class GameEngine {
     }
     mergedAll.sort((a, b) => a.startTime - b.startTime);
     // 合并 HitSound 命令后需重新解析起始值
-    this.resolveStartValues(mergedByType);
+    this.resolveStartValues(mergedByType, sprite);
     return { all: mergedAll, byType: mergedByType };
   }
 
@@ -2816,34 +2868,32 @@ export abstract class GameEngine {
       state.alpha = 0;
     }
 
-    const mx = lastCmd("MX");
-    if (mx) {
-      const dur = mx.endTime - mx.startTime;
-      const sx = mx.startX ?? state.x;
-      state.x = dur <= 0 ? mx.endX : sx + (mx.endX - sx) * this.ease((time - mx.startTime) / dur, mx.easing);
+    // 位移：每个轴取最新的命令（M 与 MX/MY 中 startTime 较大者），
+    // 避免 M 结束后仍覆盖更新的 MX/MY 导致位移错误
+    const mCmd = lastCmd("M");
+    const mxCmd = lastCmd("MX");
+    const myCmd = lastCmd("MY");
+
+    // X 轴：M 与 MX 中较新的命令生效
+    if (mCmd && (!mxCmd || mCmd.startTime >= mxCmd.startTime)) {
+      const dur = mCmd.endTime - mCmd.startTime;
+      const sx = mCmd.startX ?? state.x;
+      state.x = dur <= 0 ? mCmd.endX : sx + (mCmd.endX - sx) * this.ease((time - mCmd.startTime) / dur, mCmd.easing);
+    } else if (mxCmd) {
+      const dur = mxCmd.endTime - mxCmd.startTime;
+      const sx = mxCmd.startX ?? state.x;
+      state.x = dur <= 0 ? mxCmd.endX : sx + (mxCmd.endX - sx) * this.ease((time - mxCmd.startTime) / dur, mxCmd.easing);
     }
 
-    const my = lastCmd("MY");
-    if (my) {
-      const dur = my.endTime - my.startTime;
-      const sy = my.startY ?? state.y;
-      state.y = dur <= 0 ? my.endY : sy + (my.endY - sy) * this.ease((time - my.startTime) / dur, my.easing);
-    }
-
-    // M 优先级高于 MX/MY
-    const mv = lastCmd("M");
-    if (mv) {
-      const dur = mv.endTime - mv.startTime;
-      const sx = mv.startX ?? state.x;
-      const sy = mv.startY ?? state.y;
-      if (dur <= 0) {
-        state.x = mv.endX;
-        state.y = mv.endY;
-      } else {
-        const t = this.ease((time - mv.startTime) / dur, mv.easing);
-        state.x = sx + (mv.endX - sx) * t;
-        state.y = sy + (mv.endY - sy) * t;
-      }
+    // Y 轴：M 与 MY 中较新的命令生效
+    if (mCmd && (!myCmd || mCmd.startTime >= myCmd.startTime)) {
+      const dur = mCmd.endTime - mCmd.startTime;
+      const sy = mCmd.startY ?? state.y;
+      state.y = dur <= 0 ? mCmd.endY : sy + (mCmd.endY - sy) * this.ease((time - mCmd.startTime) / dur, mCmd.easing);
+    } else if (myCmd) {
+      const dur = myCmd.endTime - myCmd.startTime;
+      const sy = myCmd.startY ?? state.y;
+      state.y = dur <= 0 ? myCmd.endY : sy + (myCmd.endY - sy) * this.ease((time - myCmd.startTime) / dur, myCmd.easing);
     }
 
     const fade = lastCmd("F");

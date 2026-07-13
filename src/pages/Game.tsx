@@ -4,13 +4,14 @@ import { useGameStore } from "@/store/useGameStore";
 import { createEngine, type GameEngine, type ScoreState } from "@/engine";
 import { GlassButton } from "@/components/glass/GlassButton";
 import { RotateCcw, ArrowLeft, Pause, Play, Menu, X, Maximize, Minimize, Eye, Home } from "lucide-react";
-import type { GameMode, Replay } from "@/types";
+import type { GameMode, Replay, ScoreRecord } from "@/types";
 import { MODE_LABEL } from "@/types";
 import { useOrientation } from "@/hooks/useOrientation";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import type { LyricLine } from "@/utils/lyricsProvider";
 import { fetchLyrics } from "@/utils/lyricsProvider";
 import { getReplaysForBeatmap, saveReplay } from "@/utils/replayStorage";
+import { saveScore } from "@/utils/scoreStorage";
 
 type Phase = "loading" | "ready" | "playing" | "paused" | "finished";
 
@@ -203,9 +204,10 @@ export default function Game() {
               setScore({ ...s });
               setPhase("finished");
               endGame();
-              // 非回放模式下自动保存本次回放
+              // 非回放模式下自动保存本次回放与分数记录
               const engine = engineRef.current;
               if (engine && !engine.getIsReplay() && set && beatmap) {
+                const replayScore = engine.buildReplayScore();
                 const replay: Replay = {
                   id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                   setId: set.setId,
@@ -214,12 +216,27 @@ export default function Game() {
                   version: beatmap.version,
                   createdAt: Date.now(),
                   events: engine.getReplayEvents(),
-                  score: engine.buildReplayScore(),
+                  score: replayScore,
                 };
                 saveReplay(replay);
                 lastReplayRef.current = replay;
                 setJustSavedReplay(true);
                 setAvailableReplays(getReplaysForBeatmap(set.setId, beatmap.id));
+                // 独立保存分数记录，用于历史成绩展示
+                const record: ScoreRecord = {
+                  id: replay.id,
+                  setId: set.setId,
+                  beatmapId: beatmap.id,
+                  mode: gameMode,
+                  version: beatmap.version,
+                  createdAt: Date.now(),
+                  score: replayScore.score,
+                  accuracy: replayScore.accuracy,
+                  maxCombo: replayScore.maxCombo,
+                  counts: { ...replayScore.counts },
+                  mods: [...mods],
+                };
+                saveScore(record);
               }
             },
           },

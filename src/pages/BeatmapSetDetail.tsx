@@ -3,10 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "@/store/useGameStore";
 import { GlassButton } from "@/components/glass/GlassButton";
 import { DifficultyBadge, ModeBadge, BeatmapCover, StoryboardBadge, VideoBadge } from "@/components/common";
-import { ArrowLeft, Download, Play, Loader2, CheckCircle2 } from "lucide-react";
-import type { GameMode, Beatmap } from "@/types";
+import { ArrowLeft, Download, Play, Loader2, CheckCircle2, Trophy } from "lucide-react";
+import type { GameMode, Beatmap, ScoreRecord } from "@/types";
 import { MODE_LABEL, MODE_COLOR } from "@/types";
 import { formatTime } from "@/utils/formatTime";
+import { getScoresForBeatmap } from "@/utils/scoreStorage";
 
 const MODE_FROM_NUM: Record<number, GameMode> = {
   0: "standard",
@@ -30,11 +31,37 @@ export default function BeatmapSetDetail() {
   const [downloading, setDownloading] = useState(false);
   const [filterMode, setFilterMode] = useState<GameMode | null>(null);
   const [fullPackage, setFullPackage] = useState(() => useGameStore.getState().settings.downloadFullPackage);
+  // 每个难度的最佳成绩：beatmapId -> ScoreRecord
+  const [bestScores, setBestScores] = useState<Record<number, ScoreRecord | undefined>>({});
 
   useEffect(() => {
     if (setId) loadDetail(Number(setId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setId]);
+
+  // 加载各难度的历史最佳成绩
+  const reloadScores = React.useCallback(() => {
+    if (!detailSet) return;
+    const map: Record<number, ScoreRecord | undefined> = {};
+    for (const b of detailSet.beatmaps) {
+      const list = getScoresForBeatmap(detailSet.id, b.id);
+      if (list.length > 0) {
+        map[b.id] = list.reduce((best, cur) => (cur.score > best.score ? cur : best), list[0]);
+      }
+    }
+    setBestScores(map);
+  }, [detailSet]);
+
+  useEffect(() => {
+    reloadScores();
+  }, [reloadScores]);
+
+  // 从游戏返回（页面重新获得焦点）时刷新成绩
+  useEffect(() => {
+    const onFocus = () => reloadScores();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [reloadScores]);
 
   const loaded = setId ? downloaded.get(Number(setId)) : undefined;
 
@@ -318,6 +345,16 @@ export default function BeatmapSetDetail() {
                       <span>OD {b.od?.toFixed(1) ?? "-"}</span>
                       <span>HP {b.hp?.toFixed(1) ?? "-"}</span>
                     </div>
+                    {bestScores[b.id] && (
+                      <div className="mt-1 flex items-center gap-1.5 text-[11px]" style={{ color: "var(--accent)" }}>
+                        <Trophy size={11} />
+                        <span>最佳 {bestScores[b.id]!.score.toLocaleString()}</span>
+                        <span style={{ color: "var(--text-secondary)" }}>·</span>
+                        <span>{bestScores[b.id]!.accuracy.toFixed(2)}%</span>
+                        <span style={{ color: "var(--text-secondary)" }}>·</span>
+                        <span>{bestScores[b.id]!.maxCombo}x</span>
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => handleStart(b, mode)}

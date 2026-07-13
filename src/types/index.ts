@@ -310,7 +310,7 @@ export type Judgement = "300" | "100" | "50" | "miss";
 
 export interface ReplayEvent {
   time: number;
-  type: "down" | "up" | "keydown" | "keyup";
+  type: "down" | "up" | "keydown" | "keyup" | "move";
   x?: number;
   y?: number;
   key?: string;
@@ -334,6 +334,21 @@ export interface Replay {
   createdAt: number;
   events: ReplayEvent[];
   score: ReplayScore;
+}
+
+/** 单局游玩分数记录（独立于回放，用于历史成绩展示） */
+export interface ScoreRecord {
+  id: string;
+  setId: number;
+  beatmapId: number;
+  mode: GameMode;
+  version: string;
+  createdAt: number;
+  score: number;
+  accuracy: number;
+  maxCombo: number;
+  counts: Record<Judgement, number>;
+  mods: ModType[];
 }
 
 /** 已下载并解压的谱面包 */
