@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { useGameStore } from "@/store/useGameStore";
 import { BeatmapCard, BeatmapCover, StarRatingBar, ModeBadge, OsuModeIcon } from "@/components/common";
 import { useNavigate } from "react-router-dom";
-import { Play, ChevronLeft, ChevronRight, Search as SearchIcon, Flame, Heart } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search as SearchIcon, Flame, Heart } from "lucide-react";
 import type { GameMode, BeatmapSet } from "@/types";
 import { MODE_COLOR } from "@/types";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
@@ -101,10 +101,6 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
   const modes = Array.from(new Set(set.beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3))).slice(0, 2);
   const modeNames = ["standard", "taiko", "catch", "mania"] as const;
 
-  const handlePlay = () => {
-    navigate(`/set/${set.id}`);
-  };
-
   return (
     <div
       style={{
@@ -112,7 +108,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
         aspectRatio: "16/7", minHeight: 220, cursor: "pointer",
         border: "1px solid var(--glass-border)", boxShadow: "var(--glass-shadow)",
       }}
-      onClick={handlePlay}
+      onClick={() => navigate(`/set/${set.id}`)}
     >
       {/* 背景封面 */}
       <BeatmapCover
@@ -139,6 +135,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
         style={{
           position: "absolute", inset: 0, padding: "clamp(16px, 4vw, 32px)",
           display: "flex", flexDirection: "column", justifyContent: "flex-end",
+          overflow: "hidden",
         }}
       >
         <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
@@ -176,27 +173,17 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
         >
           {set.artist_unicode || set.artist} · {set.creator}
         </p>
-        <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-          <div style={{ width: 140 }}>
+        <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", overflow: "hidden", maxWidth: "100%" }}>
+          <div style={{ width: 140, flexShrink: 0 }}>
             <StarRatingBar stars={maxStars} variant="full" height={6} />
           </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); handlePlay(); }}
-            className="lazer-cta"
-            style={{
-              padding: "10px 22px", fontSize: 13, fontWeight: 700, color: "#fff",
-              display: "flex", alignItems: "center", gap: 6,
-            }}
-          >
-            <Play size={14} fill="currentColor" />
-            立即游玩
-          </button>
           <button
             onClick={(e) => { e.stopPropagation(); navigate(`/set/${set.id}`); }}
             className="hud-btn"
             style={{
               padding: "10px 18px", fontSize: 13, fontWeight: 600, color: "#fff",
               background: "rgba(255,255,255,0.1)", backdropFilter: "blur(10px)",
+              flexShrink: 0,
             }}
           >
             查看详情
