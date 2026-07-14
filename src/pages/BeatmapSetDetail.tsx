@@ -233,7 +233,7 @@ export default function BeatmapSetDetail() {
           }}
         >
           {/* 头部封面区 */}
-          <div style={{ position: "relative", aspectRatio: "16/9", maxHeight: 340, overflow: "hidden" }}>
+          <div style={{ position: "relative", height: "clamp(200px, 30vw, 340px)", overflow: "hidden" }}>
             <BeatmapCover
               src={cover}
               alt={detailSet?.title}

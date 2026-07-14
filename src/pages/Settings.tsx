@@ -73,7 +73,7 @@ const SectionPanel: React.FC<{
       border: "1px solid var(--glass-border)",
       boxShadow: "var(--glass-shadow)",
       overflow: "hidden",
-      padding: 22,
+      padding: "var(--panel-pad, 22px)",
     }}
   >
     {children}
@@ -496,47 +496,65 @@ export default function Settings() {
 
         {/* 右侧内容 */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* 移动端分类下拉选择器 */}
-          <div className="md:hidden" style={{ marginBottom: 14 }}>
-            <div
+          {/* 移动端：icon-only 横向滚动标签栏 */}
+          <div
+            className="md:hidden no-scrollbar"
+            style={{
+              marginBottom: 12,
+              display: "flex",
+              gap: 6,
+              overflowX: "auto",
+              scrollSnapType: "x mandatory",
+              WebkitOverflowScrolling: "touch",
+              scrollbarWidth: "none",
+              paddingBottom: 2,
+            }}
+          >
+            {SECTIONS.map((s) => {
+              const active = activeSection === s.id;
+              const Icon = s.icon;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveSection(s.id)}
+                  aria-label={s.title}
+                  title={s.title}
+                  style={{
+                    flexShrink: 0,
+                    width: 42,
+                    height: 42,
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    border: "1px solid",
+                    borderColor: active ? "var(--accent)" : "var(--glass-border)",
+                    background: active ? "var(--accent-soft)" : "var(--glass-bg)",
+                    color: active ? "var(--accent)" : "var(--text-secondary)",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                    scrollSnapAlign: "start",
+                  }}
+                >
+                  <Icon size={18} color={active ? "var(--accent)" : "currentColor"} />
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 移动端：当前分类标题 */}
+          <div className="md:hidden" style={{ marginBottom: 10 }}>
+            <h2
+              className="font-torus"
               style={{
-                position: "relative",
-                borderRadius: "var(--radius-md)",
-                background: "var(--glass-bg)",
-                border: "1px solid var(--glass-border)",
-                padding: "10px 12px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
+                fontSize: 16,
+                fontWeight: 700,
+                color: "var(--text-primary)",
+                margin: 0,
               }}
             >
-              {(() => {
-                const s = SECTIONS.find((x) => x.id === activeSection) || SECTIONS[0];
-                const Icon = s.icon;
-                return <Icon size={18} color="var(--accent)" />;
-              })()}
-              <select
-                value={activeSection}
-                onChange={(e) => setActiveSection(e.target.value)}
-                style={{
-                  flex: 1,
-                  appearance: "none",
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--text-primary)",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  outline: "none",
-                  cursor: "pointer",
-                }}
-              >
-                {SECTIONS.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.title}
-                  </option>
-                ))}
-              </select>
-            </div>
+              {SECTIONS.find((s) => s.id === activeSection)?.title}
+            </h2>
           </div>
 
           <SectionPanel>

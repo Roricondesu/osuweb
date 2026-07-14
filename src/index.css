@@ -114,12 +114,14 @@ body {
   max-width: 1200px;
   margin: 0 auto;
   padding: calc(var(--nav-height) + 12px) 12px 24px;
+  --panel-pad: 14px;
 }
 
 @media (min-width: 768px) {
   .page-shell {
     max-width: 1100px;
     padding: calc(var(--nav-height) + 20px) 24px 32px;
+    --panel-pad: 22px;
   }
 }
 
@@ -278,6 +280,10 @@ body {
 * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.15) transparent; }
 
 .game-shell::-webkit-scrollbar { display: none; }
+
+/* 隐藏横向滚动标签栏的滚动条 */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
 
 /* 卡片 */
 .solid-card {
