@@ -91,7 +91,7 @@
 /* Torus Pro 字体工具类（标题/品牌用，使用支持中文的可变字体 AlimamaFangYuanTiVF） */
 .font-torus {
   font-family: "Torus Pro", "PingFang SC", "Microsoft YaHei", "Code Pro", system-ui, sans-serif;
-  font-variation-settings: "wght" 700, "BEVL" 1;
+  font-variation-settings: "wght" 700, "BEVL" 100;
 }
 
 html,
