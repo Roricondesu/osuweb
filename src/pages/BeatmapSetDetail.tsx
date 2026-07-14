@@ -21,15 +21,15 @@ const MODE_FROM_NUM: Record<number, GameMode> = {
 const PREVIEW_URL = (setId: number) => `https://b.ppy.sh/preview/${setId}.mp3`;
 
 /** AR/CS/OD/HP 迷你条形图 */
-const StatBar: React.FC<{ label: string; value?: number; max?: number; color?: string }> = ({ label, value, max = 10, color = "var(--lazer-accent)" }) => {
+const StatBar: React.FC<{ label: string; value?: number; max?: number; color?: string }> = ({ label, value, max = 10, color = "#8866ff" }) => {
   const pct = value != null ? Math.min(100, (value / max) * 100) : 0;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", width: 20, letterSpacing: "0.05em" }}>{label}</span>
+      <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", width: 20, letterSpacing: "0.05em" }}>{label}</span>
       <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden" }}>
         <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 999, transition: "width 0.3s ease" }} />
       </div>
-      <span className="hud-num" style={{ fontSize: 11, fontWeight: 700, color: "var(--text-primary)", minWidth: 28, textAlign: "right" }}>
+      <span className="hud-num" style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.85)", minWidth: 28, textAlign: "right" }}>
         {value != null ? value.toFixed(1) : "-"}
       </span>
     </div>
@@ -45,26 +45,35 @@ const DifficultyCard: React.FC<{
   onPlay: () => void;
 }> = ({ beatmap, mode, canPlay, bestScore, onPlay }) => {
   const [hover, setHover] = useState(false);
+  const starColor = (s: number): string => {
+    if (s >= 9) return "#9966ff";
+    if (s >= 7) return "#ff375f";
+    if (s >= 5.5) return "#ff9100";
+    if (s >= 4) return "#ffb800";
+    if (s >= 2.5) return "#66cc44";
+    return "#0a84ff";
+  };
+  const sc = starColor(beatmap.difficulty_rating);
   return (
     <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        borderRadius: 16,
+        borderRadius: 10,
         overflow: "hidden",
-        background: hover ? "var(--glass-bg)" : "var(--glass-bg)",
-        border: `1px solid ${hover ? "var(--lazer-accent)" : "var(--glass-border)"}`,
+        background: "#1a231f",
+        border: `1px solid ${hover ? sc : "rgba(255,255,255,0.08)"}`,
         transition: "all 0.2s cubic-bezier(0.22,1,0.36,1)",
         transform: hover ? "translateY(-2px)" : "none",
-        boxShadow: hover ? "0 8px 24px rgba(0,0,0,0.25)" : "none",
+        boxShadow: hover ? `0 8px 24px ${sc}33` : "0 2px 8px rgba(0,0,0,0.2)",
       }}
     >
-      {/* 顶部星级条带 */}
+      {/* 顶部星级条带（osu!web 风格：星级颜色） */}
       <div style={{ height: 4, background: "rgba(255,255,255,0.06)" }}>
         <div style={{
           height: "100%",
           width: `${Math.min(100, (beatmap.difficulty_rating / 10) * 100)}%`,
-          background: "var(--lazer-gradient)",
+          background: sc,
           transition: "width 0.3s ease",
         }} />
       </div>
@@ -74,18 +83,18 @@ const DifficultyCard: React.FC<{
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <ModeBadge mode={mode} />
           {beatmap.bpm && (
-            <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }}>
               {beatmap.bpm} BPM
             </span>
           )}
-          <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>
+          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }}>
             {formatTime(beatmap.total_length)}
           </span>
         </div>
 
         {/* 版本名 */}
         <div style={{
-          fontSize: 14, fontWeight: 700, color: "var(--text-primary)",
+          fontSize: 14, fontWeight: 700, color: "#fff",
           letterSpacing: "-0.01em", marginBottom: 10,
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         }}>
@@ -99,14 +108,14 @@ const DifficultyCard: React.FC<{
 
         {/* AR/CS/OD/HP 迷你条 */}
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <StatBar label="AR" value={beatmap.ar} />
+          <StatBar label="AR" value={beatmap.ar} color={sc} />
           {mode === "mania" ? (
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", width: 20, letterSpacing: "0.05em" }}>K</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", width: 20, letterSpacing: "0.05em" }}>K</span>
               <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden" }}>
-                <div style={{ width: `${Math.min(100, (Math.round(beatmap.cs || 4) / 18) * 100)}%`, height: "100%", background: "var(--lazer-accent)", borderRadius: 999 }} />
+                <div style={{ width: `${Math.min(100, (Math.round(beatmap.cs || 4) / 18) * 100)}%`, height: "100%", background: sc, borderRadius: 999 }} />
               </div>
-              <span className="hud-num" style={{ fontSize: 11, fontWeight: 700, color: "var(--lazer-accent)", minWidth: 28, textAlign: "right" }}>
+              <span className="hud-num" style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.85)", minWidth: 28, textAlign: "right" }}>
                 {Math.max(1, Math.round(beatmap.cs || 4))}K
               </span>
             </div>
@@ -121,15 +130,16 @@ const DifficultyCard: React.FC<{
         {bestScore && (
           <div style={{
             marginTop: 10, padding: "6px 10px", borderRadius: 10,
-            background: "var(--lazer-gradient-soft)",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
             display: "flex", alignItems: "center", gap: 6, fontSize: 11,
           }}>
-            <Trophy size={12} style={{ color: "var(--lazer-accent)" }} />
-            <span style={{ color: "var(--lazer-accent)", fontWeight: 700 }}>{bestScore.score.toLocaleString()}</span>
-            <span style={{ color: "var(--text-secondary)" }}>·</span>
-            <span style={{ color: "var(--text-secondary)" }}>{bestScore.accuracy.toFixed(2)}%</span>
-            <span style={{ color: "var(--text-secondary)" }}>·</span>
-            <span style={{ color: "var(--text-secondary)" }}>{bestScore.maxCombo}x</span>
+            <Trophy size={12} style={{ color: sc }} />
+            <span style={{ color: sc, fontWeight: 700 }}>{bestScore.score.toLocaleString()}</span>
+            <span style={{ color: "rgba(255,255,255,0.4)" }}>·</span>
+            <span style={{ color: "rgba(255,255,255,0.6)" }}>{bestScore.accuracy.toFixed(2)}%</span>
+            <span style={{ color: "rgba(255,255,255,0.4)" }}>·</span>
+            <span style={{ color: "rgba(255,255,255,0.6)" }}>{bestScore.maxCombo}x</span>
           </div>
         )}
 

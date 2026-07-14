@@ -521,7 +521,7 @@ export default function Search() {
           <section
             style={{
               marginTop: 16, display: "grid", gap: 12,
-              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
             }}
           >
             {visibleResults.map((set, i) => (

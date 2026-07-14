@@ -268,75 +268,102 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
   );
 };
 
-/** 最近下载的横向卡片 */
+/** 最近下载的横向卡片（osu!web 风格） */
 const DownloadedCard: React.FC<{ loaded: LoadedBeatmapSet }> = ({ loaded }) => {
   const navigate = useNavigate();
-  const modes = Array.from(new Set(loaded.beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3))).slice(0, 2);
-  const modeNames = ["standard", "taiko", "catch", "mania"] as const;
+  const modes = Array.from(new Set(loaded.beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3)));
   const maxStars = loaded.beatmaps.length ? Math.max(...loaded.beatmaps.map((b) => b.difficulty_rating || 0)) : 0;
 
   return (
     <div
       onClick={() => navigate(`/set/${loaded.setId}`)}
       style={{
-        flexShrink: 0, width: 220, cursor: "pointer",
-        borderRadius: 16, overflow: "hidden",
-        background: "var(--glass-bg)",
-        backdropFilter: "blur(20px) saturate(160%)",
-        WebkitBackdropFilter: "blur(20px) saturate(160%)",
-        border: "1px solid var(--glass-border)",
+        flexShrink: 0, width: 360, height: 100, cursor: "pointer",
+        display: "flex",
+        borderRadius: 10, overflow: "hidden",
         transition: "transform 0.25s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s ease",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-4px)";
-        e.currentTarget.style.boxShadow = "0 12px 32px rgba(0,0,0,0.35)";
+        e.currentTarget.style.transform = "translateY(-3px)";
+        e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.4)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "var(--glass-shadow)";
+        e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
       }}
     >
-      <div style={{ position: "relative", aspectRatio: "3/2", overflow: "hidden" }}>
+      {/* 方形封面 */}
+      <div style={{ position: "relative", width: 100, minWidth: 100, height: "100%", overflow: "hidden", zIndex: 1 }}>
         <BeatmapCover
           src={loaded.cover}
           alt={loaded.title}
-          placeholderSize={36}
+          placeholderSize={32}
           style={{ position: "absolute", inset: 0 }}
           imgStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
-        <div
-          style={{
-            position: "absolute", inset: 0,
-            background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 55%)",
-            pointerEvents: "none",
-          }}
-        />
-        <div style={{ position: "absolute", top: 6, left: 6, display: "flex", gap: 4 }}>
-          {modes.map((m) => (
-            <ModeBadge key={m} mode={modeNames[m]} />
-          ))}
-        </div>
       </div>
-      <div style={{ padding: "8px 10px 10px" }}>
+      {/* 信息盒 */}
+      <div
+        style={{
+          position: "relative", flex: 1, height: "100%", marginLeft: -7,
+          borderRadius: 10, overflow: "hidden", background: "#1a231f",
+        }}
+      >
+        {loaded.cover && (
+          <>
+            <div
+              style={{
+                position: "absolute", inset: 0,
+                backgroundImage: `url(${loaded.cover})`,
+                backgroundSize: "cover", backgroundPosition: "center",
+                filter: "blur(20px) brightness(0.3) saturate(1.4)",
+                transform: "scale(1.2)", opacity: 0.35,
+              }}
+            />
+            <div
+              style={{
+                position: "absolute", inset: 0,
+                background: "linear-gradient(120deg, rgba(26,35,31,0.85) 0%, rgba(26,35,31,0.6) 100%)",
+              }}
+            />
+          </>
+        )}
         <div
           style={{
-            fontSize: 13, fontWeight: 700, color: "var(--text-primary)",
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            letterSpacing: "-0.01em",
+            position: "relative", height: "100%", padding: "6px 10px",
+            display: "flex", flexDirection: "column", justifyContent: "space-between",
           }}
         >
-          {loaded.title}
-        </div>
-        <div
-          style={{
-            fontSize: 11, color: "var(--text-secondary)", marginTop: 2,
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-          }}
-        >
-          {loaded.artist}
-        </div>
-        <div style={{ marginTop: 6 }}>
-          <StarRatingBar stars={maxStars} variant="compact" />
+          <div style={{ minHeight: 0, overflow: "hidden" }}>
+            <div
+              style={{
+                fontSize: 15, fontWeight: 600, color: "#fff",
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                letterSpacing: "-0.01em", lineHeight: 1.25,
+              }}
+            >
+              {loaded.title}
+            </div>
+            <div
+              style={{
+                fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.75)",
+                marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                lineHeight: 1.3,
+              }}
+            >
+              {loaded.artist}
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <StarRatingBar stars={maxStars} variant="dots" />
+            <span className="hud-num" style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>
+              {maxStars.toFixed(2)}
+            </span>
+            <span style={{ marginLeft: "auto", fontSize: 10, color: "rgba(255,255,255,0.5)" }}>
+              {modes.length} 模式
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -480,7 +507,7 @@ export default function Home() {
             <div
               style={{
                 display: "grid", gap: 12,
-                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
               }}
             >
               {searchResults.map((set, i) => (
@@ -523,7 +550,7 @@ export default function Home() {
               <div
                 style={{
                   display: "grid", gap: 12,
-                  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
                 }}
               >
                 {favSets.map((set, i) => (

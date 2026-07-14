@@ -1,6 +1,7 @@
 export { ModeBadge } from "./ModeBadge";
 export { DifficultyBadge } from "./DifficultyBadge";
 export { StarRatingBar } from "./StarRatingBar";
+export { StatusBadge } from "./StatusBadge";
 export { BeatmapCard } from "./BeatmapCard";
 export { NoteTexture } from "./NoteTexture";
 export { StoryboardBadge, VideoBadge } from "./StoryboardBadge";
