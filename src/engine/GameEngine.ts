@@ -121,6 +121,20 @@ export abstract class GameEngine {
   protected cursorVelocityX = 0;
   protected cursorVelocityY = 0;
   protected cursorTrail: { x: number; y: number; time: number }[] = [];
+  // 预分配拖尾点池（避免每帧 push 字面量触发 GC）；cursorTrail 复用这些对象
+  private trailPool: { x: number; y: number; time: number }[] = [];
+  private trailWriteIdx = 0; // 环形缓冲写入位置
+  private trailCount = 0; // 当前有效点数（<= 容量）
+  private static readonly TRAIL_MAX = 12;
+  // 预生成 alpha 颜色字符串查表（量化到 0.05 步长，避免每帧模板字符串）
+  private static readonly TRAIL_ALPHA_LUT: string[] = (() => {
+    const arr: string[] = [];
+    for (let i = 0; i <= 20; i++) {
+      const a = (i / 20) * 0.35;
+      arr.push(`rgba(255,255,255,${a.toFixed(3)})`);
+    }
+    return arr;
+  })();
   protected cursorPressed = false;
   protected cursorPressTime = 0;
   protected showCursorTrail = true;
@@ -256,6 +270,8 @@ export abstract class GameEngine {
   protected fps = 0;
   // Storyboard 颜色着色用离屏 canvas（避免透明像素被背景/其他物件染色）
   private storyboardColorCanvas: HTMLCanvasElement | null = null;
+  // drawTintedTexture 复用离屏 canvas（避免每帧每对象新建 canvas 触发 GC）
+  private tintCanvas: HTMLCanvasElement | null = null;
   // 歌词切换动画状态
   private lastLyricText = "";
   private lyricSwitchStartTime = 0;
@@ -694,14 +710,21 @@ export abstract class GameEngine {
     tint: string,
   ): void {
     const { ctx } = this.ctx;
-    const off = document.createElement("canvas");
-    off.width = Math.ceil(w);
-    off.height = Math.ceil(h);
+    // 复用单例离屏 canvas，避免每帧每对象 document.createElement 触发 GC
+    if (!this.tintCanvas) this.tintCanvas = document.createElement("canvas");
+    const off = this.tintCanvas;
+    const cw = Math.max(1, Math.ceil(w));
+    const ch = Math.max(1, Math.ceil(h));
+    // 只扩容不缩容，避免反复分配 canvas 内存
+    if (off.width < cw) off.width = cw;
+    if (off.height < ch) off.height = ch;
     const octx = off.getContext("2d");
     if (!octx) {
       ctx.drawImage(img, x, y, w, h);
       return;
     }
+    // 清空本次使用的区域（可能小于 canvas 全尺寸）
+    octx.clearRect(0, 0, cw, ch);
     // 1. 画纹理到离屏（source-over）
     octx.globalCompositeOperation = "source-over";
     octx.drawImage(img, 0, 0, w, h);
@@ -709,8 +732,8 @@ export abstract class GameEngine {
     octx.globalCompositeOperation = "source-in";
     octx.fillStyle = tint;
     octx.fillRect(0, 0, w, h);
-    // 3. 把离屏结果画到主 canvas
-    ctx.drawImage(off, x, y);
+    // 3. 把离屏结果画到主 canvas（仅复制实际使用的 cw x ch 区域）
+    ctx.drawImage(off, 0, 0, cw, ch, x, y, w, h);
   }
 
   /** 加载自定义皮肤纹理 */
@@ -1695,10 +1718,20 @@ export abstract class GameEngine {
     });
   }
 
-  /** 清理过期命中效果 */
+  /** 清理过期命中效果（就地紧凑，避免每帧 filter 分配新数组） */
   protected pruneHitEffects(time: number): void {
-    this.hitEffects = this.hitEffects.filter((e) => time - e.time < 420);
-    this.judgePopups = this.judgePopups.filter((p) => time - p.time < 600);
+    // hitEffects: 保留 420ms 内
+    let w = 0;
+    for (let r = 0; r < this.hitEffects.length; r++) {
+      if (time - this.hitEffects[r].time < 420) this.hitEffects[w++] = this.hitEffects[r];
+    }
+    this.hitEffects.length = w;
+    // judgePopups: 保留 600ms 内
+    let w2 = 0;
+    for (let r = 0; r < this.judgePopups.length; r++) {
+      if (time - this.judgePopups[r].time < 600) this.judgePopups[w2++] = this.judgePopups[r];
+    }
+    this.judgePopups.length = w2;
   }
 
   /** 绘制命中爆点 - 空心渐变圆环 */
@@ -1926,22 +1959,42 @@ export abstract class GameEngine {
     ctx.restore();
   }
 
-  /** 更新光标拖尾历史 */
+  /** 更新光标拖尾历史（环形缓冲，避免 push/shift 的 O(n) 与每帧分配） */
   protected updateCursorTrail(time: number): void {
     if (!this.auto && !this.showCursor) return;
-    this.cursorTrail.push({ x: this.cursorX, y: this.cursorY, time });
-    if (this.showCursorTrail) {
-      // 保留最近 120ms 的历史
-      while (this.cursorTrail.length > 0 && time - this.cursorTrail[0].time > 120) {
-        this.cursorTrail.shift();
+    // 懒初始化池
+    if (this.trailPool.length === 0) {
+      for (let i = 0; i < GameEngine.TRAIL_MAX; i++) {
+        this.trailPool.push({ x: 0, y: 0, time: 0 });
       }
-      // 限制最大点数
-      if (this.cursorTrail.length > 12) {
-        this.cursorTrail.shift();
+    }
+    // 写入新点到环形缓冲
+    const slot = this.trailPool[this.trailWriteIdx];
+    slot.x = this.cursorX;
+    slot.y = this.cursorY;
+    slot.time = time;
+    this.trailWriteIdx = (this.trailWriteIdx + 1) % GameEngine.TRAIL_MAX;
+    if (this.trailCount < GameEngine.TRAIL_MAX) this.trailCount++;
+
+    if (this.showCursorTrail) {
+      // 重建 cursorTrail 数组：按时间从旧到新引用池中对象
+      // 容量 12 足够覆盖 120ms（每帧约 16ms，12 帧 ≈ 192ms）
+      this.cursorTrail.length = 0;
+      const start = (this.trailWriteIdx - this.trailCount + GameEngine.TRAIL_MAX) % GameEngine.TRAIL_MAX;
+      for (let i = 0; i < this.trailCount; i++) {
+        const idx = (start + i) % GameEngine.TRAIL_MAX;
+        const p = this.trailPool[idx];
+        // 120ms 内的点才保留（容量本身已限制，这里再做时间过滤）
+        if (time - p.time <= 120) this.cursorTrail.push(p);
       }
     } else {
-      // 不显示拖尾时只保留当前点
-      this.cursorTrail = [{ x: this.cursorX, y: this.cursorY, time }];
+      // 不显示拖尾时只保留当前点（复用第一个池对象）
+      const p = this.trailPool[0];
+      p.x = this.cursorX;
+      p.y = this.cursorY;
+      p.time = time;
+      this.cursorTrail.length = 0;
+      this.cursorTrail.push(p);
     }
   }
 
@@ -1968,16 +2021,21 @@ export abstract class GameEngine {
 
     // 拖尾：用线段连接历史位置，越旧越透明、越细
     if (this.cursorTrail.length >= 2) {
+      const lut = GameEngine.TRAIL_ALPHA_LUT;
+      const lutLen = lut.length - 1;
       for (let i = 1; i < this.cursorTrail.length; i++) {
         const prev = this.cursorTrail[i - 1];
         const cur = this.cursorTrail[i];
         const age = (time - cur.time) / 120;
-        const alpha = (1 - age) * 0.35;
+        // alpha 量化到 LUT 步长，避免每帧模板字符串分配
+        let li = Math.round((1 - age) * lutLen);
+        if (li < 0) li = 0;
+        else if (li > lutLen) li = lutLen;
         const width = (1 - age) * 3 + 0.5;
         ctx.beginPath();
         ctx.moveTo(prev.x, prev.y);
         ctx.lineTo(cur.x, cur.y);
-        ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+        ctx.strokeStyle = lut[li];
         ctx.lineWidth = width;
         ctx.lineCap = "round";
         ctx.stroke();
@@ -2341,6 +2399,8 @@ export abstract class GameEngine {
     this.cursorVelocityX = 0;
     this.cursorVelocityY = 0;
     this.cursorTrail = [];
+    this.trailWriteIdx = 0;
+    this.trailCount = 0;
     this.cursorPressed = false;
     this.cursorPressTime = 0;
     this.cursorMoveStartTime = 0;
@@ -3118,6 +3178,16 @@ export abstract class GameEngine {
     for (const sprite of sprites) {
       if (!layers.includes(sprite.layer)) continue;
       if (sprite.type === "video") continue; // 视频精灵单独绘制（drawStoryboardVideos）
+      // 快速生命周期过滤：用预计算的 lifetime 字段跳过时间窗口外的 sprite，
+      // 避免对不可见 sprite 做完整的 evaluateStoryboardSprite（含 9 次二分查找）
+      const flat = this.storyboardFlat.get(sprite);
+      if (flat) {
+        // 超过生命周期终点 → 必然 alpha=0
+        if (time > flat.lifetimeEnd) continue;
+        // 在首次淡入/移动之前且无显式 fade → 默认不可见（hideUntilMove）
+        // 注意：firstFadeTime 为 Infinity 表示无 Fade 命令
+        if (flat.hideUntilMove && time < flat.firstMoveTime) continue;
+      }
       const state = this.evaluateStoryboardSprite(sprite, time, this.score.health);
       if (state.alpha <= 0.001) continue;
       const img = this.getStoryboardImage(sprite, time);
@@ -3137,6 +3207,17 @@ export abstract class GameEngine {
       const origin = this.originOffset(sprite.origin, w, h);
       const x = state.x + origin.x;
       const y = state.y + origin.y;
+
+      // 视口裁剪：逻辑坐标系 640x480，sprite 包围盒与视口（含容差）不相交则跳过
+      // 旋转后的包围盒取对角线作为保守估计（最大投影长度）
+      const diagHalf = Math.hypot(w, h) / 2;
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const PAD = 64; // 容差，避免边缘 sprite 闪烁
+      if (cx + diagHalf < -PAD || cx - diagHalf > SB_W + PAD ||
+          cy + diagHalf < -PAD || cy - diagHalf > SB_H + PAD) {
+        continue;
+      }
 
       ctx.save();
       ctx.globalAlpha = clamp(state.alpha, 0, 1);
