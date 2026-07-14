@@ -98,6 +98,7 @@ html,
 body,
 #root {
   height: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -136,6 +137,9 @@ body {
   display: grid;
   gap: 8px;
   grid-template-columns: 1fr;
+}
+.card-grid > * {
+  min-width: 0;
 }
 @media (min-width: 600px) {
   .card-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }

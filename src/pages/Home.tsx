@@ -334,7 +334,7 @@ export default function Home() {
                 className="hud-btn"
                 style={{
                   padding: "7px 16px", fontSize: 12, fontWeight: 600,
-                  color: active ? "var(--lazer-accent)" : "var(--text-secondary)",
+                  color: active ? "var(--accent)" : "var(--text-secondary)",
                   display: "flex", alignItems: "center", gap: 5,
                 }}
               >
@@ -342,7 +342,7 @@ export default function Home() {
                   <OsuModeIcon
                     mode={tab.key}
                     size={13}
-                    color={active ? "var(--lazer-accent)" : MODE_COLOR[tab.key]}
+                    color={active ? "var(--accent)" : MODE_COLOR[tab.key]}
                   />
                 )}
                 {tab.label}
@@ -383,7 +383,7 @@ export default function Home() {
             style={{
               width: 32, height: 32, borderRadius: "50%",
               border: "3px solid var(--glass-border)",
-              borderTopColor: "var(--lazer-accent)",
+              borderTopColor: "var(--accent)",
               animation: "spin-slow 0.8s linear infinite",
             }}
           />
