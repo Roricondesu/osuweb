@@ -10,3 +10,19 @@ export { PageLoader } from "./PageLoader";
 export { ErrorBoundary } from "./ErrorBoundary";
 export { OsuModeIcon, OsuModeIconById } from "./OsuIcons";
 export { OsuModIcon } from "./OsuModIcons";
+export {
+  AppearanceIcon,
+  AudioIcon,
+  TimingIcon,
+  GameIcon,
+  KeysIcon,
+  ModIcon,
+  SkinIcon,
+  SearchSettingIcon,
+  NetworkIcon,
+  DownloadIcon,
+  DisplayIcon,
+  LyricsIcon,
+  AdvancedIcon,
+  AboutIcon,
+} from "./SettingIcons";
