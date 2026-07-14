@@ -12,36 +12,8 @@
 
 @font-face {
   font-family: "Torus Pro";
-  src: url("/fonts/TorusPro-Light.otf") format("opentype");
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Torus Pro";
-  src: url("/fonts/TorusPro-Regular.otf") format("opentype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Torus Pro";
-  src: url("/fonts/TorusPro-SemiBold.otf") format("opentype");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Torus Pro";
-  src: url("/fonts/TorusPro-Bold.otf") format("opentype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Torus Pro";
-  src: url("/fonts/TorusPro-Heavy.otf") format("opentype");
-  font-weight: 800;
+  src: url("/fonts/TorusNotched-SemiBold.ttf") format("truetype");
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
@@ -116,9 +88,9 @@
   --radius-pill: 999px;
 }
 
-/* Torus Pro 字体工具类（标题/品牌用） */
+/* Torus Pro 字体工具类（标题/品牌用，使用支持中文的 TorusNotched） */
 .font-torus {
-  font-family: "Torus Pro", "Code Pro", system-ui, sans-serif;
+  font-family: "Torus Pro", "PingFang SC", "Microsoft YaHei", "Code Pro", system-ui, sans-serif;
 }
 
 html,
