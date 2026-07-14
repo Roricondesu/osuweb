@@ -306,11 +306,14 @@ export const extractOsz = async (
   const zip = await JSZip.loadAsync(data);
   const { beatmaps, audioUrl, backgroundUrl, videoUrl, assetUrls, hasStoryboard } = await extractBeatmapSet(zip, baseSet);
 
+  // 优先使用本地解压的背景图作为封面，避免在线 cover URL 失效/跨域导致碎图
+  const cover = backgroundUrl || baseSet.cover;
+
   return {
     setId: baseSet.id,
     title: baseSet.title,
     artist: baseSet.artist,
-    cover: baseSet.cover,
+    cover,
     audioUrl,
     backgroundUrl,
     videoUrl,
