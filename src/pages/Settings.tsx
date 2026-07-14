@@ -434,7 +434,7 @@ export default function Settings() {
         style={{
           display: "flex",
           gap: 20,
-          minHeight: "calc(100vh - var(--nav-height) - var(--nowplaying-height) - 60px)",
+          minHeight: "calc(100vh - var(--nav-height) - 60px)",
         }}
       >
         {/* 左侧分类栏 */}
@@ -443,9 +443,9 @@ export default function Settings() {
             width: 200,
             flexShrink: 0,
             position: "sticky",
-            top: "calc(var(--nav-height) + 12px)",
+            top: 12,
             alignSelf: "flex-start",
-            maxHeight: "calc(100vh - var(--nav-height) - var(--nowplaying-height) - 60px)",
+            maxHeight: "calc(100vh - 24px)",
             overflowY: "auto",
           }}
           className="hidden md:block"

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "@/store/useGameStore";
-import { ModeBadge, BeatmapCover, StoryboardBadge, VideoBadge, StarRatingBar } from "@/components/common";
+import { BeatmapCover, StoryboardBadge, VideoBadge, StarRatingBar, OsuModeIcon } from "@/components/common";
 import { ModSelectOverlay } from "@/components/game/ModSelectOverlay";
 import { ArrowLeft, Download, Play, Loader2, CheckCircle2, Trophy, Heart } from "lucide-react";
 import type { GameMode, Beatmap, ScoreRecord } from "@/types";
@@ -53,28 +53,41 @@ const DifficultyRow: React.FC<{
         transform: hover ? "translateX(2px)" : "none",
       }}
     >
-      {/* 左：模式 + 版本名 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: "1 1 auto" }}>
-        <ModeBadge mode={mode} />
-        <div style={{ minWidth: 0 }}>
-          <div
-            className="font-torus"
-            style={{
-              fontSize: 13, fontWeight: 600, color: "#fff",
-              letterSpacing: "-0.01em",
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            }}
-          >
-            {beatmap.version || "Default"}
-          </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.45)" }}>
-            {beatmap.bpm && <span>{beatmap.bpm} BPM</span>}
-            <span>{formatTime(beatmap.total_length)}</span>
-            <span className="hidden sm:inline">AR {beatmap.ar?.toFixed(1) ?? "-"}</span>
-            <span className="hidden sm:inline">CS {beatmap.cs?.toFixed(1) ?? "-"}</span>
-            <span className="hidden sm:inline">OD {beatmap.od?.toFixed(1) ?? "-"}</span>
-            <span className="hidden sm:inline">HP {beatmap.hp?.toFixed(1) ?? "-"}</span>
-          </div>
+      {/* 模式图标 */}
+      <div
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 8,
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: `${MODE_COLOR[mode]}1a`,
+        }}
+      >
+        <OsuModeIcon mode={mode} size={20} color={MODE_COLOR[mode]} />
+      </div>
+
+      {/* 左：版本名 */}
+      <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: "1 1 auto" }}>
+        <div
+          className="font-torus"
+          style={{
+            fontSize: 13, fontWeight: 600, color: "#fff",
+            letterSpacing: "-0.01em",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          }}
+        >
+          {beatmap.version || "Default"}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.45)" }}>
+          {beatmap.bpm && <span>{beatmap.bpm} BPM</span>}
+          <span>{formatTime(beatmap.total_length)}</span>
+          <span className="hidden sm:inline">AR {beatmap.ar?.toFixed(1) ?? "-"}</span>
+          <span className="hidden sm:inline">CS {beatmap.cs?.toFixed(1) ?? "-"}</span>
+          <span className="hidden sm:inline">OD {beatmap.od?.toFixed(1) ?? "-"}</span>
+          <span className="hidden sm:inline">HP {beatmap.hp?.toFixed(1) ?? "-"}</span>
         </div>
       </div>
 

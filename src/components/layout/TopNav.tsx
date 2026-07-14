@@ -22,7 +22,7 @@ export const TopNav: React.FC = () => {
     <div
       style={{
         position: "fixed",
-        top: "calc(env(safe-area-inset-top, 0px) + 10px)",
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)",
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 50,
