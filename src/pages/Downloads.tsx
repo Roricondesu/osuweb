@@ -1,25 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useGameStore } from "@/store/useGameStore";
-import { BeatmapCover, ModeBadge, StarRatingBar } from "@/components/common";
+import { BeatmapCard } from "@/components/common";
 import {
   HardDrive,
   Upload,
   Trash2,
   Music2,
   AlertCircle,
-  Play,
-  ChevronDown,
-  ChevronUp,
   ArrowUpDown,
   Calendar,
   Type,
   Star,
+  X,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import type { GameMode, Beatmap, LoadedBeatmapSet } from "@/types";
-import { MODE_FROM_ID } from "@/types";
-
-const MODE_FROM_NUM: Record<number, GameMode> = MODE_FROM_ID;
+import type { LoadedBeatmapSet } from "@/types";
 
 type SortBy = "newest" | "oldest" | "title" | "stars";
 
@@ -122,264 +116,60 @@ const SortButton: React.FC<{
   );
 };
 
-const DownloadRow: React.FC<{
+const DownloadCard: React.FC<{
   set: LoadedBeatmapSet;
-  expanded: boolean;
-  onToggle: () => void;
+  index: number;
   onDelete: () => void;
-  onPlay: (beatmap: Beatmap) => void;
-}> = React.memo(({ set, expanded, onToggle, onDelete, onPlay }) => {
-  const navigate = useNavigate();
+}> = React.memo(({ set, index, onDelete }) => {
   const [hover, setHover] = useState(false);
-  const modes = useMemo(
-    () => Array.from(new Set(set.beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3))).sort(),
-    [set.beatmaps],
-  );
-  const maxStars = useMemo(
-    () => (set.beatmaps.length ? Math.max(...set.beatmaps.map((b) => b.difficulty_rating || 0)) : 0),
-    [set.beatmaps],
-  );
 
   return (
     <div
+      style={{ position: "relative" }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      style={{
-        contentVisibility: "auto",
-        containIntrinsicHeight: "92px",
-        borderBottom: "1px solid var(--border)",
-        background: hover ? "var(--surface-hover)" : "transparent",
-        transition: "background 0.15s ease",
-      }}
     >
-      {/* 主行 */}
-      <div
+      <BeatmapCard set={set} index={index} downloaded />
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        aria-label="删除"
         style={{
+          position: "absolute",
+          top: 8,
+          right: 8,
+          width: 26,
+          height: 26,
+          borderRadius: "50%",
+          border: "none",
+          background: "rgba(0,0,0,0.55)",
+          color: "var(--error)",
           display: "flex",
           alignItems: "center",
-          gap: 12,
-          padding: "10px 12px",
+          justifyContent: "center",
           cursor: "pointer",
+          transition: "all 0.2s ease",
+          opacity: hover ? 1 : 0,
+          transform: hover ? "scale(1)" : "scale(0.8)",
+          zIndex: 10,
         }}
-        onClick={() => navigate(`/set/${set.setId}`)}
       >
-        {/* 封面 */}
-        <div
-          style={{
-            position: "relative",
-            width: 72,
-            height: 72,
-            minWidth: 72,
-            borderRadius: 10,
-            overflow: "hidden",
-            background: "var(--surface-elevated)",
-          }}
-        >
-          <BeatmapCover
-            src={set.cover}
-            alt={set.title}
-            placeholderSize={28}
-            lazy
-            style={{ position: "absolute", inset: 0 }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              bottom: 4,
-              left: 4,
-              minWidth: 18,
-              height: 18,
-              borderRadius: 9,
-              padding: "0 4px",
-              background: "rgba(0,0,0,0.75)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 9,
-              fontWeight: 700,
-              color: "#fff",
-              lineHeight: 1,
-            }}
-          >
-            {set.beatmaps.length}
-          </div>
-        </div>
-
-        {/* 信息 */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-          <div
-            className="font-torus"
-            style={{
-              fontSize: 15,
-              fontWeight: 700,
-              color: "var(--text-primary)",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              letterSpacing: "-0.01em",
-            }}
-          >
-            {set.title}
-          </div>
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 500,
-              color: "var(--text-secondary)",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {set.artist}
-          </div>
-          <div style={{ fontSize: 10, color: "var(--text-tertiary)" }}>
-            {new Date(set.downloadedAt).toLocaleDateString()}
-          </div>
-        </div>
-
-        {/* 模式 + 星级 */}
-        <div
-          className="hidden sm:flex"
-          style={{ alignItems: "center", gap: 8, marginLeft: "auto", paddingRight: 8 }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            {modes.slice(0, 3).map((m) => {
-              const modeName: GameMode = MODE_FROM_NUM[m] || "standard";
-              return <ModeBadge key={m} mode={modeName} />;
-            })}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <StarRatingBar stars={maxStars} variant="compact" />
-            <span className="hud-num font-torus" style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
-              {maxStars.toFixed(2)}
-            </span>
-          </div>
-        </div>
-
-        {/* 操作按钮 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggle();
-            }}
-            aria-label={expanded ? "折叠" : "展开"}
-            className="hud-btn"
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--text-secondary)",
-              border: "1px solid transparent",
-              background: "transparent",
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-elevated)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-          >
-            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            aria-label="删除"
-            className="hud-btn"
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--error)",
-              border: "1px solid transparent",
-              background: "transparent",
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--error-soft)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
-      </div>
-
-      {/* 展开难度列表 */}
-      {expanded && (
-        <div
-          style={{
-            padding: "0 12px 12px 96px",
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-            animation: "stagger-fade-up 0.25s ease both",
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {set.beatmaps.map((b) => {
-            const mode = MODE_FROM_NUM[b.mode] || "standard";
-            return (
-              <button
-                key={b.id}
-                onClick={() => onPlay(b)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "6px 10px",
-                  borderRadius: "var(--radius-sm)",
-                  background: "var(--surface-hover)",
-                  border: "1px solid var(--border)",
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-elevated)")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
-              >
-                <ModeBadge mode={mode} />
-                <span
-                  className="font-torus"
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: "var(--text-primary)",
-                    maxWidth: 160,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {b.version}
-                </span>
-                <StarRatingBar stars={b.difficulty_rating || 0} variant="compact" />
-                <Play size={11} style={{ color: "var(--accent)", flexShrink: 0 }} fill="currentColor" />
-              </button>
-            );
-          })}
-        </div>
-      )}
+        <X size={12} />
+      </button>
     </div>
   );
 });
-DownloadRow.displayName = "DownloadRow";
+DownloadCard.displayName = "DownloadCard";
 
 export default function Downloads() {
-  const navigate = useNavigate();
   const downloaded = useGameStore((s) => s.downloaded);
   const downloadsReady = useGameStore((s) => s.downloadsReady);
   const loadDownloads = useGameStore((s) => s.loadDownloads);
   const deleteDownload = useGameStore((s) => s.deleteDownload);
   const clearDownloads = useGameStore((s) => s.clearDownloads);
   const importBeatmapFile = useGameStore((s) => s.importBeatmapFile);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [sortBy, setSortBy] = useState<SortBy>("newest");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -408,33 +198,13 @@ export default function Downloads() {
     }
   }, [downloaded, sortBy]);
 
-  const toggleExpand = (setId: number) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(setId)) next.delete(setId);
-      else next.add(setId);
-      return next;
-    });
-  };
-
-  const handlePlay = (set: LoadedBeatmapSet, beatmap: Beatmap) => {
-    const mode = MODE_FROM_NUM[beatmap.mode] || "standard";
-    navigate(`/game/${set.setId}/${mode}/${beatmap.id}`);
-  };
-
   const handleDelete = async (setId: number) => {
     await deleteDownload(setId);
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.delete(setId);
-      return next;
-    });
   };
 
   const handleClear = async () => {
     if (confirm("确定清空所有本地下载吗？此操作不可恢复。")) {
       await clearDownloads();
-      setExpanded(new Set());
     }
   };
 
@@ -540,21 +310,17 @@ export default function Downloads() {
       ) : (
         <div
           style={{
-            borderRadius: "var(--radius-lg)",
-            background: "var(--card-bg)",
-            border: "1px solid var(--border)",
-            overflow: "hidden",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.2)",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: 14,
           }}
         >
-          {items.map((set) => (
-            <DownloadRow
+          {items.map((set, idx) => (
+            <DownloadCard
               key={set.setId}
               set={set}
-              expanded={expanded.has(set.setId)}
-              onToggle={() => toggleExpand(set.setId)}
+              index={idx}
               onDelete={() => handleDelete(set.setId)}
-              onPlay={(b) => handlePlay(set, b)}
             />
           ))}
         </div>

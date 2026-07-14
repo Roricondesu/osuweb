@@ -14,6 +14,7 @@ const STATUS_META: Record<string, { label: string; bg: string; text: string }> =
   pending: { label: "PENDING", bg: "#ffcc44", text: "#2a2008" },
   wip: { label: "WIP", bg: "#aaaacc", text: "#15151f" },
   graveyard: { label: "GRAVEYARD", bg: "#888899", text: "#15151a" },
+  downloaded: { label: "DOWNLOADED", bg: "#66cc44", text: "#fff" },
 };
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = "sm" }) => {

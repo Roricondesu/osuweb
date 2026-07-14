@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { BeatmapSet } from "@/types";
+import type { BeatmapSet, LoadedBeatmapSet, Beatmap } from "@/types";
 import { StarRatingBar } from "./StarRatingBar";
 import { StatusBadge } from "./StatusBadge";
 import { BeatmapCover } from "./BeatmapCover";
@@ -10,39 +10,79 @@ import { Heart, Play } from "lucide-react";
 import { OsuModeIconById } from "./OsuIcons";
 
 interface BeatmapCardProps {
-  set: BeatmapSet;
+  set: BeatmapSet | LoadedBeatmapSet;
   index?: number;
+  /** 是否作为已下载卡片展示（带下载完成标识） */
+  downloaded?: boolean;
 }
 
-export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index = 0 }) => {
+const isLoadedSet = (s: BeatmapSet | LoadedBeatmapSet): s is LoadedBeatmapSet =>
+  "setId" in s && typeof s.setId === "number";
+
+const getCardData = (s: BeatmapSet | LoadedBeatmapSet) => {
+  if (isLoadedSet(s)) {
+    const beatmaps: Beatmap[] = s.beatmaps || [];
+    const maxStars = beatmaps.length
+      ? Math.max(...beatmaps.map((b) => b.difficulty_rating || 0))
+      : 0;
+    const modes = new Set(beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3));
+    const creator = beatmaps[0]?.parsed?.creator || beatmaps[0]?.version || "";
+    return {
+      id: s.setId,
+      title: s.title,
+      artist: s.artist,
+      creator,
+      cover: s.cover,
+      status: "downloaded",
+      beatmaps,
+      hasStoryboard: s.hasStoryboard,
+      hasVideo: s.videoUrl !== undefined,
+      maxStars,
+      modes: Array.from(modes),
+    };
+  }
+  const beatmaps = s.beatmaps || [];
+  const maxStars = beatmaps.length
+    ? Math.max(...beatmaps.map((b) => b.difficulty_rating || 0))
+    : 0;
+  const modes = new Set(beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3));
+  return {
+    id: s.id,
+    title: s.title_unicode || s.title,
+    artist: s.artist_unicode || s.artist,
+    creator: s.creator,
+    cover: s.covers?.["cover@2x"] || s.covers?.cover || s.covers?.card || "",
+    status: s.status,
+    beatmaps,
+    hasStoryboard: s.hasStoryboard,
+    hasVideo: s.hasVideo,
+    maxStars,
+    modes: Array.from(modes),
+  };
+};
+
+export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index = 0, downloaded = false }) => {
   const navigate = useNavigate();
   const favorites = useFavoritesStore((s) => s.favorites);
   const toggleFavorite = useFavoritesStore((s) => s.toggleFavorite);
   const [hover, setHover] = useState(false);
 
-  const cover = set.covers?.["cover@2x"] || set.covers?.cover || set.covers?.card || "";
-  const maxStars = set.beatmaps.length
-    ? Math.max(...set.beatmaps.map((b) => b.difficulty_rating))
-    : 0;
-  const modes = new Set(
-    set.beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3),
-  );
-  const modeList = Array.from(modes);
-  const isFav = favorites.includes(set.id);
+  const data = getCardData(set);
+  const isFav = favorites.includes(data.id);
 
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(`/set/${set.id}`);
+    navigate(`/set/${data.id}`);
   };
 
   const handleFavClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    toggleFavorite(set.id);
+    toggleFavorite(data.id);
   };
 
   return (
     <div
-      onClick={() => navigate(`/set/${set.id}`)}
+      onClick={() => navigate(`/set/${data.id}`)}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -58,8 +98,10 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         transition: "transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease",
         transform: hover ? "translateY(-2px)" : "translateY(0)",
         boxShadow: hover
-          ? "0 6px 20px rgba(0,0,0,0.35)"
+          ? `0 6px 20px rgba(0,0,0,0.35)`
           : "0 2px 6px rgba(0,0,0,0.2)",
+        outline: downloaded ? "2px solid var(--accent)" : "none",
+        outlineOffset: downloaded ? -1 : 0,
       }}
     >
       {/* 左侧方形封面（100×100） */}
@@ -74,8 +116,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         }}
       >
         <BeatmapCover
-          src={cover}
-          alt={set.title}
+          src={data.cover}
+          alt={data.title}
           placeholderSize={32}
           style={{ position: "absolute", inset: 0 }}
           imgStyle={{
@@ -96,7 +138,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             lineHeight: 1,
           }}
         >
-          {set.beatmaps.length}
+          {data.beatmaps.length}
         </div>
         {/* 收藏按钮（右上角） */}
         <button
@@ -132,11 +174,11 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         }}
       >
         {/* 模糊封面作为背景（透过渐变可见） */}
-        {cover && (
+        {data.cover && (
           <div
             style={{
               position: "absolute", inset: 0,
-              backgroundImage: `url(${cover})`,
+              backgroundImage: `url(${data.cover})`,
               backgroundSize: "cover",
               backgroundPosition: "center",
               filter: "blur(25px) brightness(0.4) saturate(1.3)",
@@ -178,7 +220,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
                 lineHeight: 1.2,
               }}
             >
-              {set.title_unicode || set.title}
+              {data.title}
             </div>
             <div
               style={{
@@ -189,19 +231,21 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
                 lineHeight: 1.3,
               }}
             >
-              {set.artist_unicode || set.artist}
+              {data.artist}
             </div>
-            <div
-              style={{
-                fontSize: 11, fontWeight: 500,
-                color: "#dbefe8",
-                marginTop: 1,
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                lineHeight: 1.3,
-              }}
-            >
-              by {set.creator}
-            </div>
+            {data.creator && (
+              <div
+                style={{
+                  fontSize: 11, fontWeight: 500,
+                  color: "#dbefe8",
+                  marginTop: 1,
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  lineHeight: 1.3,
+                }}
+              >
+                by {data.creator}
+              </div>
+            )}
           </div>
 
           {/* 下部：状态徽章 + 模式图标 + 星级色点 */}
@@ -214,19 +258,19 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               overflow: "hidden",
             }}
           >
-            <StatusBadge status={set.status} />
-            {modeList.map((m) => (
+            <StatusBadge status={data.status} />
+            {data.modes.map((m) => (
               <OsuModeIconById key={m} mode={m} size={14} color="#fff" />
             ))}
-            {set.hasStoryboard && <StoryboardBadge />}
-            {set.hasVideo && <VideoBadge />}
+            {data.hasStoryboard && <StoryboardBadge />}
+            {data.hasVideo && <VideoBadge />}
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-              <StarRatingBar stars={maxStars} variant="dots" />
+              <StarRatingBar stars={data.maxStars} variant="dots" />
               <span
                 className="hud-num font-torus"
                 style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}
               >
-                {maxStars.toFixed(2)}
+                {data.maxStars.toFixed(2)}
               </span>
             </div>
           </div>

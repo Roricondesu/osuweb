@@ -496,37 +496,47 @@ export default function Settings() {
 
         {/* 右侧内容 */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* 移动端分类选择器 */}
-          <div
-            className="md:hidden"
-            style={{ marginBottom: 14, overflowX: "auto", display: "flex", gap: 6, paddingBottom: 4 }}
-          >
-            {SECTIONS.map((s) => {
-              const active = activeSection === s.id;
-              const Icon = s.icon;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => setActiveSection(s.id)}
-                  className="hud-btn"
-                  style={{
-                    flexShrink: 0,
-                    padding: "7px 14px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    color: active ? "var(--accent)" : "var(--text-secondary)",
-                    background: active ? "var(--accent-soft)" : "var(--glass-bg)",
-                    border: "1px solid var(--glass-border)",
-                  }}
-                >
-                  <Icon size={14} color={active ? "var(--accent)" : "currentColor"} />
-                  {s.title}
-                </button>
-              );
-            })}
+          {/* 移动端分类下拉选择器 */}
+          <div className="md:hidden" style={{ marginBottom: 14 }}>
+            <div
+              style={{
+                position: "relative",
+                borderRadius: "var(--radius-md)",
+                background: "var(--glass-bg)",
+                border: "1px solid var(--glass-border)",
+                padding: "10px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              {(() => {
+                const s = SECTIONS.find((x) => x.id === activeSection) || SECTIONS[0];
+                const Icon = s.icon;
+                return <Icon size={18} color="var(--accent)" />;
+              })()}
+              <select
+                value={activeSection}
+                onChange={(e) => setActiveSection(e.target.value)}
+                style={{
+                  flex: 1,
+                  appearance: "none",
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-primary)",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                {SECTIONS.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.title}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <SectionPanel>
