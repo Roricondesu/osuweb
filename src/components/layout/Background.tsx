@@ -1,11 +1,9 @@
 import React from "react";
 import { useGameStore } from "@/store/useGameStore";
-import { usePlayerStore } from "@/store/usePlayerStore";
 
-/** 全屏背景：默认渐变光斑 + 谱面封面模糊层 */
+/** 全屏背景：基础渐变光斑层 */
 export const Background: React.FC = () => {
   const accent = useGameStore((s) => s.settings.accent);
-  const coverUrl = usePlayerStore((s) => s.coverUrl);
 
   return (
     <div
@@ -19,32 +17,7 @@ export const Background: React.FC = () => {
         pointerEvents: "none",
       }}
     >
-      {/* 模糊封面层 */}
-      {coverUrl && (
-        <div
-          style={{
-            position: "absolute",
-            inset: "-10%",
-            backgroundImage: `url(${coverUrl})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            filter: "blur(60px) brightness(0.3) saturate(1.2)",
-            opacity: 0.7,
-            transition: "opacity 0.6s ease, background-image 0.6s ease",
-          }}
-        />
-      )}
-      {/* 暗化遮罩 */}
-      {coverUrl && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "rgba(21,21,26,0.55)",
-          }}
-        />
-      )}
-      {/* 纯色光斑层（按设计规范不使用渐变） */}
+      {/* 光斑层 */}
       <div
         style={{
           position: "absolute",
@@ -53,9 +26,9 @@ export const Background: React.FC = () => {
           width: "60%",
           height: "60%",
           borderRadius: "50%",
-          background: `${accent}26`,
+          background: `${accent}40`,
           filter: "blur(80px)",
-          opacity: 0.4,
+          opacity: 0.35,
         }}
       />
       <div
@@ -66,9 +39,9 @@ export const Background: React.FC = () => {
           width: "50%",
           height: "50%",
           borderRadius: "50%",
-          background: `${accent}1f`,
+          background: `${accent}30`,
           filter: "blur(100px)",
-          opacity: 0.3,
+          opacity: 0.25,
         }}
       />
     </div>

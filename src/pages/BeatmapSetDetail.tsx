@@ -3,13 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "@/store/useGameStore";
 import { ModeBadge, BeatmapCover, StoryboardBadge, VideoBadge, StarRatingBar } from "@/components/common";
 import { ModSelectOverlay, ModSelectButton } from "@/components/game/ModSelectOverlay";
-import { ArrowLeft, Download, Play, Loader2, CheckCircle2, Trophy, Heart, Music } from "lucide-react";
+import { ArrowLeft, Download, Play, Loader2, CheckCircle2, Trophy, Heart } from "lucide-react";
 import type { GameMode, Beatmap, ScoreRecord } from "@/types";
 import { MODE_LABEL, MODE_COLOR } from "@/types";
 import { formatTime } from "@/utils/formatTime";
 import { getScoresForBeatmap } from "@/utils/scoreStorage";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
-import { usePlayerStore } from "@/store/usePlayerStore";
 
 const MODE_FROM_NUM: Record<number, GameMode> = {
   0: "standard",
@@ -18,26 +17,17 @@ const MODE_FROM_NUM: Record<number, GameMode> = {
   3: "mania",
 };
 
-const PREVIEW_URL = (setId: number) => `https://b.ppy.sh/preview/${setId}.mp3`;
-
-/** AR/CS/OD/HP 迷你条形图 */
-const StatBar: React.FC<{ label: string; value?: number; max?: number; color?: string }> = ({ label, value, max = 10, color = "#8866ff" }) => {
-  const pct = value != null ? Math.min(100, (value / max) * 100) : 0;
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", width: 20, letterSpacing: "0.05em" }}>{label}</span>
-      <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 999, transition: "width 0.3s ease" }} />
-      </div>
-      <span className="hud-num" style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.85)", minWidth: 28, textAlign: "right" }}>
-        {value != null ? value.toFixed(1) : "-"}
-      </span>
-    </div>
-  );
+const starColor = (s: number): string => {
+  if (s >= 9) return "#9966ff";
+  if (s >= 7) return "#ff375f";
+  if (s >= 5.5) return "#ff9100";
+  if (s >= 4) return "#ffb800";
+  if (s >= 2.5) return "#66cc44";
+  return "#0a84ff";
 };
 
-/** 难度卡片 */
-const DifficultyCard: React.FC<{
+/** 难度列表项（横向 list 卡片） */
+const DifficultyRow: React.FC<{
   beatmap: Beatmap;
   mode: GameMode;
   canPlay: boolean;
@@ -45,119 +35,94 @@ const DifficultyCard: React.FC<{
   onPlay: () => void;
 }> = ({ beatmap, mode, canPlay, bestScore, onPlay }) => {
   const [hover, setHover] = useState(false);
-  const starColor = (s: number): string => {
-    if (s >= 9) return "#9966ff";
-    if (s >= 7) return "#ff375f";
-    if (s >= 5.5) return "#ff9100";
-    if (s >= 4) return "#ffb800";
-    if (s >= 2.5) return "#66cc44";
-    return "#0a84ff";
-  };
   const sc = starColor(beatmap.difficulty_rating);
   return (
     <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 12px",
         borderRadius: "var(--radius-sm)",
-        overflow: "hidden",
         background: "var(--card-info-bg)",
         border: `1px solid ${hover ? sc : "var(--border)"}`,
+        borderLeft: `3px solid ${sc}`,
         transition: "all 0.2s cubic-bezier(0.22,1,0.36,1)",
-        transform: hover ? "translateY(-2px)" : "none",
-        boxShadow: hover ? `0 8px 24px ${sc}33` : "0 2px 8px rgba(0,0,0,0.2)",
+        transform: hover ? "translateX(2px)" : "none",
       }}
     >
-      {/* 顶部星级条带（osu!web 风格：星级颜色） */}
-      <div style={{ height: 4, background: "rgba(255,255,255,0.06)" }}>
-        <div style={{
-          height: "100%",
-          width: `${Math.min(100, (beatmap.difficulty_rating / 10) * 100)}%`,
-          background: sc,
-          transition: "width 0.3s ease",
-        }} />
-      </div>
-
-      <div style={{ padding: "14px 14px 12px" }}>
-        {/* 头部 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <ModeBadge mode={mode} />
-          {beatmap.bpm && (
-            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }}>
-              {beatmap.bpm} BPM
-            </span>
-          )}
-          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }}>
-            {formatTime(beatmap.total_length)}
-          </span>
-        </div>
-
-        {/* 版本名 */}
-        <div className="font-torus" style={{
-          fontSize: 14, fontWeight: 600, color: "#fff",
-          letterSpacing: "-0.01em", marginBottom: 10,
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        }}>
-          {beatmap.version || "Default"}
-        </div>
-
-        {/* 星级条 */}
-        <div style={{ marginBottom: 10 }}>
-          <StarRatingBar stars={beatmap.difficulty_rating} variant="full" />
-        </div>
-
-        {/* AR/CS/OD/HP 迷你条 */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <StatBar label="AR" value={beatmap.ar} color={sc} />
-          {mode === "mania" ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", width: 20, letterSpacing: "0.05em" }}>K</span>
-              <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden" }}>
-                <div style={{ width: `${Math.min(100, (Math.round(beatmap.cs || 4) / 18) * 100)}%`, height: "100%", background: sc, borderRadius: 999 }} />
-              </div>
-              <span className="hud-num" style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.85)", minWidth: 28, textAlign: "right" }}>
-                {Math.max(1, Math.round(beatmap.cs || 4))}K
-              </span>
-            </div>
-          ) : (
-            <StatBar label="CS" value={beatmap.cs} color="#ff66aa" />
-          )}
-          <StatBar label="OD" value={beatmap.od} color="#ff9100" />
-          <StatBar label="HP" value={beatmap.hp} color="#ff375f" />
-        </div>
-
-        {/* 最佳成绩 */}
-        {bestScore && (
-          <div style={{
-            marginTop: 10, padding: "6px 10px", borderRadius: "var(--radius-sm)",
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid var(--border)",
-            display: "flex", alignItems: "center", gap: 6, fontSize: 11,
-          }}>
-            <Trophy size={12} style={{ color: sc }} />
-            <span style={{ color: sc, fontWeight: 700 }}>{bestScore.score.toLocaleString()}</span>
-            <span style={{ color: "rgba(255,255,255,0.4)" }}>·</span>
-            <span style={{ color: "rgba(255,255,255,0.6)" }}>{bestScore.accuracy.toFixed(2)}%</span>
-            <span style={{ color: "rgba(255,255,255,0.4)" }}>·</span>
-            <span style={{ color: "rgba(255,255,255,0.6)" }}>{bestScore.maxCombo}x</span>
+      {/* 左：模式 + 版本名 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: "1 1 auto" }}>
+        <ModeBadge mode={mode} />
+        <div style={{ minWidth: 0 }}>
+          <div
+            className="font-torus"
+            style={{
+              fontSize: 13, fontWeight: 600, color: "#fff",
+              letterSpacing: "-0.01em",
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}
+          >
+            {beatmap.version || "Default"}
           </div>
-        )}
-
-        {/* 播放按钮 */}
-        <button
-          onClick={onPlay}
-          disabled={!canPlay}
-          className="lazer-cta"
-          style={{
-            width: "100%", marginTop: 12, padding: "10px 16px",
-            fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            opacity: canPlay ? 1 : 0.4, cursor: canPlay ? "pointer" : "not-allowed",
-          }}
-        >
-          <Play size={15} fill="currentColor" />
-          {canPlay ? "游玩" : "需下载"}
-        </button>
+          <div style={{ display: "flex", gap: 8, marginTop: 2, fontSize: 10, color: "rgba(255,255,255,0.45)" }}>
+            {beatmap.bpm && <span>{beatmap.bpm} BPM</span>}
+            <span>{formatTime(beatmap.total_length)}</span>
+            <span className="hidden sm:inline">AR {beatmap.ar?.toFixed(1) ?? "-"}</span>
+            <span className="hidden sm:inline">CS {beatmap.cs?.toFixed(1) ?? "-"}</span>
+            <span className="hidden sm:inline">OD {beatmap.od?.toFixed(1) ?? "-"}</span>
+            <span className="hidden sm:inline">HP {beatmap.hp?.toFixed(1) ?? "-"}</span>
+          </div>
+        </div>
       </div>
+
+      {/* 中：星级条 + 数字 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+        <div style={{ width: 80 }} className="hidden sm:block">
+          <StarRatingBar stars={beatmap.difficulty_rating} variant="full" height={5} />
+        </div>
+        <span
+          className="hud-num font-torus"
+          style={{ fontSize: 13, fontWeight: 700, color: sc, minWidth: 40, textAlign: "right" }}
+        >
+          {beatmap.difficulty_rating.toFixed(2)}
+        </span>
+      </div>
+
+      {/* 最佳成绩 */}
+      {bestScore && (
+        <div
+          className="hidden md:flex"
+          style={{ alignItems: "center", gap: 5, fontSize: 11, flexShrink: 0 }}
+        >
+          <Trophy size={11} style={{ color: sc }} />
+          <span style={{ color: sc, fontWeight: 700 }}>{bestScore.score.toLocaleString()}</span>
+          <span style={{ color: "rgba(255,255,255,0.4)" }}>·</span>
+          <span style={{ color: "rgba(255,255,255,0.6)" }}>{bestScore.accuracy.toFixed(2)}%</span>
+        </div>
+      )}
+
+      {/* 右：播放按钮 */}
+      <button
+        onClick={onPlay}
+        disabled={!canPlay}
+        aria-label="游玩"
+        style={{
+          width: 34, height: 34, borderRadius: "var(--radius-sm)",
+          flexShrink: 0,
+          border: "none",
+          background: canPlay ? sc : "var(--surface-hover)",
+          color: canPlay ? "#fff" : "var(--text-secondary)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: canPlay ? "pointer" : "not-allowed",
+          opacity: canPlay ? 1 : 0.4,
+          transition: "all 0.2s ease",
+        }}
+      >
+        <Play size={14} fill="currentColor" />
+      </button>
     </div>
   );
 };
@@ -182,9 +147,6 @@ export default function BeatmapSetDetail() {
 
   const favorites = useFavoritesStore((s) => s.favorites);
   const toggleFavorite = useFavoritesStore((s) => s.toggleFavorite);
-  const playSet = usePlayerStore((s) => s.playSet);
-  const currentSet = usePlayerStore((s) => s.currentSet);
-  const isPlaying = usePlayerStore((s) => s.isPlaying);
 
   useEffect(() => {
     if (setId) loadDetail(Number(setId));
@@ -215,7 +177,6 @@ export default function BeatmapSetDetail() {
 
   const loaded = setId ? downloaded.get(Number(setId)) : undefined;
   const isFav = detailSet ? favorites.includes(detailSet.id) : false;
-  const isCurrentPreview = currentSet?.id === detailSet?.id;
 
   const handleDownload = async () => {
     if (!detailSet) return;
@@ -238,11 +199,6 @@ export default function BeatmapSetDetail() {
     if (!detailSet) return;
     startGame(detailSet, beatmap, mode);
     navigate(`/game/${detailSet.id}/${mode}/${beatmap.id}`);
-  };
-
-  const handlePreviewToggle = () => {
-    if (!detailSet) return;
-    playSet(detailSet, PREVIEW_URL(detailSet.id), detailSet.covers?.["cover@2x"] || detailSet.covers?.cover);
   };
 
   const availableModes = new Set<GameMode>();
@@ -352,55 +308,30 @@ export default function BeatmapSetDetail() {
           {/* 操作区 */}
           <div style={{ padding: "16px 18px" }}>
             {loaded ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <CheckCircle2 size={20} style={{ color: "var(--lazer-accent)" }} />
-                  <span style={{ flex: 1, fontSize: 13, color: "var(--text-primary)" }}>
-                    已下载 {loaded.beatmaps.length} 个难度
-                  </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <CheckCircle2 size={20} style={{ color: "var(--accent)" }} />
+                <span style={{ flex: 1, fontSize: 13, color: "var(--text-primary)" }}>
+                  已下载 {loaded.beatmaps.length} 个难度
+                </span>
+                {loadedHasVideoMissing && (
                   <button
-                    onClick={handlePreviewToggle}
+                    onClick={handleDownloadFull}
+                    disabled={downloading}
                     className="hud-btn"
                     style={{
-                      padding: "8px 14px", fontSize: 12, fontWeight: 700,
-                      color: isCurrentPreview && isPlaying ? "var(--lazer-accent)" : "var(--text-secondary)",
-                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "6px 12px", fontSize: 12, fontWeight: 600,
+                      color: "var(--accent)", opacity: downloading ? 0.5 : 1,
                     }}
                   >
-                    <Music size={14} />
-                    {isCurrentPreview && isPlaying ? "暂停预览" : "试听"}
+                    下载完整包
                   </button>
-                </div>
-                {loadedHasVideoMissing && (
-                  <div style={{
-                    display: "flex", alignItems: "center", gap: 8,
-                    padding: "10px 14px", borderRadius: "var(--radius-md)",
-                    background: "var(--glass-bg)", border: "1px solid var(--glass-border)",
-                  }}>
-                    <Download size={14} style={{ color: "var(--lazer-accent)", flexShrink: 0 }} />
-                    <span style={{ flex: 1, fontSize: 12, color: "var(--text-secondary)" }}>
-                      当前为 mini 包（无视频），可下载完整包以启用视频背景
-                    </span>
-                    <button
-                      onClick={handleDownloadFull}
-                      disabled={downloading}
-                      className="hud-btn"
-                      style={{
-                        padding: "6px 12px", fontSize: 12, fontWeight: 600,
-                        color: "var(--lazer-accent)",
-                        opacity: downloading ? 0.5 : 1,
-                      }}
-                    >
-                      下载完整包
-                    </button>
-                  </div>
                 )}
               </div>
             ) : downloading ? (
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 8 }}>
                   <span style={{ color: "var(--text-secondary)" }}>下载中…</span>
-                  <span className="hud-num" style={{ color: "var(--lazer-accent)", fontWeight: 700 }}>
+                  <span className="hud-num" style={{ color: "var(--accent)", fontWeight: 700 }}>
                     {Math.round(downloadProgress * 100)}%
                   </span>
                 </div>
@@ -427,7 +358,7 @@ export default function BeatmapSetDetail() {
                         className="hud-btn"
                         style={{
                           padding: "5px 12px", fontSize: 12, fontWeight: 600,
-                          color: fullPackage === opt.val ? "var(--lazer-accent)" : "var(--text-secondary)",
+                          color: fullPackage === opt.val ? "var(--accent)" : "var(--text-secondary)",
                         }}
                       >
                         {opt.label}
@@ -458,7 +389,7 @@ export default function BeatmapSetDetail() {
               className="hud-btn"
               style={{
                 padding: "6px 14px", fontSize: 12, fontWeight: 600,
-                color: filterMode === null ? "var(--lazer-accent)" : "var(--text-secondary)",
+                color: filterMode === null ? "var(--accent)" : "var(--text-secondary)",
               }}
             >
               全部
@@ -480,7 +411,7 @@ export default function BeatmapSetDetail() {
         </section>
       )}
 
-      {/* 难度卡片网格 */}
+      {/* 难度列表 */}
       <section className="mt-4 animate-enter animate-enter-3">
         {sorted.length === 0 ? (
           <div style={{
@@ -490,12 +421,12 @@ export default function BeatmapSetDetail() {
             {isLoading ? "加载中…" : "无难度"}
           </div>
         ) : (
-          <div className="diff-grid">
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {sorted.map((b) => {
               const mode = MODE_FROM_NUM[b.mode];
               const canPlay = !!loaded;
               return (
-                <DifficultyCard
+                <DifficultyRow
                   key={b.id}
                   beatmap={b}
                   mode={mode}

@@ -2,9 +2,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from "react-route
 import { useEffect, Suspense, lazy } from "react";
 import { TopNav } from "@/components/layout/TopNav";
 import { Background } from "@/components/layout/Background";
-import { NowPlayingBar } from "@/components/layout/NowPlayingBar";
 import { useGameStore } from "@/store/useGameStore";
-import { usePlayerStore } from "@/store/usePlayerStore";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import { PageLoader, ErrorBoundary } from "@/components/common";
 
@@ -38,7 +36,6 @@ function AppRoutes() {
 export default function App() {
   const loadDownloads = useGameStore((s) => s.loadDownloads);
   const pageScale = useGameStore((s) => s.settings.pageScale);
-  const playerSet = usePlayerStore((s) => s.currentSet);
 
   useEffect(() => {
     loadDownloads();
@@ -61,7 +58,6 @@ export default function App() {
       <Background />
       <TopNav />
       <AppRoutes />
-      <NowPlayingBar />
     </Router>
   );
 }

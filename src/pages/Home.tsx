@@ -5,7 +5,6 @@ import { useNavigate } from "react-router-dom";
 import { Play, ChevronLeft, ChevronRight, Download, Search as SearchIcon, Flame, Heart } from "lucide-react";
 import type { GameMode, BeatmapSet, LoadedBeatmapSet } from "@/types";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
-import { usePlayerStore } from "@/store/usePlayerStore";
 
 const MODE_TABS: { key: GameMode | null; label: string }[] = [
   { key: null, label: "全部" },
@@ -16,8 +15,6 @@ const MODE_TABS: { key: GameMode | null; label: string }[] = [
 ];
 
 const HERO_ROTATE_MS = 6000;
-
-const PREVIEW_URL = (setId: number) => `https://b.ppy.sh/preview/${setId}.mp3`;
 
 const SectionHeader: React.FC<{
   icon: React.ReactNode;
@@ -60,8 +57,6 @@ const SectionHeader: React.FC<{
 /** Hero 轮播 */
 const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
   const navigate = useNavigate();
-  const playSet = usePlayerStore((s) => s.playSet);
-  const stop = usePlayerStore((s) => s.stop);
   const [index, setIndex] = useState(0);
   const timerRef = useRef<number | null>(null);
 
@@ -89,10 +84,12 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
     };
   }, [index, sets.length]);
 
-  // 卸载时停止预览
+  // 卸载时清除定时器
   useEffect(() => {
-    return () => stop();
-  }, [stop]);
+    return () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+    };
+  }, []);
 
   if (sets.length === 0) return null;
   const set = sets[index];
@@ -106,9 +103,6 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
   const handlePlay = () => {
     navigate(`/set/${set.id}`);
   };
-  const handlePreview = () => {
-    playSet(set, PREVIEW_URL(set.id), cover);
-  };
 
   return (
     <div
@@ -117,7 +111,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
         aspectRatio: "16/7", minHeight: 220, cursor: "pointer",
         border: "1px solid var(--glass-border)", boxShadow: "var(--glass-shadow)",
       }}
-      onClick={handlePreview}
+      onClick={handlePlay}
     >
       {/* 背景封面 */}
       <BeatmapCover
@@ -311,24 +305,18 @@ const DownloadedCard: React.FC<{ loaded: LoadedBeatmapSet }> = ({ loaded }) => {
         }}
       >
         {loaded.cover && (
-          <>
-            <div
-              style={{
-                position: "absolute", inset: 0,
-                backgroundImage: `url(${loaded.cover})`,
-                backgroundSize: "cover", backgroundPosition: "center",
-                filter: "blur(20px) brightness(0.3) saturate(1.4)",
-                transform: "scale(1.2)", opacity: 0.35,
-              }}
-            />
-            <div
-              style={{
-                position: "absolute", inset: 0,
-                background: "rgba(0,0,0,0.55)",
-              }}
-            />
-          </>
+          <div
+            style={{
+              position: "absolute", inset: 0,
+              backgroundImage: `url(${loaded.cover})`,
+              backgroundSize: "cover", backgroundPosition: "center",
+              filter: "blur(25px) brightness(0.4) saturate(1.3)",
+              transform: "scale(1.3)", opacity: 0.5,
+            }}
+          />
         )}
+        {/* 深灰渐变半透明遮罩：左 #2E3835 → 右 90%透明（封面透过） */}
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 100%)" }} />
         <div
           style={{
             position: "relative", height: "100%", padding: "6px 10px",

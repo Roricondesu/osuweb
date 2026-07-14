@@ -1,11 +1,10 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import type { BeatmapSet } from "@/types";
 import { StarRatingBar } from "./StarRatingBar";
 import { StatusBadge } from "./StatusBadge";
 import { BeatmapCover } from "./BeatmapCover";
 import { StoryboardBadge, VideoBadge } from "./StoryboardBadge";
 import { useNavigate } from "react-router-dom";
-import { usePlayerStore } from "@/store/usePlayerStore";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { Heart, Play } from "lucide-react";
 
@@ -13,8 +12,6 @@ interface BeatmapCardProps {
   set: BeatmapSet;
   index?: number;
 }
-
-const PREVIEW_URL = (setId: number) => `https://b.ppy.sh/preview/${setId}.mp3`;
 
 /** osu! 模式图标（白色 SVG，14×14） */
 const ModeIcon: React.FC<{ mode: number }> = ({ mode }) => {
@@ -34,13 +31,9 @@ const ModeIcon: React.FC<{ mode: number }> = ({ mode }) => {
 
 export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index = 0 }) => {
   const navigate = useNavigate();
-  const playSet = usePlayerStore((s) => s.playSet);
-  const currentSet = usePlayerStore((s) => s.currentSet);
-  const isPlaying = usePlayerStore((s) => s.isPlaying);
   const favorites = useFavoritesStore((s) => s.favorites);
   const toggleFavorite = useFavoritesStore((s) => s.toggleFavorite);
   const [hover, setHover] = useState(false);
-  const previewTimer = useRef<number | null>(null);
 
   const cover = set.covers?.["cover@2x"] || set.covers?.cover || set.covers?.card || "";
   const maxStars = set.beatmaps.length
@@ -51,25 +44,6 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
   );
   const modeList = Array.from(modes);
   const isFav = favorites.includes(set.id);
-  const isCurrent = currentSet?.id === set.id;
-
-  const handleMouseEnter = () => {
-    setHover(true);
-    if (previewTimer.current) window.clearTimeout(previewTimer.current);
-    previewTimer.current = window.setTimeout(() => {
-      if (!isCurrent) {
-        playSet(set, PREVIEW_URL(set.id), cover);
-      }
-    }, 300);
-  };
-
-  const handleMouseLeave = () => {
-    setHover(false);
-    if (previewTimer.current) {
-      window.clearTimeout(previewTimer.current);
-      previewTimer.current = null;
-    }
-  };
 
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -84,8 +58,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
   return (
     <div
       onClick={() => navigate(`/set/${set.id}`)}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
         cursor: "pointer",
         position: "relative",
@@ -160,7 +134,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         </button>
       </div>
 
-      {/* 右侧信息盒（osu!web 风格：深色底 + 模糊封面叠层，封面叠 7px） */}
+      {/* 右侧信息盒：封面叠 7px，深灰渐变半透明遮罩 + 模糊封面透过 */}
       <div
         style={{
           position: "relative",
@@ -169,33 +143,31 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           marginLeft: -7,
           borderRadius: 10,
           overflow: "hidden",
-          background: "var(--card-info-bg)",
           zIndex: 3,
         }}
       >
-        {/* 模糊封面作为背景 */}
+        {/* 模糊封面作为背景（透过渐变可见） */}
         {cover && (
-          <>
-            <div
-              style={{
-                position: "absolute", inset: 0,
-                backgroundImage: `url(${cover})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-                filter: "blur(25px) brightness(0.35) saturate(1.4)",
-                transform: "scale(1.3)",
-                opacity: hover ? 0.55 : 0.4,
-                transition: "opacity 0.3s ease",
-              }}
-            />
-            <div
-              style={{
-                position: "absolute", inset: 0,
-                background: "rgba(0,0,0,0.55)",
-              }}
-            />
-          </>
+          <div
+            style={{
+              position: "absolute", inset: 0,
+              backgroundImage: `url(${cover})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              filter: "blur(25px) brightness(0.4) saturate(1.3)",
+              transform: "scale(1.3)",
+              opacity: hover ? 0.6 : 0.45,
+              transition: "opacity 0.3s ease",
+            }}
+          />
         )}
+        {/* 深灰渐变半透明遮罩：左 #2E3835 → 右 90%透明（封面透过） */}
+        <div
+          style={{
+            position: "absolute", inset: 0,
+            background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 100%)",
+          }}
+        />
 
         {/* 内容层 */}
         <div
@@ -296,28 +268,6 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         >
           <Play size={13} fill="currentColor" />
         </button>
-
-        {/* 播放指示器 */}
-        {isCurrent && isPlaying && (
-          <div
-            style={{
-              position: "absolute", bottom: 6, right: 10,
-              display: "flex", alignItems: "center", gap: 3,
-              padding: "2px 7px", borderRadius: 999,
-              background: "var(--accent)",
-              color: "#fff", fontSize: 9, fontWeight: 700,
-              zIndex: 4,
-            }}
-          >
-            <span
-              style={{
-                width: 4, height: 4, borderRadius: "50%", background: "#fff",
-                animation: "pulse-dot 1s ease-in-out infinite",
-              }}
-            />
-            播放中
-          </div>
-        )}
       </div>
     </div>
   );
