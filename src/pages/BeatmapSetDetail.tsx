@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "@/store/useGameStore";
 import { ModeBadge, BeatmapCover, StoryboardBadge, VideoBadge, StarRatingBar } from "@/components/common";
-import { ModSelectOverlay, ModSelectButton } from "@/components/game/ModSelectOverlay";
+import { ModSelectOverlay } from "@/components/game/ModSelectOverlay";
 import { ArrowLeft, Download, Play, Loader2, CheckCircle2, Trophy, Heart } from "lucide-react";
 import type { GameMode, Beatmap, ScoreRecord } from "@/types";
 import { MODE_LABEL, MODE_COLOR } from "@/types";
@@ -143,8 +143,6 @@ export default function BeatmapSetDetail() {
   const [filterMode, setFilterMode] = useState<GameMode | null>(null);
   const [fullPackage, setFullPackage] = useState(() => useGameStore.getState().settings.downloadFullPackage);
   const [bestScores, setBestScores] = useState<Record<number, ScoreRecord | undefined>>({});
-  const [modOpen, setModOpen] = useState(false);
-
   const favorites = useFavoritesStore((s) => s.favorites);
   const toggleFavorite = useFavoritesStore((s) => s.toggleFavorite);
 
@@ -440,9 +438,6 @@ export default function BeatmapSetDetail() {
         )}
       </section>
 
-      {/* Mod 按钮 + 浮层 */}
-      <ModSelectButton onClick={() => setModOpen(true)} />
-      <ModSelectOverlay open={modOpen} onClose={() => setModOpen(false)} />
     </div>
   );
 }
