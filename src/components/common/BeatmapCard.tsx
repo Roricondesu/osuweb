@@ -7,27 +7,12 @@ import { StoryboardBadge, VideoBadge } from "./StoryboardBadge";
 import { useNavigate } from "react-router-dom";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { Heart, Play } from "lucide-react";
+import { OsuModeIconById } from "./OsuIcons";
 
 interface BeatmapCardProps {
   set: BeatmapSet;
   index?: number;
 }
-
-/** osu! 模式图标（白色 SVG，14×14） */
-const ModeIcon: React.FC<{ mode: number }> = ({ mode }) => {
-  // 0=osu! 1=taiko 2=catch 3=mania
-  const paths: Record<number, string> = {
-    0: "M7 1.5C3.96 1.5 1.5 3.96 1.5 7s2.46 5.5 5.5 5.5 5.5-2.46 5.5-5.5S10.04 1.5 7 1.5zm0 2a3.5 3.5 0 110 7 3.5 3.5 0 010-7z",
-    1: "M2 4h12v2.5H2V4zm0 3.5h12V10H2V7.5zM2 11h12v2.5H2V11z",
-    2: "M7 2C4.5 2 2.5 3.8 2.5 6c0 1 .4 1.9 1 2.6L7 13l3.5-4.4c.6-.7 1-1.6 1-2.6 0-2.2-2-4-4.5-4z",
-    3: "M3 2h2v12H3V2zm3 0h2v12H6V2zm3 0h2v12H9V2zm3 0h2v12h-2V2z",
-  };
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-      <path d={paths[mode] || paths[0]} fill="#fff" />
-    </svg>
-  );
-};
 
 export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index = 0 }) => {
   const navigate = useNavigate();
@@ -231,7 +216,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           >
             <StatusBadge status={set.status} />
             {modeList.map((m) => (
-              <ModeIcon key={m} mode={m} />
+              <OsuModeIconById key={m} mode={m} size={14} color="#fff" />
             ))}
             {set.hasStoryboard && <StoryboardBadge />}
             {set.hasVideo && <VideoBadge />}

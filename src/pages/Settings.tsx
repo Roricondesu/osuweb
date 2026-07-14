@@ -2,23 +2,22 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useGameStore } from "@/store/useGameStore";
 import { GlassSwitch, GlassSlider } from "@/components/glass";
 import {
-  Moon,
-  Volume2,
-  Clock,
-  Palette,
-  Info,
-  Gamepad2,
-  Search,
-  Download,
-  Image,
-  Music,
-  Activity,
-  RotateCcw,
-  Trash2,
-  Zap,
-  Brush,
-  Keyboard,
-} from "lucide-react";
+  AppearanceIcon,
+  AudioIcon,
+  TimingIcon,
+  GameIcon,
+  KeysIcon,
+  ModIcon,
+  SkinIcon,
+  SearchSettingIcon,
+  NetworkIcon,
+  DownloadIcon,
+  DisplayIcon,
+  LyricsIcon,
+  AdvancedIcon,
+  AboutIcon,
+} from "@/components/common";
+import { Trash2, Palette } from "lucide-react";
 import type { Settings, ModType, KeyBindings } from "@/types";
 import { DEFAULT_SETTINGS, DEFAULT_KEY_BINDINGS, MOD_LABEL, MOD_COLOR, defaultManiaKeys } from "@/types";
 import { checkApiHealth, type ApiHealthResult } from "@/utils/apiHealth";
@@ -38,12 +37,36 @@ const ACCENTS = [
   { key: "#ff66aa", label: "粉" },
 ];
 
-/** 右侧内容面板：根据当前激活的分类渲染，标题随分类切换 */
+interface SectionItem {
+  id: string;
+  icon: React.FC<{ size?: number; color?: string }>;
+  title: string;
+}
+
+const SECTIONS: SectionItem[] = [
+  { id: "appearance", icon: AppearanceIcon, title: "外观" },
+  { id: "audio", icon: AudioIcon, title: "音频" },
+  { id: "timing", icon: TimingIcon, title: "判定偏移" },
+  { id: "game", icon: GameIcon, title: "游戏" },
+  { id: "keys", icon: KeysIcon, title: "键位" },
+  { id: "mod", icon: ModIcon, title: "Mod" },
+  { id: "skin", icon: SkinIcon, title: "皮肤" },
+  { id: "search", icon: SearchSettingIcon, title: "搜索" },
+  { id: "network", icon: NetworkIcon, title: "连接检测" },
+  { id: "download", icon: DownloadIcon, title: "下载" },
+  { id: "display", icon: DisplayIcon, title: "画面" },
+  { id: "lyrics", icon: LyricsIcon, title: "歌词" },
+  { id: "advanced", icon: AdvancedIcon, title: "高级" },
+  { id: "about", icon: AboutIcon, title: "关于" },
+];
+
+/** osu! lazer 风格右侧内容面板 */
 const SectionPanel: React.FC<{
   active: string;
   children: React.ReactNode;
 }> = ({ active, children }) => {
-  const meta = SECTIONS_META[active];
+  const meta = SECTIONS.find((s) => s.id === active);
+  const Icon = meta?.icon ?? AppearanceIcon;
   return (
     <section
       key={active}
@@ -54,93 +77,158 @@ const SectionPanel: React.FC<{
         WebkitBackdropFilter: "blur(24px) saturate(160%)",
         border: "1px solid var(--glass-border)",
         boxShadow: "var(--glass-shadow)",
-        padding: 20,
-        animation: "stagger-fade-up 0.4s cubic-bezier(0.22,1,0.36,1) both",
+        overflow: "hidden",
       }}
     >
       {meta && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <span style={{
-            width: 32, height: 32, borderRadius: 10,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "var(--accent-soft)",
-            color: "var(--accent)",
-          }}>
-            {meta.icon}
+        <div
+          style={{
+            padding: "20px 22px",
+            borderBottom: "1px solid var(--glass-border)",
+            background: "rgba(255,255,255,0.03)",
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+          }}
+        >
+          <span
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "var(--accent-soft)",
+              color: "var(--accent)",
+              boxShadow: "0 0 0 1px var(--glass-border)",
+            }}
+          >
+            <Icon size={20} color="var(--accent)" />
           </span>
-          <h2 className="font-torus" style={{
-            fontSize: 17, fontWeight: 600, letterSpacing: "-0.01em",
-            color: "var(--text-primary)", margin: 0,
-          }}>
+          <h2
+            className="font-torus"
+            style={{
+              fontSize: 20,
+              fontWeight: 700,
+              letterSpacing: "-0.01em",
+              color: "var(--text-primary)",
+              margin: 0,
+            }}
+          >
             {meta.title}
           </h2>
         </div>
       )}
-      {children}
+      <div style={{ padding: 22 }}>{children}</div>
     </section>
   );
 };
 
-/** 分类元数据：图标 + 标题（与下方 SECTIONS 保持一致） */
-const SECTIONS_META: Record<string, { icon: React.ReactNode; title: string }> = {
-  appearance: { icon: <Moon size={16} />, title: "外观" },
-  audio: { icon: <Volume2 size={16} />, title: "音频" },
-  timing: { icon: <Clock size={16} />, title: "判定偏移" },
-  game: { icon: <Gamepad2 size={16} />, title: "游戏" },
-  keys: { icon: <Keyboard size={16} />, title: "键位" },
-  mod: { icon: <Zap size={16} />, title: "Mod" },
-  skin: { icon: <Brush size={16} />, title: "皮肤" },
-  search: { icon: <Search size={16} />, title: "搜索" },
-  network: { icon: <Activity size={16} />, title: "连接检测" },
-  download: { icon: <Download size={16} />, title: "下载" },
-  display: { icon: <Image size={16} />, title: "画面" },
-  lyrics: { icon: <Music size={16} />, title: "歌词" },
-  advanced: { icon: <RotateCcw size={16} />, title: "高级" },
-  about: { icon: <Info size={16} />, title: "关于" },
-};
+/** 设置项卡片容器 */
+const SettingRow: React.FC<{ children: React.ReactNode; style?: React.CSSProperties }> = ({
+  children,
+  style,
+}) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 16,
+      padding: "14px 16px",
+      borderRadius: "var(--radius-md)",
+      background: "rgba(255,255,255,0.03)",
+      border: "1px solid var(--glass-border)",
+      transition: "background 0.2s ease",
+      ...style,
+    }}
+    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+    onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
+  >
+    {children}
+  </div>
+);
+
+/** 设置项左侧文字区 */
+const SettingLabel: React.FC<{ title: string; desc?: string }> = ({ title, desc }) => (
+  <div style={{ minWidth: 0, flex: 1 }}>
+    <div
+      className="text-sm font-medium"
+      style={{ color: "var(--text-primary)", lineHeight: 1.4 }}
+    >
+      {title}
+    </div>
+    {desc && (
+      <div
+        className="text-xs"
+        style={{ color: "var(--text-secondary)", marginTop: 3, lineHeight: 1.45 }}
+      >
+        {desc}
+    </div>
+    )}
+  </div>
+);
+
+/** 带标签的滑块 */
+const SliderSetting: React.FC<{
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  format: (v: number) => string;
+  onChange: (v: number) => void;
+  scheme: "dark" | "light";
+  ariaLabel: string;
+}> = ({ label, value, min, max, step, format, onChange, scheme, ariaLabel }) => (
+  <div>
+    <div className="mb-2 flex items-center justify-between text-sm">
+      <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>{label}</span>
+      <span style={{ color: "var(--accent)", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+        {format(value)}
+      </span>
+    </div>
+    <GlassSlider value={value} min={min} max={max} step={step} onChange={onChange} scheme={scheme} ariaLabel={ariaLabel} />
+  </div>
+);
 
 /** 将键盘 key 值转为可读标签 */
 const keyToLabel = (key: string): string => {
-  if (key === " ") return "Space";
-  if (key === "arrowleft") return "←";
-  if (key === "arrowright") return "→";
-  if (key === "arrowup") return "↑";
-  if (key === "arrowdown") return "↓";
-  if (key === "shift") return "Shift";
-  if (key === "control") return "Ctrl";
-  if (key === "alt") return "Alt";
-  if (key === "meta") return "Meta";
-  if (key === "enter") return "Enter";
-  if (key === "escape") return "Esc";
-  if (key === "tab") return "Tab";
-  if (key === "backspace") return "⌫";
-  if (key.length === 1) return key.toUpperCase();
-  return key;
+  const map: Record<string, string> = {
+    " ": "Space",
+    arrowleft: "←",
+    arrowright: "→",
+    arrowup: "↑",
+    arrowdown: "↓",
+    shift: "Shift",
+    control: "Ctrl",
+    alt: "Alt",
+    meta: "Meta",
+    enter: "Enter",
+    escape: "Esc",
+    tab: "Tab",
+    backspace: "⌫",
+  };
+  return map[key] ?? (key.length === 1 ? key.toUpperCase() : key);
 };
 
-/** 单个键位绑定按钮：点击后进入监听状态，按下任意键完成绑定 */
+/** 单个键位绑定按钮 */
 const KeyBindingButton: React.FC<{
   label: string;
   keyVal: string;
   onChange: (key: string) => void;
-  scheme: "dark" | "light";
-}> = ({ label, keyVal, onChange, scheme: _scheme }) => {
+}> = ({ label, keyVal, onChange }) => {
   const [listening, setListening] = useState(false);
-
-  const handleClick = () => {
-    setListening(true);
-  };
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Escape 取消
     if (e.key === "Escape") {
       setListening(false);
       return;
     }
-    const k = e.key.toLowerCase();
-    onChange(k);
+    onChange(e.key.toLowerCase());
     setListening(false);
   }, [onChange]);
 
@@ -151,17 +239,22 @@ const KeyBindingButton: React.FC<{
   }, [listening, handleKeyDown]);
 
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm" style={{ color: "var(--text-primary)" }}>{label}</span>
+    <div className="flex items-center justify-between" style={{ padding: "6px 0" }}>
+      <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{label}</span>
       <button
-        onClick={handleClick}
-        className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-transform active:scale-95"
+        onClick={() => setListening(true)}
         style={{
-          minWidth: 60,
+          minWidth: 64,
+          padding: "6px 10px",
+          borderRadius: 8,
           border: `1px solid ${listening ? "var(--accent)" : "var(--border)"}`,
           color: listening ? "#fff" : "var(--text-primary)",
-          background: listening ? "var(--accent)" : "transparent",
+          background: listening ? "var(--accent)" : "rgba(255,255,255,0.04)",
+          fontSize: 12,
+          fontWeight: 700,
           cursor: "pointer",
+          transition: "all 0.15s ease",
+          fontVariantNumeric: "tabular-nums",
         }}
       >
         {listening ? "按下…" : keyToLabel(keyVal)}
@@ -170,37 +263,86 @@ const KeyBindingButton: React.FC<{
   );
 };
 
-/** 一组键位绑定（带标题和重置按钮） */
+/** 一组键位绑定 */
 const KeyBindingGroup: React.FC<{
   label: string;
   keys: string[];
   labels: string[];
   onChange: (index: number, key: string) => void;
   onReset: () => void;
-  scheme: "dark" | "light";
-}> = ({ label, keys, labels, onChange, onReset, scheme }) => (
-  <div>
-    <div className="mb-2 flex items-center justify-between">
+}> = ({ label, keys, labels, onChange, onReset }) => (
+  <div
+    style={{
+      padding: 16,
+      borderRadius: "var(--radius-md)",
+      background: "rgba(255,255,255,0.03)",
+      border: "1px solid var(--glass-border)",
+    }}
+  >
+    <div className="mb-3 flex items-center justify-between">
       <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{label}</span>
       <button
         onClick={onReset}
-        className="text-xs transition-transform active:scale-95"
-        style={{ color: "var(--text-secondary)", background: "transparent", border: "none", cursor: "pointer" }}
+        className="text-xs"
+        style={{ color: "var(--accent)", background: "transparent", border: "none", cursor: "pointer", fontWeight: 600 }}
       >
         重置
       </button>
     </div>
-    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+    <div className="grid grid-cols-2 gap-x-4">
       {keys.map((k, i) => (
         <KeyBindingButton
           key={i}
           label={labels[i] || `按键 ${i + 1}`}
           keyVal={k}
           onChange={(key) => onChange(i, key)}
-          scheme={scheme}
         />
       ))}
     </div>
+  </div>
+);
+
+/** 分段标题 */
+const SubHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div
+    className="font-torus text-sm font-semibold"
+    style={{ color: "var(--text-primary)", marginBottom: 8, marginTop: 6 }}
+  >
+    {children}
+  </div>
+);
+
+/** 小标签按钮组 */
+const ChipGroup = <T extends string>({
+  options,
+  value,
+  onChange,
+  renderLabel,
+}: {
+  options: readonly T[];
+  value: T;
+  onChange: (v: T) => void;
+  renderLabel: (v: T) => string;
+}) => (
+  <div className="flex flex-wrap gap-2">
+    {options.map((opt) => {
+      const selected = value === opt;
+      return (
+        <button
+          key={opt}
+          onClick={() => onChange(opt)}
+          className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all active:scale-95"
+          style={{
+            border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
+            color: selected ? "#fff" : "var(--text-primary)",
+            background: selected ? "var(--accent)" : "rgba(255,255,255,0.04)",
+            cursor: "pointer",
+          }}
+        >
+          {renderLabel(opt)}
+        </button>
+      );
+    })}
   </div>
 );
 
@@ -220,6 +362,8 @@ export default function Settings() {
   const [hitSoundImporting, setHitSoundImporting] = useState(false);
   const [hitSoundImportMsg, setHitSoundImportMsg] = useState<string>("");
   const hitSoundInputRef = useRef<HTMLInputElement>(null);
+
+  const [activeSection, setActiveSection] = useState<string>("appearance");
 
   const toggleMod = useCallback((mod: ModType) => {
     const current = settings.mods;
@@ -282,22 +426,15 @@ export default function Settings() {
   }, [updateSetting]);
 
   const updateKeyBinding = useCallback((mode: keyof KeyBindings, index: number, key: string) => {
-    if (mode === "mania") {
-      // mania 是 Record<number, string[]>，需特殊处理：用当前显示的键数方案
-      return; // mania 用专用 updateManiaKeyBinding
-    }
+    if (mode === "mania") return;
     const current = settings.keyBindings[mode] as string[];
     const next = [...current] as string[];
-    // 冲突检测：同模式内若新键已绑定到其他槽位，则交换两个槽位的键
     const conflictIdx = next.findIndex((k, i) => i !== index && k === key);
-    if (conflictIdx >= 0) {
-      next[conflictIdx] = next[index];
-    }
+    if (conflictIdx >= 0) next[conflictIdx] = next[index];
     next[index] = key;
     updateSetting("keyBindings", { ...settings.keyBindings, [mode]: next });
   }, [settings.keyBindings, updateSetting]);
 
-  /** 更新 mania 指定键数的第 index 个键 */
   const updateManiaKeyBinding = useCallback((cols: number, index: number, key: string) => {
     const current = settings.keyBindings.mania[cols] || defaultManiaKeys(cols);
     const next = [...current];
@@ -330,60 +467,50 @@ export default function Settings() {
     setChecking(true);
     setHealth(null);
     try {
-      const res = await checkApiHealth();
-      setHealth(res);
+      setHealth(await checkApiHealth());
     } finally {
       setChecking(false);
     }
   };
 
-  // 设置分类
-  const SECTIONS = [
-    { id: "appearance", icon: <Moon size={16} />, title: "外观" },
-    { id: "audio", icon: <Volume2 size={16} />, title: "音频" },
-    { id: "timing", icon: <Clock size={16} />, title: "判定偏移" },
-    { id: "game", icon: <Gamepad2 size={16} />, title: "游戏" },
-    { id: "keys", icon: <Keyboard size={16} />, title: "键位" },
-    { id: "mod", icon: <Zap size={16} />, title: "Mod" },
-    { id: "skin", icon: <Brush size={16} />, title: "皮肤" },
-    { id: "search", icon: <Search size={16} />, title: "搜索" },
-    { id: "network", icon: <Activity size={16} />, title: "连接检测" },
-    { id: "download", icon: <Download size={16} />, title: "下载" },
-    { id: "display", icon: <Image size={16} />, title: "画面" },
-    { id: "lyrics", icon: <Music size={16} />, title: "歌词" },
-    { id: "advanced", icon: <RotateCcw size={16} />, title: "高级" },
-    { id: "about", icon: <Info size={16} />, title: "关于" },
-  ];
-
-  const [activeSection, setActiveSection] = useState<string>("appearance");
+  const activeMeta = SECTIONS.find((s) => s.id === activeSection)!;
 
   return (
     <div className="page-shell">
-      <div style={{
-        display: "flex",
-        gap: 20,
-        minHeight: "calc(100vh - var(--nav-height) - var(--nowplaying-height) - 60px)",
-      }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 22,
+          minHeight: "calc(100vh - var(--nav-height) - var(--nowplaying-height) - 60px)",
+        }}
+      >
         {/* 左侧分类栏 */}
-        <aside style={{
-          width: 200,
-          flexShrink: 0,
-          position: "sticky",
-          top: "calc(var(--nav-height) + 16px)",
-          alignSelf: "flex-start",
-          maxHeight: "calc(100vh - var(--nav-height) - var(--nowplaying-height) - 60px)",
-          overflowY: "auto",
-        }} className="hidden md:block">
-          <div style={{
-            padding: 8,
-            borderRadius: 16,
-            background: "var(--glass-bg)",
-            backdropFilter: "blur(24px) saturate(160%)",
-            WebkitBackdropFilter: "blur(24px) saturate(160%)",
-            border: "1px solid var(--glass-border)",
-          }}>
+        <aside
+          style={{
+            width: 230,
+            flexShrink: 0,
+            position: "sticky",
+            top: "calc(var(--nav-height) + 16px)",
+            alignSelf: "flex-start",
+            maxHeight: "calc(100vh - var(--nav-height) - var(--nowplaying-height) - 60px)",
+            overflowY: "auto",
+          }}
+          className="hidden md:block"
+        >
+          <div
+            style={{
+              padding: 8,
+              borderRadius: 18,
+              background: "var(--glass-bg)",
+              backdropFilter: "blur(24px) saturate(160%)",
+              WebkitBackdropFilter: "blur(24px) saturate(160%)",
+              border: "1px solid var(--glass-border)",
+              boxShadow: "var(--glass-shadow)",
+            }}
+          >
             {SECTIONS.map((s) => {
               const active = activeSection === s.id;
+              const Icon = s.icon;
               return (
                 <button
                   key={s.id}
@@ -392,21 +519,34 @@ export default function Settings() {
                     width: "100%",
                     display: "flex",
                     alignItems: "center",
-                    gap: 10,
-                    padding: "10px 12px",
-                    borderRadius: 10,
+                    gap: 12,
+                    padding: "10px 14px",
+                    borderRadius: 12,
                     border: "none",
                     background: active ? "var(--accent-soft)" : "transparent",
                     color: active ? "var(--lazer-accent)" : "var(--text-secondary)",
                     fontSize: 13,
-                    fontWeight: active ? 600 : 500,
+                    fontWeight: active ? 700 : 500,
                     cursor: "pointer",
                     transition: "all 0.2s ease",
                     marginBottom: 2,
                   }}
                   className="font-torus"
                 >
-                  {s.icon}
+                  <span
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 8,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: active ? "rgba(255,255,255,0.08)" : "transparent",
+                      transition: "background 0.2s ease",
+                    }}
+                  >
+                    <Icon size={17} color={active ? "var(--lazer-accent)" : "currentColor"} />
+                  </span>
                   {s.title}
                 </button>
               );
@@ -417,48 +557,81 @@ export default function Settings() {
         {/* 右侧内容 */}
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* 移动端分类选择器 */}
-          <div className="md:hidden" style={{ marginBottom: 12, overflowX: "auto", display: "flex", gap: 6, paddingBottom: 4 }}>
-            {SECTIONS.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setActiveSection(s.id)}
-                className="hud-btn"
-                style={{
-                  flexShrink: 0,
-                  padding: "6px 14px",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: activeSection === s.id ? "var(--lazer-accent)" : "var(--text-secondary)",
-                }}
-              >
-                {s.title}
-              </button>
-            ))}
+          <div
+            className="md:hidden"
+            style={{ marginBottom: 14, overflowX: "auto", display: "flex", gap: 6, paddingBottom: 4 }}
+          >
+            {SECTIONS.map((s) => {
+              const active = activeSection === s.id;
+              const Icon = s.icon;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveSection(s.id)}
+                  className="hud-btn"
+                  style={{
+                    flexShrink: 0,
+                    padding: "7px 14px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    color: active ? "var(--lazer-accent)" : "var(--text-secondary)",
+                    background: active ? "var(--accent-soft)" : "var(--glass-bg)",
+                    border: "1px solid var(--glass-border)",
+                  }}
+                >
+                  <Icon size={14} color={active ? "var(--lazer-accent)" : "currentColor"} />
+                  {s.title}
+                </button>
+              );
+            })}
           </div>
 
-          {/* 内容面板（按 activeSection 渲染对应区块，无折叠） */}
+          {/* 面板标题区域（移动端显示） */}
+          <div className="md:hidden" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
+            <span
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "var(--accent-soft)",
+                color: "var(--accent)",
+              }}
+            >
+              <activeMeta.icon size={18} color="var(--accent)" />
+            </span>
+            <h2 className="font-torus" style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "var(--text-primary)" }}>
+              {activeMeta.title}
+            </h2>
+          </div>
+
           <SectionPanel active={activeSection}>
+            {/* 外观 */}
             {activeSection === "appearance" && (
               <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>深色主题</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>切换浅色 / 深色界面</div>
-                  </div>
+                <SettingRow>
+                  <SettingLabel title="深色主题" desc="切换浅色 / 深色界面" />
                   <GlassSwitch
                     checked={settings.theme === "dark"}
                     onCheckedChange={(c) => updateSetting("theme", c ? "dark" : "light")}
                     scheme={scheme}
                     ariaLabel="深色主题"
                   />
-                </div>
+                </SettingRow>
 
                 <div>
-                  <div className="mb-2 flex items-center gap-2">
-                    <Palette size={14} style={{ color: "var(--text-secondary)" }} />
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>主题色</div>
-                  </div>
-                  <div className="flex flex-wrap gap-2.5">
+                  <SubHeader>
+                    <span className="inline-flex items-center gap-2">
+                      <Palette size={14} style={{ color: "var(--text-secondary)" }} />
+                      主题色
+                    </span>
+                  </SubHeader>
+                  <div className="flex flex-wrap gap-3">
                     {ACCENTS.map((a) => {
                       const selected = settings.accent === a.key;
                       return (
@@ -467,12 +640,12 @@ export default function Settings() {
                           onClick={() => updateSetting("accent", a.key)}
                           aria-label={a.label}
                           style={{
-                            width: 36,
-                            height: 36,
+                            width: 38,
+                            height: 38,
                             borderRadius: "50%",
                             background: a.key,
                             border: selected ? "3px solid var(--text-primary)" : "3px solid transparent",
-                            boxShadow: selected ? `0 0 0 2px ${a.key}40` : "none",
+                            boxShadow: selected ? `0 0 0 2px ${a.key}44, 0 4px 12px ${a.key}33` : "none",
                             cursor: "pointer",
                             transition: "transform 0.15s ease",
                           }}
@@ -486,96 +659,64 @@ export default function Settings() {
               </div>
             )}
 
+            {/* 音频 */}
             {activeSection === "audio" && (
-              <div className="flex flex-col gap-4">
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span style={{ color: "var(--text-primary)" }}>音乐音量</span>
-                    <span style={{ color: "var(--accent)", fontWeight: 600 }}>
-                      {Math.round(settings.volume * 100)}%
-                    </span>
-                  </div>
-                  <GlassSlider
-                    value={settings.volume}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    onChange={(v) => updateSetting("volume", v)}
-                    scheme={scheme}
-                    ariaLabel="音量"
+              <div className="flex flex-col gap-5">
+                <SliderSetting
+                  label="音乐音量"
+                  value={settings.volume}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  format={(v) => `${Math.round(v * 100)}%`}
+                  onChange={(v) => updateSetting("volume", v)}
+                  scheme={scheme}
+                  ariaLabel="音量"
+                />
+                <SliderSetting
+                  label="播放速度"
+                  value={settings.playbackRate}
+                  min={0.5}
+                  max={1.5}
+                  step={0.05}
+                  format={(v) => `×${v.toFixed(2)}`}
+                  onChange={(v) => updateSetting("playbackRate", v)}
+                  scheme={scheme}
+                  ariaLabel="播放速度"
+                />
+                <SettingRow>
+                  <SettingLabel
+                    title="使用采样音效"
+                    desc="优先使用谱面 / 皮肤 / 自定义采样，关闭后使用合成音效"
                   />
-                </div>
-
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span style={{ color: "var(--text-primary)" }}>播放速度</span>
-                    <span style={{ color: "var(--accent)", fontWeight: 600 }}>
-                      ×{settings.playbackRate.toFixed(2)}
-                    </span>
-                  </div>
-                  <GlassSlider
-                    value={settings.playbackRate}
-                    min={0.5}
-                    max={1.5}
-                    step={0.05}
-                    onChange={(v) => updateSetting("playbackRate", v)}
-                    scheme={scheme}
-                    ariaLabel="播放速度"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>使用采样音效</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>优先使用谱面 / 皮肤 / 自定义采样，关闭后使用合成音效</div>
-                  </div>
                   <GlassSwitch
                     checked={settings.useHitSamples}
                     onCheckedChange={(c) => updateSetting("useHitSamples", c)}
                     scheme={scheme}
                     ariaLabel="使用采样音效"
                   />
-                </div>
-
+                </SettingRow>
                 <div>
-                  <div className="mb-2 text-sm font-medium" style={{ color: "var(--text-primary)" }}>默认采样集</div>
-                  <div className="flex flex-wrap gap-2">
-                    {(["normal", "soft", "drum"] as const).map((set) => {
-                      const selected = settings.defaultSampleSet === set;
-                      return (
-                        <button
-                          key={set}
-                          onClick={() => updateSetting("defaultSampleSet", set)}
-                          disabled={!settings.useHitSamples}
-                          className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95 disabled:opacity-40"
-                          style={{
-                            border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
-                            color: selected ? "#fff" : "var(--text-primary)",
-                            background: selected ? "var(--accent)" : "transparent",
-                            cursor: settings.useHitSamples ? "pointer" : "not-allowed",
-                          }}
-                        >
-                          {set === "normal" ? "Normal" : set === "soft" ? "Soft" : "Drum"}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+                  <SubHeader>默认采样集</SubHeader>
+                  <ChipGroup
+                    options={["normal", "soft", "drum"] as const}
+                    value={settings.defaultSampleSet}
+                    onChange={(v) => updateSetting("defaultSampleSet", v)}
+                    renderLabel={(v) => (v === "normal" ? "Normal" : v === "soft" ? "Soft" : "Drum")}
+                  />
+                  <p className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
                     谱面未指定采样集时使用的默认音色
                   </p>
                 </div>
-
                 <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>导入音效采样包</div>
-                      <div className="text-xs" style={{ color: "var(--text-secondary)" }}>从 .osz / .osk / .zip 中提取 .wav / .mp3 / .ogg</div>
-                    </div>
+                  <SubHeader>导入音效采样包</SubHeader>
+                  <SettingRow>
+                    <SettingLabel title="选择音效文件" desc="从 .osz / .osk / .zip 中提取 .wav / .mp3 / .ogg" />
                     <div className="flex items-center gap-2">
                       {settings.customHitSoundUrls && Object.keys(settings.customHitSoundUrls).length > 0 && (
                         <button
                           onClick={handleClearHitSounds}
-                          className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95"
+                          className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform active:scale-95"
                           style={{
                             border: "1px solid var(--border)",
                             color: "var(--text-secondary)",
@@ -589,7 +730,7 @@ export default function Settings() {
                       <button
                         onClick={() => hitSoundInputRef.current?.click()}
                         disabled={hitSoundImporting}
-                        className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95 disabled:opacity-50"
+                        className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform active:scale-95 disabled:opacity-50"
                         style={{
                           border: "1px solid var(--accent)",
                           color: "var(--accent)",
@@ -607,12 +748,12 @@ export default function Settings() {
                         style={{ display: "none" }}
                       />
                     </div>
-                  </div>
+                  </SettingRow>
                   {hitSoundImportMsg && (
-                    <p className="text-xs" style={{ color: "var(--accent)" }}>{hitSoundImportMsg}</p>
+                    <p className="mt-2 text-xs" style={{ color: "var(--accent)" }}>{hitSoundImportMsg}</p>
                   )}
                   {settings.customHitSoundUrls && Object.keys(settings.customHitSoundUrls).length > 0 && (
-                    <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                    <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
                       当前已加载 {Object.keys(settings.customHitSoundUrls).length} 个音效采样文件
                     </p>
                   )}
@@ -620,99 +761,112 @@ export default function Settings() {
               </div>
             )}
 
+            {/* 判定偏移 */}
             {activeSection === "timing" && (
-              <div>
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span style={{ color: "var(--text-primary)" }}>音频偏移（ms）</span>
-                  <span style={{ color: "var(--accent)", fontWeight: 600 }}>
-                    {settings.offset > 0 ? "+" : ""}
-                    {settings.offset}
-                  </span>
-                </div>
-                <p className="mb-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                  正值 = 提前判定（适合音频延迟大的设备），负值 = 推后判定
-                </p>
-                <GlassSlider
+              <div className="flex flex-col gap-4">
+                <SliderSetting
+                  label="音频偏移"
                   value={settings.offset}
                   min={-200}
                   max={200}
                   step={5}
+                  format={(v) => `${v > 0 ? "+" : ""}${v} ms`}
                   onChange={(v) => updateSetting("offset", v)}
                   scheme={scheme}
                   ariaLabel="判定偏移"
                 />
+                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  正值 = 提前判定（适合音频延迟大的设备），负值 = 推后判定
+                </p>
               </div>
             )}
 
+            {/* 游戏 */}
             {activeSection === "game" && (
               <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>自动模式</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>自动击打音符，适合练习观赏</div>
-                  </div>
+                <SettingRow>
+                  <SettingLabel title="自动模式" desc="自动击打音符，适合练习观赏" />
                   <GlassSwitch checked={settings.auto} onCheckedChange={(c) => updateSetting("auto", c)} scheme={scheme} ariaLabel="自动模式" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示光标</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>在游戏画面中显示指针位置</div>
-                  </div>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="显示光标" desc="在游戏画面中显示指针位置" />
                   <GlassSwitch checked={settings.showCursor} onCheckedChange={(c) => updateSetting("showCursor", c)} scheme={scheme} ariaLabel="显示光标" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>光标拖尾</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>Auto / 显示光标时绘制移动轨迹</div>
-                  </div>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="光标拖尾" desc="Auto / 显示光标时绘制移动轨迹" />
                   <GlassSwitch checked={settings.showCursorTrail} onCheckedChange={(c) => updateSetting("showCursorTrail", c)} scheme={scheme} ariaLabel="光标拖尾" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>光标按下反馈</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>点击 / Auto 击打时放大光圈</div>
-                  </div>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="光标按下反馈" desc="点击 / Auto 击打时放大光圈" />
                   <GlassSwitch checked={settings.showCursorPress} onCheckedChange={(c) => updateSetting("showCursorPress", c)} scheme={scheme} ariaLabel="光标按下反馈" />
-                </div>
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span style={{ color: "var(--text-primary)" }}>光标大小</span>
-                    <span style={{ color: "var(--accent)", fontWeight: 600 }}>×{settings.cursorSize.toFixed(1)}</span>
-                  </div>
-                  <GlassSlider value={settings.cursorSize} min={0.5} max={2} step={0.1} onChange={(v) => updateSetting("cursorSize", v)} scheme={scheme} ariaLabel="光标大小" />
-                </div>
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span style={{ color: "var(--text-primary)" }}>Auto 光标速度</span>
-                    <span style={{ color: "var(--accent)", fontWeight: 600 }}>{settings.autoCursorSpeed.toFixed(1)}x</span>
-                  </div>
-                  <GlassSlider value={settings.autoCursorSpeed} min={0.5} max={2.0} step={0.1} onChange={(v) => updateSetting("autoCursorSpeed", v)} scheme={scheme} ariaLabel="Auto 光标速度" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Auto 圆周模式</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>光标沿圆弧匀速移动，流畅衔接每个音符</div>
-                  </div>
+                </SettingRow>
+                <SliderSetting
+                  label="光标大小"
+                  value={settings.cursorSize}
+                  min={0.5}
+                  max={2}
+                  step={0.1}
+                  format={(v) => `×${v.toFixed(1)}`}
+                  onChange={(v) => updateSetting("cursorSize", v)}
+                  scheme={scheme}
+                  ariaLabel="光标大小"
+                />
+                <SliderSetting
+                  label="Auto 光标速度"
+                  value={settings.autoCursorSpeed}
+                  min={0.5}
+                  max={2}
+                  step={0.1}
+                  format={(v) => `${v.toFixed(1)}x`}
+                  onChange={(v) => updateSetting("autoCursorSpeed", v)}
+                  scheme={scheme}
+                  ariaLabel="Auto 光标速度"
+                />
+                <SettingRow>
+                  <SettingLabel title="Auto 圆周模式" desc="光标沿圆弧匀速移动，流畅衔接每个音符" />
                   <GlassSwitch checked={settings.autoCircleMode} onCheckedChange={(c) => updateSetting("autoCircleMode", c)} scheme={scheme} ariaLabel="Auto 圆周模式" />
-                </div>
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span style={{ color: "var(--text-primary)" }}>按键音音量</span>
-                    <span style={{ color: "var(--accent)", fontWeight: 600 }}>{Math.round(settings.hitSoundVolume * 100)}%</span>
-                  </div>
-                  <GlassSlider value={settings.hitSoundVolume} min={0} max={1} step={0.01} onChange={(v) => updateSetting("hitSoundVolume", v)} scheme={scheme} ariaLabel="按键音音量" />
-                </div>
+                </SettingRow>
+                <SliderSetting
+                  label="按键音音量"
+                  value={settings.hitSoundVolume}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  format={(v) => `${Math.round(v * 100)}%`}
+                  onChange={(v) => updateSetting("hitSoundVolume", v)}
+                  scheme={scheme}
+                  ariaLabel="按键音音量"
+                />
               </div>
             )}
 
+            {/* 键位 */}
             {activeSection === "keys" && (
               <div className="flex flex-col gap-4">
                 <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
                   点击按键后按下新键即可修改。空格键显示为 Space，方向键显示为 Arrow。
                 </p>
-                <KeyBindingGroup label="osu! (Standard)" keys={settings.keyBindings.standard} labels={["按键 1", "按键 2"]} onChange={(idx, key) => updateKeyBinding("standard", idx, key)} onReset={() => resetKeyBinding("standard")} scheme={scheme} />
-                <KeyBindingGroup label="osu!taiko" keys={settings.keyBindings.taiko} labels={["KAT 左", "KAT 右", "DON 左", "DON 右"]} onChange={(idx, key) => updateKeyBinding("taiko", idx, key)} onReset={() => resetKeyBinding("taiko")} scheme={scheme} />
-                <KeyBindingGroup label="osu!catch" keys={settings.keyBindings.catch} labels={["左移", "右移"]} onChange={(idx, key) => updateKeyBinding("catch", idx, key)} onReset={() => resetKeyBinding("catch")} scheme={scheme} />
+                <KeyBindingGroup
+                  label="osu! (Standard)"
+                  keys={settings.keyBindings.standard}
+                  labels={["按键 1", "按键 2"]}
+                  onChange={(idx, key) => updateKeyBinding("standard", idx, key)}
+                  onReset={() => resetKeyBinding("standard")}
+                />
+                <KeyBindingGroup
+                  label="osu!taiko"
+                  keys={settings.keyBindings.taiko}
+                  labels={["KAT 左", "KAT 右", "DON 左", "DON 右"]}
+                  onChange={(idx, key) => updateKeyBinding("taiko", idx, key)}
+                  onReset={() => resetKeyBinding("taiko")}
+                />
+                <KeyBindingGroup
+                  label="osu!catch"
+                  keys={settings.keyBindings.catch}
+                  labels={["左移", "右移"]}
+                  onChange={(idx, key) => updateKeyBinding("catch", idx, key)}
+                  onReset={() => resetKeyBinding("catch")}
+                />
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((cols) => {
                   const keys = settings.keyBindings.mania[cols] || defaultManiaKeys(cols);
                   return (
@@ -723,22 +877,26 @@ export default function Settings() {
                       labels={Array.from({ length: keys.length }, (_, i) => `列 ${i + 1}`)}
                       onChange={(idx, key) => updateManiaKeyBinding(cols, idx, key)}
                       onReset={() => resetManiaKeyBinding(cols)}
-                      scheme={scheme}
                     />
                   );
                 })}
-                <button onClick={() => updateSetting("keyBindings", { ...DEFAULT_KEY_BINDINGS })} className="rounded-lg px-3 py-1.5 text-xs font-medium transition-transform active:scale-95" style={{ border: "1px solid var(--border)", color: "var(--text-primary)", background: "transparent", cursor: "pointer" }}>
+                <button
+                  onClick={() => updateSetting("keyBindings", { ...DEFAULT_KEY_BINDINGS })}
+                  className="rounded-full px-4 py-2 text-xs font-semibold transition-transform active:scale-95"
+                  style={{ border: "1px solid var(--border)", color: "var(--text-primary)", background: "transparent", cursor: "pointer" }}
+                >
                   恢复全部默认键位
                 </button>
               </div>
             )}
 
+            {/* Mod */}
             {activeSection === "mod" && (
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-5">
                 <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
                   点击切换 Mod，可多选。难度调整类（DT/HT/HR/Easy）会实际影响游戏速度与判定。也可以在谱面详情页或游戏准备页用浮动按钮快速切换。
                 </p>
-                <div className="flex flex-wrap gap-2.5">
+                <div className="flex flex-wrap gap-3">
                   {ALL_MODS.map((mod) => {
                     const active = settings.mods.includes(mod);
                     const color = MOD_COLOR[mod];
@@ -746,13 +904,13 @@ export default function Settings() {
                       <button
                         key={mod}
                         onClick={() => toggleMod(mod)}
-                        className="rounded-xl px-3.5 py-2 text-xs font-semibold transition-transform active:scale-95"
+                        className="rounded-xl px-4 py-2.5 text-xs font-bold transition-all active:scale-95"
                         style={{
                           border: "1px solid",
                           borderColor: active ? color : "var(--border)",
                           color: active ? "#fff" : "var(--text-primary)",
-                          background: active ? color : "transparent",
-                          boxShadow: active ? `0 0 12px ${color}55` : "none",
+                          background: active ? color : "rgba(255,255,255,0.04)",
+                          boxShadow: active ? `0 0 14px ${color}55` : "none",
                           cursor: "pointer",
                         }}
                       >
@@ -762,129 +920,182 @@ export default function Settings() {
                   })}
                 </div>
                 {settings.mods.length > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs" style={{ color: "var(--text-secondary)" }}>已启用 {settings.mods.length} 个 Mod</span>
-                    <button onClick={() => updateSetting("mods", [])} className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95" style={{ border: "1px solid var(--border)", color: "var(--text-primary)", background: "transparent", cursor: "pointer" }}>
+                  <SettingRow>
+                    <SettingLabel title={`已启用 ${settings.mods.length} 个 Mod`} />
+                    <button
+                      onClick={() => updateSetting("mods", [])}
+                      className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform active:scale-95"
+                      style={{ border: "1px solid var(--border)", color: "var(--text-primary)", background: "transparent", cursor: "pointer" }}
+                    >
                       清除全部
                     </button>
-                  </div>
+                  </SettingRow>
                 )}
               </div>
             )}
 
+            {/* 皮肤 */}
             {activeSection === "skin" && (
               <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>使用谱面自带皮肤</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>加载谱面包内的 hitcircle / cursor / slider 等纹理</div>
-                  </div>
+                <SettingRow>
+                  <SettingLabel title="使用谱面自带皮肤" desc="加载谱面包内的 hitcircle / cursor / slider 等纹理" />
                   <GlassSwitch checked={settings.useBeatmapSkin} onCheckedChange={(c) => updateSetting("useBeatmapSkin", c)} scheme={scheme} ariaLabel="使用谱面自带皮肤" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>使用自定义皮肤</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>应用导入的 .osk 皮肤，优先级高于谱面皮肤</div>
-                  </div>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="使用自定义皮肤" desc="应用导入的 .osk 皮肤，优先级高于谱面皮肤" />
                   <GlassSwitch checked={settings.useCustomSkin} onCheckedChange={(c) => updateSetting("useCustomSkin", c)} scheme={scheme} ariaLabel="使用自定义皮肤" />
-                </div>
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>导入 .osk 皮肤</div>
-                      <div className="text-xs" style={{ color: "var(--text-secondary)" }}>从本地选择 osu! 皮肤压缩包</div>
-                    </div>
-                    <button onClick={() => skinInputRef.current?.click()} disabled={skinImporting} className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95 disabled:opacity-50" style={{ border: "1px solid var(--accent)", color: "var(--accent)", background: "var(--accent-soft)", cursor: skinImporting ? "not-allowed" : "pointer" }}>
-                      {skinImporting ? "导入中..." : "选择文件"}
-                    </button>
-                    <input ref={skinInputRef} type="file" accept=".osk,.zip" onChange={handleSkinImport} style={{ display: "none" }} />
-                  </div>
-                  {skinImportMsg && <p className="text-xs" style={{ color: "var(--accent)" }}>{skinImportMsg}</p>}
-                  {settings.useCustomSkin && settings.customSkinAssetUrls && (
-                    <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                      当前皮肤已加载 {Object.keys(settings.customSkinAssetUrls).length} 个资源文件
-                    </p>
-                  )}
-                </div>
-                <div className="mt-2 border-t pt-4" style={{ borderColor: "var(--border)" }}>
-                  <div className="mb-3 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>默认皮肤自定义</div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>自定义 Combo 颜色</div>
-                      <div className="text-xs" style={{ color: "var(--text-secondary)" }}>覆盖默认 8 色 combo 配色</div>
-                    </div>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="导入 .osk 皮肤" desc="从本地选择 osu! 皮肤压缩包" />
+                  <button
+                    onClick={() => skinInputRef.current?.click()}
+                    disabled={skinImporting}
+                    className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform active:scale-95 disabled:opacity-50"
+                    style={{ border: "1px solid var(--accent)", color: "var(--accent)", background: "var(--accent-soft)", cursor: skinImporting ? "not-allowed" : "pointer" }}
+                  >
+                    {skinImporting ? "导入中..." : "选择文件"}
+                  </button>
+                  <input ref={skinInputRef} type="file" accept=".osk,.zip" onChange={handleSkinImport} style={{ display: "none" }} />
+                </SettingRow>
+                {skinImportMsg && <p className="text-xs" style={{ color: "var(--accent)" }}>{skinImportMsg}</p>}
+                {settings.useCustomSkin && settings.customSkinAssetUrls && (
+                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                    当前皮肤已加载 {Object.keys(settings.customSkinAssetUrls).length} 个资源文件
+                  </p>
+                )}
+
+                <div className="mt-2 border-t pt-5" style={{ borderColor: "var(--glass-border)" }}>
+                  <SubHeader>默认皮肤自定义</SubHeader>
+                  <SettingRow>
+                    <SettingLabel title="自定义 Combo 颜色" desc="覆盖默认 8 色 combo 配色" />
                     <GlassSwitch checked={settings.useCustomComboColors} onCheckedChange={(c) => updateSetting("useCustomComboColors", c)} scheme={scheme} ariaLabel="自定义 Combo 颜色" />
-                  </div>
+                  </SettingRow>
                   {settings.useCustomComboColors && (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       {settings.customComboColors.map((color, i) => (
-                        <input key={i} type="color" value={color} onChange={(e) => { const next = [...settings.customComboColors]; next[i] = e.target.value; updateSetting("customComboColors", next); }} style={{ width: 32, height: 32, border: "1px solid var(--border)", borderRadius: 8, cursor: "pointer", background: "transparent" }} />
+                        <input
+                          key={i}
+                          type="color"
+                          value={color}
+                          onChange={(e) => { const next = [...settings.customComboColors]; next[i] = e.target.value; updateSetting("customComboColors", next); }}
+                          style={{ width: 32, height: 32, border: "1px solid var(--border)", borderRadius: 8, cursor: "pointer", background: "transparent" }}
+                        />
                       ))}
-                      <button onClick={() => { if (settings.customComboColors.length < 8) { updateSetting("customComboColors", [...settings.customComboColors, "#ffffff"]); } }} disabled={settings.customComboColors.length >= 8} className="rounded-lg px-2.5 py-1.5 text-xs font-medium transition-transform active:scale-95 disabled:opacity-40" style={{ border: "1px solid var(--border)", color: "var(--text-primary)", cursor: "pointer" }}>+ 添加</button>
-                      <button onClick={() => updateSetting("customComboColors", ["#f472b6", "#38bdf8", "#4ade80", "#fbbf24", "#a78bfa", "#fb7185", "#22d3ee", "#facc15"])} className="rounded-lg px-2.5 py-1.5 text-xs font-medium transition-transform active:scale-95" style={{ border: "1px solid var(--border)", color: "var(--text-primary)", cursor: "pointer" }}>重置</button>
+                      <button
+                        onClick={() => { if (settings.customComboColors.length < 8) { updateSetting("customComboColors", [...settings.customComboColors, "#ffffff"]); } }}
+                        disabled={settings.customComboColors.length >= 8}
+                        className="rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-transform active:scale-95 disabled:opacity-40"
+                        style={{ border: "1px solid var(--border)", color: "var(--text-primary)", cursor: "pointer" }}
+                      >
+                        + 添加
+                      </button>
+                      <button
+                        onClick={() => updateSetting("customComboColors", ["#f472b6", "#38bdf8", "#4ade80", "#fbbf24", "#a78bfa", "#fb7185", "#22d3ee", "#facc15"])}
+                        className="rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-transform active:scale-95"
+                        style={{ border: "1px solid var(--border)", color: "var(--text-primary)", cursor: "pointer" }}
+                      >
+                        重置
+                      </button>
                     </div>
                   )}
                   <div className="mt-4">
-                    <div className="mb-1 flex items-center justify-between"><span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>圆圈缩放</span><span className="text-xs" style={{ color: "var(--text-secondary)" }}>{settings.hitCircleScale.toFixed(2)}x</span></div>
-                    <GlassSlider min={0.5} max={2} step={0.05} value={settings.hitCircleScale} onChange={(v) => updateSetting("hitCircleScale", v)} scheme={scheme} />
+                    <SliderSetting
+                      label="圆圈缩放"
+                      value={settings.hitCircleScale}
+                      min={0.5}
+                      max={2}
+                      step={0.05}
+                      format={(v) => `${v.toFixed(2)}x`}
+                      onChange={(v) => updateSetting("hitCircleScale", v)}
+                      scheme={scheme}
+                      ariaLabel="圆圈缩放"
+                    />
                   </div>
                   <div className="mt-4">
-                    <div className="mb-1 flex items-center justify-between"><span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>圆圈边框宽度</span><span className="text-xs" style={{ color: "var(--text-secondary)" }}>{settings.circleBorderWidth.toFixed(2)}x</span></div>
-                    <GlassSlider min={0.5} max={3} step={0.05} value={settings.circleBorderWidth} onChange={(v) => updateSetting("circleBorderWidth", v)} scheme={scheme} />
+                    <SliderSetting
+                      label="圆圈边框宽度"
+                      value={settings.circleBorderWidth}
+                      min={0.5}
+                      max={3}
+                      step={0.05}
+                      format={(v) => `${v.toFixed(2)}x`}
+                      onChange={(v) => updateSetting("circleBorderWidth", v)}
+                      scheme={scheme}
+                      ariaLabel="圆圈边框宽度"
+                    />
                   </div>
                   <div className="mt-4">
-                    <div className="mb-1 flex items-center justify-between"><span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>滑条边框宽度</span><span className="text-xs" style={{ color: "var(--text-secondary)" }}>{settings.sliderBorderWidth.toFixed(2)}x</span></div>
-                    <GlassSlider min={0.5} max={3} step={0.05} value={settings.sliderBorderWidth} onChange={(v) => updateSetting("sliderBorderWidth", v)} scheme={scheme} />
+                    <SliderSetting
+                      label="滑条边框宽度"
+                      value={settings.sliderBorderWidth}
+                      min={0.5}
+                      max={3}
+                      step={0.05}
+                      format={(v) => `${v.toFixed(2)}x`}
+                      onChange={(v) => updateSetting("sliderBorderWidth", v)}
+                      scheme={scheme}
+                      ariaLabel="滑条边框宽度"
+                    />
                   </div>
                   <div className="mt-4">
-                    <div className="mb-1 flex items-center justify-between"><span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>滑条球缩放</span><span className="text-xs" style={{ color: "var(--text-secondary)" }}>{settings.sliderBallScale.toFixed(2)}x</span></div>
-                    <GlassSlider min={0.5} max={2} step={0.05} value={settings.sliderBallScale} onChange={(v) => updateSetting("sliderBallScale", v)} scheme={scheme} />
+                    <SliderSetting
+                      label="滑条球缩放"
+                      value={settings.sliderBallScale}
+                      min={0.5}
+                      max={2}
+                      step={0.05}
+                      format={(v) => `${v.toFixed(2)}x`}
+                      onChange={(v) => updateSetting("sliderBallScale", v)}
+                      scheme={scheme}
+                      ariaLabel="滑条球缩放"
+                    />
                   </div>
                 </div>
               </div>
             )}
 
+            {/* 搜索 */}
             {activeSection === "search" && (
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-5">
                 <div>
-                  <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>搜索源</div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {(["all", "osu", "sayobot", "kitsu", "chimu"] as const).map((src) => (
-                      <button key={src} onClick={() => updateSetting("searchSource", src)} className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95" style={{ border: "1px solid", borderColor: settings.searchSource === src ? "var(--accent)" : "var(--border)", color: settings.searchSource === src ? "var(--accent)" : "var(--text-primary)", background: settings.searchSource === src ? "var(--accent-soft)" : "transparent", cursor: "pointer" }}>
-                        {src === "all" ? "全部竞速" : src === "osu" ? "osu.direct" : src === "sayobot" ? "Sayobot" : src === "kitsu" ? "Kitsu" : "Chimu"}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>"全部竞速" 同时请求所有源，取最快返回的结果</div>
+                  <SubHeader>搜索源</SubHeader>
+                  <ChipGroup
+                    options={["all", "osu", "sayobot", "kitsu", "chimu"] as const}
+                    value={settings.searchSource}
+                    onChange={(v) => updateSetting("searchSource", v)}
+                    renderLabel={(v) =>
+                      v === "all" ? "全部竞速" : v === "osu" ? "osu.direct" : v === "sayobot" ? "Sayobot" : v === "kitsu" ? "Kitsu" : "Chimu"
+                    }
+                  />
+                  <p className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                    "全部竞速" 同时请求所有源，取最快返回的结果
+                  </p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>仅显示有 Storyboard</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>过滤搜索结果</div>
-                  </div>
+                <SettingRow>
+                  <SettingLabel title="仅显示有 Storyboard" desc="过滤搜索结果" />
                   <GlassSwitch checked={settings.storyboardOnly} onCheckedChange={(c) => updateSetting("storyboardOnly", c)} scheme={scheme} ariaLabel="仅显示有 Storyboard" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>仅显示有视频</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>过滤搜索结果</div>
-                  </div>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="仅显示有视频" desc="过滤搜索结果" />
                   <GlassSwitch checked={settings.videoOnly} onCheckedChange={(c) => updateSetting("videoOnly", c)} scheme={scheme} ariaLabel="仅显示有视频" />
-                </div>
+                </SettingRow>
               </div>
             )}
 
+            {/* 连接检测 */}
             {activeSection === "network" && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>检测 API 连接</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>osu.direct / Sayobot / LRCLIB</div>
-                  </div>
-                  <button onClick={runCheck} disabled={checking} className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95 disabled:opacity-50" style={{ border: "1px solid var(--accent)", color: "var(--accent)", background: "var(--accent-soft)", cursor: checking ? "not-allowed" : "pointer" }}>
+              <div className="flex flex-col gap-4">
+                <SettingRow>
+                  <SettingLabel title="检测 API 连接" desc="osu.direct / Sayobot / LRCLIB" />
+                  <button
+                    onClick={runCheck}
+                    disabled={checking}
+                    className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform active:scale-95 disabled:opacity-50"
+                    style={{ border: "1px solid var(--accent)", color: "var(--accent)", background: "var(--accent-soft)", cursor: checking ? "not-allowed" : "pointer" }}
+                  >
                     {checking ? "检测中..." : "开始检测"}
                   </button>
-                </div>
+                </SettingRow>
                 {health && (
                   <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                     {[
@@ -895,10 +1106,10 @@ export default function Settings() {
                     ].map(({ key, label }) => {
                       const ok = health[key as keyof ApiHealthResult];
                       return (
-                        <div key={key} className="flex items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: "var(--accent-soft)" }}>
-                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: ok ? "#66cc44" : "#ff375f" }} />
+                        <div key={key} className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "var(--accent-soft)", border: "1px solid var(--glass-border)" }}>
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: ok ? "var(--success)" : "var(--error)" }} />
                           <span style={{ color: "var(--text-primary)" }}>{label}</span>
-                          <span style={{ color: ok ? "#66cc44" : "#ff375f", marginLeft: "auto" }}>{ok ? "正常" : "不可用"}</span>
+                          <span style={{ color: ok ? "var(--success)" : "var(--error)", marginLeft: "auto", fontWeight: 700 }}>{ok ? "正常" : "不可用"}</span>
                         </div>
                       );
                     })}
@@ -907,190 +1118,216 @@ export default function Settings() {
               </div>
             )}
 
+            {/* 下载 */}
             {activeSection === "download" && (
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>下载完整谱面包</div>
-                  <div className="text-xs" style={{ color: "var(--text-secondary)" }}>含 Storyboard / 视频资源，体积更大</div>
-                </div>
-                <GlassSwitch checked={settings.downloadFullPackage} onCheckedChange={(c) => updateSetting("downloadFullPackage", c)} scheme={scheme} ariaLabel="下载完整谱面包" />
+              <div className="flex flex-col gap-4">
+                <SettingRow>
+                  <SettingLabel title="下载完整谱面包" desc="含 Storyboard / 视频资源，体积更大" />
+                  <GlassSwitch checked={settings.downloadFullPackage} onCheckedChange={(c) => updateSetting("downloadFullPackage", c)} scheme={scheme} ariaLabel="下载完整谱面包" />
+                </SettingRow>
               </div>
             )}
 
+            {/* 画面 */}
             {activeSection === "display" && (
               <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>全屏模式</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>切换浏览器全屏，等同 F11</div>
-                  </div>
+                <SettingRow>
+                  <SettingLabel title="全屏模式" desc="切换浏览器全屏，等同 F11" />
                   <GlassSwitch checked={settings.fullscreen} onCheckedChange={(c) => updateSetting("fullscreen", c)} scheme={scheme} ariaLabel="全屏模式" />
-                </div>
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span style={{ color: "var(--text-primary)" }}>页面缩放</span>
-                    <span style={{ color: "var(--accent)", fontWeight: 600 }}>×{settings.pageScale.toFixed(2)}</span>
-                  </div>
-                  <GlassSlider value={settings.pageScale} min={0.5} max={1.5} step={0.05} onChange={(v) => updateSetting("pageScale", v)} scheme={scheme} ariaLabel="页面缩放" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示 Storyboard</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>游戏内渲染完整 Storyboard</div>
-                  </div>
+                </SettingRow>
+                <SliderSetting
+                  label="页面缩放"
+                  value={settings.pageScale}
+                  min={0.5}
+                  max={1.5}
+                  step={0.05}
+                  format={(v) => `×${v.toFixed(2)}`}
+                  onChange={(v) => updateSetting("pageScale", v)}
+                  scheme={scheme}
+                  ariaLabel="页面缩放"
+                />
+                <SettingRow>
+                  <SettingLabel title="显示 Storyboard" desc="游戏内渲染完整 Storyboard" />
                   <GlassSwitch checked={settings.showStoryboard} onCheckedChange={(c) => updateSetting("showStoryboard", c)} scheme={scheme} ariaLabel="显示 Storyboard" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>视频背景</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>播放谱面自带的视频背景（若有）</div>
-                  </div>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="视频背景" desc="播放谱面自带的视频背景（若有）" />
                   <GlassSwitch checked={settings.showVideo} onCheckedChange={(c) => updateSetting("showVideo", c)} scheme={scheme} ariaLabel="视频背景" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>观赏模式</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>只播放 Storyboard、背景与音频，隐藏音符与判定</div>
-                  </div>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="观赏模式" desc="只播放 Storyboard、背景与音频，隐藏音符与判定" />
                   <GlassSwitch checked={settings.spectatorMode} onCheckedChange={(c) => updateSetting("spectatorMode", c)} scheme={scheme} ariaLabel="观赏模式" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>强制横屏</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>游戏内强制使用横屏布局</div>
-                  </div>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="强制横屏" desc="游戏内强制使用横屏布局" />
                   <GlassSwitch checked={settings.forceLandscape} onCheckedChange={(c) => updateSetting("forceLandscape", c)} scheme={scheme} ariaLabel="强制横屏" />
-                </div>
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span style={{ color: "var(--text-primary)" }}>背景变暗</span>
-                    <span style={{ color: "var(--accent)", fontWeight: 600 }}>{Math.round(settings.backgroundDim * 100)}%</span>
-                  </div>
-                  <GlassSlider value={settings.backgroundDim} min={0} max={1} step={0.01} onChange={(v) => updateSetting("backgroundDim", v)} scheme={scheme} ariaLabel="背景变暗" />
-                </div>
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span style={{ color: "var(--text-primary)" }}>引导线提前</span>
-                    <span style={{ color: "var(--accent)", fontWeight: 600 }}>×{settings.approachMultiplier.toFixed(1)}</span>
-                  </div>
-                  <GlassSlider value={settings.approachMultiplier} min={1.0} max={2.5} step={0.1} onChange={(v) => updateSetting("approachMultiplier", v)} scheme={scheme} ariaLabel="引导线提前" />
-                </div>
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span style={{ color: "var(--text-primary)" }}>背景模糊</span>
-                    <span style={{ color: "var(--accent)", fontWeight: 600 }}>{Math.round(settings.backgroundBlur)}px</span>
-                  </div>
-                  <GlassSlider value={settings.backgroundBlur} min={0} max={20} step={1} onChange={(v) => updateSetting("backgroundBlur", v)} scheme={scheme} ariaLabel="背景模糊" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div><div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示引导线</div></div>
+                </SettingRow>
+                <SliderSetting
+                  label="背景变暗"
+                  value={settings.backgroundDim}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  format={(v) => `${Math.round(v * 100)}%`}
+                  onChange={(v) => updateSetting("backgroundDim", v)}
+                  scheme={scheme}
+                  ariaLabel="背景变暗"
+                />
+                <SliderSetting
+                  label="引导线提前"
+                  value={settings.approachMultiplier}
+                  min={1}
+                  max={2.5}
+                  step={0.1}
+                  format={(v) => `×${v.toFixed(1)}`}
+                  onChange={(v) => updateSetting("approachMultiplier", v)}
+                  scheme={scheme}
+                  ariaLabel="引导线提前"
+                />
+                <SliderSetting
+                  label="背景模糊"
+                  value={settings.backgroundBlur}
+                  min={0}
+                  max={20}
+                  step={1}
+                  format={(v) => `${Math.round(v)}px`}
+                  onChange={(v) => updateSetting("backgroundBlur", v)}
+                  scheme={scheme}
+                  ariaLabel="背景模糊"
+                />
+                <SettingRow>
+                  <SettingLabel title="显示引导线" />
                   <GlassSwitch checked={settings.showFollowPoints} onCheckedChange={(c) => updateSetting("showFollowPoints", c)} scheme={scheme} ariaLabel="显示引导线" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div><div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示引导圈</div></div>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="显示引导圈" />
                   <GlassSwitch checked={settings.showApproachCircles} onCheckedChange={(c) => updateSetting("showApproachCircles", c)} scheme={scheme} ariaLabel="显示引导圈" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div><div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示连击数字</div></div>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="显示连击数字" />
                   <GlassSwitch checked={settings.showComboNumbers} onCheckedChange={(c) => updateSetting("showComboNumbers", c)} scheme={scheme} ariaLabel="显示连击数字" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div><div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示击中特效</div></div>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="显示击中特效" />
                   <GlassSwitch checked={settings.showHitEffects} onCheckedChange={(c) => updateSetting("showHitEffects", c)} scheme={scheme} ariaLabel="显示击中特效" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div><div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示 FPS</div></div>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="显示 FPS" />
                   <GlassSwitch checked={settings.showFPS} onCheckedChange={(c) => updateSetting("showFPS", c)} scheme={scheme} ariaLabel="显示 FPS" />
-                </div>
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span style={{ color: "var(--text-primary)" }}>HUD 缩放</span>
-                    <span style={{ color: "var(--accent)", fontWeight: 600 }}>×{settings.hudScale.toFixed(1)}</span>
-                  </div>
-                  <GlassSlider value={settings.hudScale} min={0.8} max={1.5} step={0.1} onChange={(v) => updateSetting("hudScale", v)} scheme={scheme} ariaLabel="HUD 缩放" />
-                </div>
+                </SettingRow>
+                <SliderSetting
+                  label="HUD 缩放"
+                  value={settings.hudScale}
+                  min={0.8}
+                  max={1.5}
+                  step={0.1}
+                  format={(v) => `×${v.toFixed(1)}`}
+                  onChange={(v) => updateSetting("hudScale", v)}
+                  scheme={scheme}
+                  ariaLabel="HUD 缩放"
+                />
               </div>
             )}
 
+            {/* 歌词 */}
             {activeSection === "lyrics" && (
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>显示歌词</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>游戏内底部显示匹配歌词</div>
-                  </div>
+              <div className="flex flex-col gap-5">
+                <SettingRow>
+                  <SettingLabel title="显示歌词" desc="游戏内底部显示匹配歌词" />
                   <GlassSwitch checked={settings.showLyrics} onCheckedChange={(c) => updateSetting("showLyrics", c)} scheme={scheme} ariaLabel="显示歌词" />
-                </div>
+                </SettingRow>
                 <div>
-                  <div className="mb-2 text-sm font-medium" style={{ color: "var(--text-primary)" }}>歌词效果</div>
-                  <div className="flex flex-wrap gap-2">
-                    {(["none", "fade", "slide"] as const).map((effect) => {
-                      const selected = settings.lyricsEffect === effect;
-                      return (
-                        <button key={effect} onClick={() => updateSetting("lyricsEffect", effect)} className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95" style={{ border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`, color: selected ? "#fff" : "var(--text-primary)", background: selected ? "var(--accent)" : "transparent", cursor: "pointer" }}>
-                          {effect === "none" ? "无" : effect === "fade" ? "淡入" : "滑动"}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <SubHeader>歌词效果</SubHeader>
+                  <ChipGroup
+                    options={["none", "fade", "slide"] as const}
+                    value={settings.lyricsEffect}
+                    onChange={(v) => updateSetting("lyricsEffect", v)}
+                    renderLabel={(v) => (v === "none" ? "无" : v === "fade" ? "淡入" : "滑动")}
+                  />
                 </div>
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span style={{ color: "var(--text-primary)" }}>歌词大小</span>
-                    <span style={{ color: "var(--accent)", fontWeight: 600 }}>{settings.lyricsSize}px</span>
-                  </div>
-                  <GlassSlider value={settings.lyricsSize} min={12} max={24} step={1} onChange={(v) => updateSetting("lyricsSize", v)} scheme={scheme} ariaLabel="歌词大小" />
-                </div>
+                <SliderSetting
+                  label="歌词大小"
+                  value={settings.lyricsSize}
+                  min={12}
+                  max={24}
+                  step={1}
+                  format={(v) => `${Math.round(v)}px`}
+                  onChange={(v) => updateSetting("lyricsSize", v)}
+                  scheme={scheme}
+                  ariaLabel="歌词大小"
+                />
               </div>
             )}
 
+            {/* 高级 */}
             {activeSection === "advanced" && (
               <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>恢复默认设置</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>将所有选项重置为初始值</div>
-                  </div>
-                  <button onClick={resetSettings} className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95" style={{ border: "1px solid var(--accent)", color: "var(--accent)", background: "var(--accent-soft)", cursor: "pointer" }}>
+                <SettingRow>
+                  <SettingLabel title="恢复默认设置" desc="将所有选项重置为初始值" />
+                  <button
+                    onClick={resetSettings}
+                    className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform active:scale-95"
+                    style={{ border: "1px solid var(--accent)", color: "var(--accent)", background: "var(--accent-soft)", cursor: "pointer" }}
+                  >
                     重置
                   </button>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>清除本地回放</div>
-                    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>删除所有已保存的游戏回放</div>
-                  </div>
-                  <button onClick={clearReplays} className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95" style={{ border: "1px solid #ff375f", color: "#ff375f", background: "rgba(255, 55, 95, 0.12)", cursor: "pointer" }}>
+                </SettingRow>
+                <SettingRow>
+                  <SettingLabel title="清除本地回放" desc="删除所有已保存的游戏回放" />
+                  <button
+                    onClick={clearReplays}
+                    className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform active:scale-95"
+                    style={{ border: "1px solid var(--error)", color: "var(--error)", background: "var(--error-soft)", cursor: "pointer" }}
+                  >
                     <Trash2 size={12} style={{ display: "inline-block", verticalAlign: "middle", marginRight: 4 }} />
                     清除
                   </button>
-                </div>
+                </SettingRow>
               </div>
             )}
 
+            {/* 关于 */}
             {activeSection === "about" && (
-              <div className="space-y-3 text-sm" style={{ color: "var(--text-secondary)" }}>
-                <div><strong style={{ color: "var(--text-primary)", fontSize: 16 }}>osu!web</strong></div>
-                <p>纯前端 osu! 客户端，在浏览器里畅玩谱面。</p>
-                <p>在线体验：<a href="https://osu.yuiro.top" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", textDecoration: "none" }}>osu.yuiro.top</a></p>
-                <div className="pt-1">
-                  <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>功能</div>
-                  <ul style={{ margin: 0, paddingLeft: 16, lineHeight: 1.8 }}>
-                    <li>osu!standard / Taiko / Catch / Mania 四种模式</li>
-                    <li>Storyboard 渲染与歌词同步</li>
-                    <li>回放系统、Auto 演示、全屏模式</li>
-                    <li>内置默认打击音效，零延迟反馈</li>
-                    <li>Mod 系统（DT/HT/HR/Easy/Hidden 等）</li>
-                    <li>谱面自带皮肤与 .osk 自定义皮肤导入</li>
-                  </ul>
+              <div className="space-y-4 text-sm" style={{ color: "var(--text-secondary)" }}>
+                <div>
+                  <strong style={{ color: "var(--text-primary)", fontSize: 18 }}>osu!web</strong>
+                  <p className="mt-1">纯前端 osu! 客户端，在浏览器里畅玩谱面。</p>
                 </div>
-                <div className="pt-1">
-                  <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>数据来源</div>
-                  <ul style={{ margin: 0, paddingLeft: 16, lineHeight: 1.8 }}>
-                    <li>谱面搜索：osu.direct / Sayobot</li>
-                    <li>谱面下载：Sayobot 镜像</li>
-                    <li>歌词：LRCLIB 开源歌词库</li>
-                  </ul>
+                <p>在线体验：<a href="https://osu.yuiro.top" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>osu.yuiro.top</a></p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div
+                    style={{
+                      padding: 16,
+                      borderRadius: "var(--radius-md)",
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid var(--glass-border)",
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>功能</div>
+                    <ul style={{ margin: 0, paddingLeft: 16, lineHeight: 1.9 }}>
+                      <li>osu!standard / Taiko / Catch / Mania 四种模式</li>
+                      <li>Storyboard 渲染与歌词同步</li>
+                      <li>回放系统、Auto 演示、全屏模式</li>
+                      <li>内置默认打击音效，零延迟反馈</li>
+                      <li>Mod 系统（DT/HT/HR/Easy/Hidden 等）</li>
+                      <li>谱面自带皮肤与 .osk 自定义皮肤导入</li>
+                    </ul>
+                  </div>
+                  <div
+                    style={{
+                      padding: 16,
+                      borderRadius: "var(--radius-md)",
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid var(--glass-border)",
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>数据来源</div>
+                    <ul style={{ margin: 0, paddingLeft: 16, lineHeight: 1.9 }}>
+                      <li>谱面搜索：osu.direct / Sayobot</li>
+                      <li>谱面下载：Sayobot 镜像</li>
+                      <li>歌词：LRCLIB 开源歌词库</li>
+                    </ul>
+                  </div>
                 </div>
                 <p className="pt-2 text-xs" style={{ color: "var(--text-tertiary)" }}>仅供学习交流，请勿用于商业用途</p>
               </div>

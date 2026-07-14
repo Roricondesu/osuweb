@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useGameStore } from "@/store/useGameStore";
 import { BeatmapCard } from "@/components/common";
 import { Search as SearchIcon, X, SlidersHorizontal, ChevronDown, ArrowDownUp } from "lucide-react";
+import { OsuModeIcon } from "@/components/common";
 import type { GameMode, BeatmapSet } from "@/types";
+import { MODE_COLOR } from "@/types";
 
 const MODE_TABS: { key: GameMode | null; label: string }[] = [
   { key: null, label: "全部" },
@@ -305,8 +307,16 @@ export default function Search() {
                 style={{
                   padding: "6px 14px", fontSize: 12, fontWeight: 600,
                   color: active ? "var(--lazer-accent)" : "var(--text-secondary)",
+                  display: "flex", alignItems: "center", gap: 5,
                 }}
               >
+                {tab.key && (
+                  <OsuModeIcon
+                    mode={tab.key}
+                    size={13}
+                    color={active ? "var(--lazer-accent)" : MODE_COLOR[tab.key]}
+                  />
+                )}
                 {tab.label}
               </button>
             );

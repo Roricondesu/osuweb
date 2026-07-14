@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useGameStore } from "@/store/useGameStore";
-import { BeatmapCard, BeatmapCover, StarRatingBar, ModeBadge } from "@/components/common";
+import { BeatmapCard, BeatmapCover, StarRatingBar, ModeBadge, OsuModeIcon } from "@/components/common";
 import { useNavigate } from "react-router-dom";
 import { Play, ChevronLeft, ChevronRight, Download, Search as SearchIcon, Flame, Heart } from "lucide-react";
 import type { GameMode, BeatmapSet, LoadedBeatmapSet } from "@/types";
+import { MODE_COLOR } from "@/types";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 
 const MODE_TABS: { key: GameMode | null; label: string }[] = [
@@ -437,8 +438,16 @@ export default function Home() {
                 style={{
                   padding: "7px 16px", fontSize: 12, fontWeight: 600,
                   color: active ? "var(--lazer-accent)" : "var(--text-secondary)",
+                  display: "flex", alignItems: "center", gap: 5,
                 }}
               >
+                {tab.key && (
+                  <OsuModeIcon
+                    mode={tab.key}
+                    size={13}
+                    color={active ? "var(--lazer-accent)" : MODE_COLOR[tab.key]}
+                  />
+                )}
                 {tab.label}
               </button>
             );
