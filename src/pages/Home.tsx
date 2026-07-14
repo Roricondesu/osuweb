@@ -37,7 +37,7 @@ const SectionHeader: React.FC<{
         {icon}
       </span>
       <div>
-        <h2 style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.01em", color: "var(--text-primary)", margin: 0 }}>
+        <h2 className="font-torus" style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--text-primary)", margin: 0 }}>
           {title}
         </h2>
         {subtitle && (
@@ -161,8 +161,9 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
           )}
         </div>
         <h1
+          className="font-torus"
           style={{
-            fontSize: "clamp(20px, 3.5vw, 32px)", fontWeight: 800,
+            fontSize: "clamp(20px, 3.5vw, 32px)", fontWeight: 700,
             letterSpacing: "-0.02em", color: "#fff", margin: 0,
             textShadow: "0 2px 12px rgba(0,0,0,0.4)",
             whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",

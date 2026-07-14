@@ -24,11 +24,12 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = "sm" })
 
   return (
     <span
+      className="font-torus"
       style={{
         display: "inline-flex",
         alignItems: "center",
         fontSize,
-        fontWeight: 700,
+        fontWeight: 600,
         padding,
         borderRadius: 999,
         background: meta.bg,

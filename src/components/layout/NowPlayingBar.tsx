@@ -71,8 +71,8 @@ export const NowPlayingBar: React.FC = () => {
 
         {/* 标题 + 进度 */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontSize: 13, fontWeight: 700, color: "var(--text-primary)",
+          <div className="font-torus" style={{
+            fontSize: 13, fontWeight: 600, color: "var(--text-primary)",
             whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             letterSpacing: "-0.01em",
           }}>

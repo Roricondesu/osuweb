@@ -16,29 +16,19 @@ interface BeatmapCardProps {
 
 const PREVIEW_URL = (setId: number) => `https://b.ppy.sh/preview/${setId}.mp3`;
 
-/** osu! 模式图标 SVG（白色，14×14） */
+/** osu! 模式图标（白色 SVG，14×14） */
 const ModeIcon: React.FC<{ mode: number }> = ({ mode }) => {
   // 0=osu! 1=taiko 2=catch 3=mania
-  const labels = ["osu!", "taiko", "catch", "mania"];
-  const colors = ["#66ccff", "#ff66aa", "#66e0aa", "#cc99ff"];
+  const paths: Record<number, string> = {
+    0: "M7 1.5C3.96 1.5 1.5 3.96 1.5 7s2.46 5.5 5.5 5.5 5.5-2.46 5.5-5.5S10.04 1.5 7 1.5zm0 2a3.5 3.5 0 110 7 3.5 3.5 0 010-7z",
+    1: "M2 4h12v2.5H2V4zm0 3.5h12V10H2V7.5zM2 11h12v2.5H2V11z",
+    2: "M7 2C4.5 2 2.5 3.8 2.5 6c0 1 .4 1.9 1 2.6L7 13l3.5-4.4c.6-.7 1-1.6 1-2.6 0-2.2-2-4-4.5-4z",
+    3: "M3 2h2v12H3V2zm3 0h2v12H6V2zm3 0h2v12H9V2zm3 0h2v12h-2V2z",
+  };
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: 14,
-        height: 14,
-        borderRadius: "50%",
-        background: `${colors[mode]}22`,
-        color: colors[mode],
-        fontSize: 8,
-        fontWeight: 800,
-        lineHeight: 1,
-      }}
-    >
-      {labels[mode][0].toUpperCase()}
-    </span>
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+      <path d={paths[mode] || paths[0]} fill="#fff" />
+    </svg>
   );
 };
 
@@ -106,14 +96,14 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         overflow: "hidden",
         animation: "stagger-fade-up 0.5s cubic-bezier(0.22,1,0.36,1) both",
         animationDelay: `${0.04 + (index % 12) * 0.03}s`,
-        transition: "transform 0.25s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s ease",
-        transform: hover ? "translateY(-3px)" : "translateY(0)",
+        transition: "transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease",
+        transform: hover ? "translateY(-2px)" : "translateY(0)",
         boxShadow: hover
-          ? "0 8px 24px rgba(0,0,0,0.4)"
-          : "0 2px 8px rgba(0,0,0,0.2)",
+          ? "0 6px 20px rgba(0,0,0,0.35)"
+          : "0 2px 6px rgba(0,0,0,0.2)",
       }}
     >
-      {/* 左侧方形封面 */}
+      {/* 左侧方形封面（100×100） */}
       <div
         style={{
           position: "relative",
@@ -121,7 +111,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           minWidth: 100,
           height: "100%",
           overflow: "hidden",
-          zIndex: 1,
+          zIndex: 2,
         }}
       >
         <BeatmapCover
@@ -131,19 +121,20 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           style={{ position: "absolute", inset: 0 }}
           imgStyle={{
             width: "100%", height: "100%", objectFit: "cover",
-            transform: hover ? "scale(1.06)" : "scale(1)",
+            transform: hover ? "scale(1.05)" : "scale(1)",
             transition: "transform 0.4s cubic-bezier(0.22,1,0.36,1)",
           }}
         />
-        {/* 播放计数徽章（左上角黑色圆） */}
+        {/* 难度计数徽章（左下角黑色圆） */}
         <div
           style={{
-            position: "absolute", top: 5, left: 5,
-            width: 20, height: 20, borderRadius: "50%",
-            background: "rgba(0,0,0,0.7)",
+            position: "absolute", bottom: 5, left: 5,
+            minWidth: 20, height: 20, borderRadius: 10,
+            padding: "0 5px",
+            background: "rgba(0,0,0,0.75)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 9, fontWeight: 400, color: "#fff",
-            backdropFilter: "blur(4px)",
+            fontSize: 10, fontWeight: 700, color: "#fff",
+            lineHeight: 1,
           }}
         >
           {set.beatmaps.length}
@@ -169,7 +160,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         </button>
       </div>
 
-      {/* 右侧信息盒（osu!web 风格：深色底 + 模糊封面渐变叠层） */}
+      {/* 右侧信息盒（osu!web 风格：深色底 + 模糊封面渐变叠层，封面叠 7px） */}
       <div
         style={{
           position: "relative",
@@ -190,16 +181,16 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
                 backgroundImage: `url(${cover})`,
                 backgroundSize: "cover",
                 backgroundPosition: "center",
-                filter: "blur(20px) brightness(0.3) saturate(1.4)",
-                transform: "scale(1.2)",
-                opacity: hover ? 0.5 : 0.35,
+                filter: "blur(25px) brightness(0.35) saturate(1.4)",
+                transform: "scale(1.3)",
+                opacity: hover ? 0.55 : 0.4,
                 transition: "opacity 0.3s ease",
               }}
             />
             <div
               style={{
                 position: "absolute", inset: 0,
-                background: "linear-gradient(120deg, rgba(26,35,31,0.85) 0%, rgba(26,35,31,0.6) 100%)",
+                background: "linear-gradient(120deg, rgba(26,35,31,0.82) 0%, rgba(26,35,31,0.5) 100%)",
               }}
             />
           </>
@@ -210,21 +201,23 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           style={{
             position: "relative",
             height: "100%",
-            padding: "6px 10px",
+            padding: "7px 10px",
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
+            overflow: "hidden",
           }}
         >
           {/* 上部：标题 + 艺人 + mapper */}
           <div style={{ minHeight: 0, overflow: "hidden" }}>
             <div
+              className="font-torus"
               style={{
                 fontSize: 15, fontWeight: 600,
                 color: "#fff",
                 whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 letterSpacing: "-0.01em",
-                lineHeight: 1.25,
+                lineHeight: 1.2,
               }}
             >
               {set.title_unicode || set.title}
@@ -232,7 +225,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             <div
               style={{
                 fontSize: 12, fontWeight: 500,
-                color: "rgba(255,255,255,0.75)",
+                color: "rgba(255,255,255,0.7)",
                 marginTop: 1,
                 whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 lineHeight: 1.3,
@@ -244,7 +237,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               style={{
                 fontSize: 11, fontWeight: 500,
                 color: "#dbefe8",
-                marginTop: 2,
+                marginTop: 1,
                 whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 lineHeight: 1.3,
               }}
@@ -253,13 +246,14 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             </div>
           </div>
 
-          {/* 下部：状态徽章 + 模式 + 星级色点 */}
+          {/* 下部：状态徽章 + 模式图标 + 星级色点 */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 6,
-              flexWrap: "wrap",
+              gap: 5,
+              flexWrap: "nowrap",
+              overflow: "hidden",
             }}
           >
             <StatusBadge status={set.status} />
@@ -268,11 +262,11 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             ))}
             {set.hasStoryboard && <StoryboardBadge />}
             {set.hasVideo && <VideoBadge />}
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
               <StarRatingBar stars={maxStars} variant="dots" />
               <span
-                className="hud-num"
-                style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}
+                className="hud-num font-torus"
+                style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}
               >
                 {maxStars.toFixed(2)}
               </span>
@@ -286,8 +280,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           aria-label="打开"
           style={{
             position: "absolute", top: "50%", right: 10,
-            transform: hover ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.7)",
-            width: 32, height: 32, borderRadius: "50%",
+            transform: hover ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.6)",
+            width: 30, height: 30, borderRadius: "50%",
             border: "none",
             background: "var(--lazer-gradient)",
             color: "#fff",
@@ -296,9 +290,10 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             boxShadow: "0 4px 16px rgba(136,102,255,0.5)",
             opacity: hover ? 1 : 0,
             transition: "all 0.25s cubic-bezier(0.22,1,0.36,1)",
+            zIndex: 3,
           }}
         >
-          <Play size={14} fill="currentColor" />
+          <Play size={13} fill="currentColor" />
         </button>
 
         {/* 播放指示器 */}
@@ -310,6 +305,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               padding: "2px 7px", borderRadius: 999,
               background: "var(--lazer-gradient)",
               color: "#fff", fontSize: 9, fontWeight: 700,
+              zIndex: 3,
             }}
           >
             <span

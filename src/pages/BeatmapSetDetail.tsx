@@ -93,8 +93,8 @@ const DifficultyCard: React.FC<{
         </div>
 
         {/* 版本名 */}
-        <div style={{
-          fontSize: 14, fontWeight: 700, color: "#fff",
+        <div className="font-torus" style={{
+          fontSize: 14, fontWeight: 600, color: "#fff",
           letterSpacing: "-0.01em", marginBottom: 10,
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         }}>
@@ -335,8 +335,8 @@ export default function BeatmapSetDetail() {
                   {detailSet?.hasVideo && <VideoBadge size="md" />}
                 </div>
               )}
-              <h1 style={{
-                fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em",
+              <h1 className="font-torus" style={{
+                fontSize: 22, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em",
                 margin: 0,
               }}>
                 {detailSet?.title_unicode || detailSet?.title || "加载中…"}

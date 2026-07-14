@@ -68,8 +68,8 @@ const SectionPanel: React.FC<{
           }}>
             {meta.icon}
           </span>
-          <h2 style={{
-            fontSize: 17, fontWeight: 700, letterSpacing: "-0.01em",
+          <h2 className="font-torus" style={{
+            fontSize: 17, fontWeight: 600, letterSpacing: "-0.01em",
             color: "var(--text-primary)", margin: 0,
           }}>
             {meta.title}
@@ -399,11 +399,12 @@ export default function Settings() {
                     background: active ? "var(--lazer-gradient-soft)" : "transparent",
                     color: active ? "var(--lazer-accent)" : "var(--text-secondary)",
                     fontSize: 13,
-                    fontWeight: active ? 700 : 500,
+                    fontWeight: active ? 600 : 500,
                     cursor: "pointer",
                     transition: "all 0.2s ease",
                     marginBottom: 2,
                   }}
+                  className="font-torus"
                 >
                   {s.icon}
                   {s.title}

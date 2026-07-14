@@ -241,7 +241,7 @@ export default function Search() {
           animation: "stagger-fade-up 0.4s cubic-bezier(0.22,1,0.36,1) both",
         }}
       >
-        <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.01em", color: "var(--text-primary)", margin: 0 }}>
+        <h1 className="font-torus" style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--text-primary)", margin: 0 }}>
           搜索谱面
         </h1>
         <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>
