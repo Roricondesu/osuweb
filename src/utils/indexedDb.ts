@@ -3,10 +3,12 @@
 import type { LoadedBeatmapSet } from "@/types";
 
 const DB_NAME = "osuweb-downloads";
-const DB_VERSION = 3; // 升级到 3，新增 customHitSounds
+const DB_VERSION = 4; // 升级到 4，新增 customSkin
 const STORE_NAME = "beatmapsets";
 const HITSOUND_STORE_NAME = "hitsounds";
 const HITSOUND_KEY = "custom";
+const SKIN_STORE_NAME = "customSkin";
+const SKIN_KEY = "custom";
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -20,6 +22,9 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(HITSOUND_STORE_NAME)) {
         db.createObjectStore(HITSOUND_STORE_NAME);
+      }
+      if (!db.objectStoreNames.contains(SKIN_STORE_NAME)) {
+        db.createObjectStore(SKIN_STORE_NAME);
       }
     };
   });
@@ -228,6 +233,62 @@ export async function deleteCustomHitSounds(): Promise<void> {
   const store = tx.objectStore(HITSOUND_STORE_NAME);
   return new Promise((resolve, reject) => {
     const req = store.delete(HITSOUND_KEY);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/** 自定义皮肤：以 Blob 形式持久化（与音效同模式） */
+export async function saveCustomSkin(assetUrls: Record<string, string>): Promise<void> {
+  const blobs: Record<string, Blob> = {};
+  const entries = Object.entries(assetUrls);
+  const fetched = await Promise.all(entries.map(([, url]) => blobFromUrl(url)));
+  entries.forEach(([name], i) => {
+    const b = fetched[i];
+    if (b) blobs[name] = b;
+  });
+
+  const db = await openDB();
+  const tx = db.transaction(SKIN_STORE_NAME, "readwrite");
+  const store = tx.objectStore(SKIN_STORE_NAME);
+  return new Promise((resolve, reject) => {
+    const req = store.put(blobs, SKIN_KEY);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function loadCustomSkin(): Promise<Record<string, string>> {
+  const db = await openDB();
+  const tx = db.transaction(SKIN_STORE_NAME, "readonly");
+  const store = tx.objectStore(SKIN_STORE_NAME);
+  return new Promise((resolve, reject) => {
+    const req = store.get(SKIN_KEY);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      const blobs = (req.result || {}) as Record<string, Blob>;
+      const assetUrls: Record<string, string> = {};
+      for (const [name, blob] of Object.entries(blobs)) {
+        const url = urlFromBlob(blob);
+        if (url) assetUrls[name] = url;
+      }
+      resolve(assetUrls);
+    };
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function deleteCustomSkin(): Promise<void> {
+  const db = await openDB();
+  const tx = db.transaction(SKIN_STORE_NAME, "readwrite");
+  const store = tx.objectStore(SKIN_STORE_NAME);
+  return new Promise((resolve, reject) => {
+    const req = store.delete(SKIN_KEY);
     req.onerror = () => reject(req.error);
     req.onsuccess = () => resolve();
     tx.oncomplete = () => db.close();

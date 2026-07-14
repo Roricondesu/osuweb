@@ -21,7 +21,7 @@ import {
   downloadOszRacing,
 } from "@/api/osuDirect";
 import { extractOsz, extractOszFromFile, extractOsk, extractHitSounds } from "@/utils/oszLoader";
-import { saveDownload, loadAllDownloads, deleteDownload, clearAllDownloads, saveCustomHitSounds, loadCustomHitSounds, deleteCustomHitSounds } from "@/utils/indexedDb";
+import { saveDownload, loadAllDownloads, deleteDownload, clearAllDownloads, saveCustomHitSounds, loadCustomHitSounds, deleteCustomHitSounds, saveCustomSkin, loadCustomSkin, deleteCustomSkin } from "@/utils/indexedDb";
 import { fetchLyrics } from "@/utils/lyricsProvider";
 
 const EMPTY_RUNTIME: GameRuntime = {
@@ -267,6 +267,14 @@ export const useGameStore = create<GameState>()(
         } catch (e) {
           console.warn("加载自定义音效失败", e);
         }
+        try {
+          const skinUrls = await loadCustomSkin();
+          if (Object.keys(skinUrls).length > 0) {
+            set((s) => ({ settings: { ...s.settings, customSkinAssetUrls: skinUrls, useCustomSkin: true } }));
+          }
+        } catch (e) {
+          console.warn("加载自定义皮肤失败", e);
+        }
       },
       importBeatmapFile: async (file) => {
         try {
@@ -295,6 +303,8 @@ export const useGameStore = create<GameState>()(
               try { URL.revokeObjectURL(url); } catch { /* 忽略 */ }
             }
           }
+          // 持久化到 IndexedDB，使刷新后可恢复（Blob URL 本身不跨会话）
+          await saveCustomSkin(assetUrls);
           set((s) => ({
             settings: {
               ...s.settings,
@@ -398,8 +408,7 @@ export const useGameStore = create<GameState>()(
               ...((persisted as GameState).settings as unknown as { keyBindings?: Record<string, unknown> } | undefined)?.keyBindings,
               mania: maniaKeys,
             },
-            customSkinAssetUrls: undefined,
-            useCustomSkin: false,
+            customSkinAssetUrls: undefined, // Blob URL 不跨会话，由 initialize 从 IndexedDB 恢复
             customHitSoundUrls: undefined,
           },
         };
