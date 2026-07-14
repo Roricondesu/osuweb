@@ -160,7 +160,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         </button>
       </div>
 
-      {/* 右侧信息盒（osu!web 风格：深色底 + 模糊封面渐变叠层，封面叠 7px） */}
+      {/* 右侧信息盒（osu!web 风格：深色底 + 模糊封面叠层，封面叠 7px） */}
       <div
         style={{
           position: "relative",
@@ -169,10 +169,11 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           marginLeft: -7,
           borderRadius: 10,
           overflow: "hidden",
-          background: "#1a231f",
+          background: "var(--card-info-bg)",
+          zIndex: 3,
         }}
       >
-        {/* 模糊封面作为背景渐变 */}
+        {/* 模糊封面作为背景 */}
         {cover && (
           <>
             <div
@@ -190,7 +191,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             <div
               style={{
                 position: "absolute", inset: 0,
-                background: "linear-gradient(120deg, rgba(26,35,31,0.82) 0%, rgba(26,35,31,0.5) 100%)",
+                background: "rgba(0,0,0,0.55)",
               }}
             />
           </>
@@ -283,14 +284,14 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             transform: hover ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.6)",
             width: 30, height: 30, borderRadius: "50%",
             border: "none",
-            background: "var(--lazer-gradient)",
+            background: "var(--accent)",
             color: "#fff",
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "pointer",
-            boxShadow: "0 4px 16px rgba(136,102,255,0.5)",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
             opacity: hover ? 1 : 0,
             transition: "all 0.25s cubic-bezier(0.22,1,0.36,1)",
-            zIndex: 3,
+            zIndex: 4,
           }}
         >
           <Play size={13} fill="currentColor" />
@@ -303,9 +304,9 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               position: "absolute", bottom: 6, right: 10,
               display: "flex", alignItems: "center", gap: 3,
               padding: "2px 7px", borderRadius: 999,
-              background: "var(--lazer-gradient)",
+              background: "var(--accent)",
               color: "#fff", fontSize: 9, fontWeight: 700,
-              zIndex: 3,
+              zIndex: 4,
             }}
           >
             <span

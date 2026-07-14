@@ -620,7 +620,7 @@ export default function Game() {
           style={{
             position: "absolute",
             inset: 0,
-            background: "linear-gradient(180deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.75) 100%)",
+            background: "rgba(0,0,0,0.6)",
             backdropFilter: "blur(24px)",
             WebkitBackdropFilter: "blur(24px)",
             display: "flex",
@@ -785,7 +785,7 @@ const ResultScreen: React.FC<{
               position: "relative",
               width: 120, height: 120, borderRadius: "50%",
               display: "flex", alignItems: "center", justifyContent: "center",
-              background: `radial-gradient(circle at 30% 30%, ${rankColor}33, ${rankColor}11 60%, transparent 80%)`,
+              background: `${rankColor}22`,
               border: `2px solid ${rankColor}`,
               boxShadow: `0 0 32px ${rankColor}55, inset 0 0 20px ${rankColor}22`,
               animation: "rank-pop 0.6s cubic-bezier(0.22,1.4,0.36,1) both",
@@ -822,9 +822,8 @@ const ResultScreen: React.FC<{
             <div
               style={{
                 width: `${acc100}%`, height: "100%",
-                background: `linear-gradient(90deg, ${rankColor}aa, ${rankColor})`,
+                background: rankColor,
                 borderRadius: 999,
-                boxShadow: `0 0 8px ${rankColor}88`,
                 transition: "width 0.8s cubic-bezier(0.22,1,0.36,1)",
               }}
             />

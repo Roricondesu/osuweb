@@ -84,8 +84,8 @@ export const ModSelectOverlay: React.FC<ModSelectOverlayProps> = ({ open, onClos
             <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Mods</h2>
             {mods.length > 0 && (
               <span style={{
-                fontSize: 11, fontWeight: 700, color: "var(--lazer-accent)",
-                background: "var(--lazer-gradient-soft)", padding: "2px 8px", borderRadius: 999,
+                fontSize: 11, fontWeight: 700, color: "var(--accent)",
+                background: "var(--accent-soft)", padding: "2px 8px", borderRadius: 999,
               }}>
                 {mods.length} 个已启用
               </span>
@@ -124,9 +124,7 @@ export const ModSelectOverlay: React.FC<ModSelectOverlayProps> = ({ open, onClos
                         padding: "12px 8px",
                         borderRadius: 14,
                         border: `1.5px solid ${active ? color : "var(--glass-border)"}`,
-                        background: active
-                          ? `linear-gradient(135deg, ${color}33, ${color}11)`
-                          : "var(--glass-bg)",
+                        background: active ? `${color}22` : "var(--glass-bg)",
                         cursor: "pointer",
                         transition: "all 0.2s cubic-bezier(0.22, 1, 0.36, 1)",
                         overflow: "hidden",
@@ -192,11 +190,11 @@ export const ModSelectButton: React.FC<{ onClick: () => void }> = ({ onClick }) 
         height: 56,
         borderRadius: "50%",
         border: "none",
-        background: hover ? "var(--lazer-gradient)" : "var(--lazer-accent)",
+        background: "var(--accent)",
         color: "#fff",
         boxShadow: hover
-          ? "0 8px 32px rgba(136, 102, 255, 0.55)"
-          : "0 4px 16px rgba(136, 102, 255, 0.4)",
+          ? "0 8px 32px rgba(0, 0, 0, 0.5)"
+          : "0 4px 16px rgba(0, 0, 0, 0.35)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

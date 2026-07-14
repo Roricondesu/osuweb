@@ -75,7 +75,7 @@ export const StarRatingBar: React.FC<StarRatingBarProps> = ({ stars, variant = "
             style={{
               width: `${pct}%`,
               height: "100%",
-              background: `linear-gradient(90deg, ${color}, ${color}dd)`,
+              background: color,
               borderRadius: 999,
               transition: "width 0.3s ease",
             }}
@@ -104,9 +104,8 @@ export const StarRatingBar: React.FC<StarRatingBarProps> = ({ stars, variant = "
           style={{
             width: `${pct}%`,
             height: "100%",
-            background: `linear-gradient(90deg, ${color}, ${color}cc)`,
+            background: color,
             borderRadius: 999,
-            boxShadow: `0 0 8px ${color}66`,
             transition: "width 0.3s ease",
           }}
         />

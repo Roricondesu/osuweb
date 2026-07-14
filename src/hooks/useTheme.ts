@@ -24,9 +24,9 @@ export const useTheme = () => {
       const b = parseInt(m[1].slice(4, 6), 16);
       html.style.setProperty("--accent-soft", `rgba(${r},${g},${b},0.14)`);
       html.style.setProperty("--accent-strong", `rgba(${r},${g},${b},0.28)`);
-      // 同步 lazer 渐变（accent → 粉色固定第二色）
-      html.style.setProperty("--lazer-gradient", `linear-gradient(135deg, ${accent}, #ff66aa)`);
-      html.style.setProperty("--lazer-gradient-soft", `linear-gradient(135deg, rgba(${r},${g},${b},0.18), rgba(255,102,170,0.18))`);
+      // 渐变已移除，lazer-gradient 变量作为纯色别名跟随 accent
+      html.style.setProperty("--lazer-gradient", accent);
+      html.style.setProperty("--lazer-gradient-soft", `rgba(${r},${g},${b},0.14)`);
     }
   }, [accent]);
 };

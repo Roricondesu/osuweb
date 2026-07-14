@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import { useGameStore } from "@/store/useGameStore";
 import { useTheme } from "@/hooks/useTheme";
 import { useLocation, Link } from "react-router-dom";
-import { Maximize, Minimize, Menu, X } from "lucide-react";
+import { Maximize, Minimize, Home, Search, Download, Settings as SettingsIcon } from "lucide-react";
 import { useFullscreen } from "@/hooks/useFullscreen";
 
 /** osu! cookie logo SVG */
@@ -17,194 +16,123 @@ const OsuCookie: React.FC<{ size?: number }> = ({ size = 28 }) => (
 );
 
 const NAV_ITEMS = [
-  { to: "/", label: "Home" },
-  { to: "/search", label: "Search" },
-  { to: "/downloads", label: "Downloads" },
-  { to: "/settings", label: "Settings" },
+  { to: "/", label: "Home", icon: Home },
+  { to: "/search", label: "Search", icon: Search },
+  { to: "/downloads", label: "Downloads", icon: Download },
+  { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
 export const TopNav: React.FC = () => {
   useTheme();
   const location = useLocation();
   const { toggle, active } = useFullscreen();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   if (location.pathname.startsWith("/game")) return null;
 
   return (
-    <>
-      <header
+    <header
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        height: "var(--nav-height)",
+        padding: "0 12px",
+        background: "rgba(21,21,26,0.92)",
+        backdropFilter: "blur(20px) saturate(140%)",
+        WebkitBackdropFilter: "blur(20px) saturate(140%)",
+        borderBottom: "1px solid var(--glass-border)",
+      }}
+    >
+      {/* 左：Cookie logo + osu!web */}
+      <Link
+        to="/"
+        className="flex items-center gap-2 no-underline"
+        style={{ color: "#fff", flexShrink: 0 }}
+      >
+        <OsuCookie size={28} />
+        <span
+          className="font-torus hidden sm:inline"
+          style={{
+            fontSize: 18,
+            fontWeight: 700,
+            color: "#fff",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          osu!<span style={{ color: "var(--accent)", fontWeight: 600 }}>web</span>
+        </span>
+      </Link>
+
+      {/* 中：悬浮图标导航（桌面端 + 移动端共用，始终显示） */}
+      <nav
         style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 50,
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          height: "var(--nav-height)",
-          padding: "0 12px",
-          background: "rgba(21,21,26,0.92)",
-          backdropFilter: "blur(20px) saturate(140%)",
-          WebkitBackdropFilter: "blur(20px) saturate(140%)",
-          borderBottom: "1px solid var(--glass-border)",
+          gap: 4,
+          padding: "4px",
+          borderRadius: "var(--radius-pill)",
+          background: "rgba(0,0,0,0.35)",
+          border: "1px solid var(--glass-border)",
         }}
       >
-        {/* 左：Cookie logo + osu!web */}
-        <Link
-          to="/"
-          className="flex items-center gap-2 no-underline"
-          style={{ color: "#fff", flexShrink: 0 }}
-        >
-          <OsuCookie size={28} />
-          <span
-            className="font-torus hidden sm:inline"
-            style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: "#fff",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            osu!<span style={{ color: "var(--accent)", fontWeight: 600 }}>web</span>
-          </span>
-        </Link>
+        {NAV_ITEMS.map((item, idx) => {
+          const isActive = location.pathname === item.to;
+          const isHovered = hoveredIdx === idx;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              onMouseEnter={() => setHoveredIdx(idx)}
+              onMouseLeave={() => setHoveredIdx(null)}
+              className="no-underline font-torus"
+              style={{
+                height: 32,
+                minWidth: 32,
+                padding: "0 10px",
+                borderRadius: "var(--radius-pill)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                color: isActive ? "#fff" : "var(--text-secondary)",
+                fontSize: 12,
+                fontWeight: isActive ? 600 : 500,
+                background: isActive ? "var(--accent)" : isHovered ? "var(--surface-hover)" : "transparent",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Icon size={15} style={{ flexShrink: 0 }} />
+              <span className="hidden md:inline">{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
-        {/* 中：桌面端导航 */}
-        <nav className="hidden sm:flex items-center gap-1">
-          {NAV_ITEMS.map((item) => {
-            const isActive = location.pathname === item.to;
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className="no-underline font-torus"
-                style={{
-                  height: 34,
-                  padding: "0 14px",
-                  borderRadius: "var(--radius-sm)",
-                  display: "flex",
-                  alignItems: "center",
-                  color: isActive ? "#fff" : "var(--text-secondary)",
-                  fontSize: 13,
-                  fontWeight: isActive ? 600 : 500,
-                  background: isActive ? "var(--accent-soft)" : "transparent",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* 右：全屏 + 移动端菜单按钮 */}
-        <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>
-          <button
-            onClick={toggle}
-            aria-label={active ? "退出全屏" : "进入全屏"}
-            className="hidden sm:flex"
-            style={{
-              width: 34, height: 34, borderRadius: "var(--radius-sm)",
-              alignItems: "center", justifyContent: "center",
-              cursor: "pointer",
-              color: active ? "var(--accent)" : "var(--text-secondary)",
-              background: "transparent",
-              border: "none",
-              transition: "all 0.15s ease",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "#fff"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = active ? "var(--accent)" : "var(--text-secondary)"; }}
-          >
-            {active ? <Minimize size={16} /> : <Maximize size={16} />}
-          </button>
-
-          {/* 移动端汉堡按钮 */}
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="菜单"
-            className="sm:hidden"
-            style={{
-              width: 34, height: 34, borderRadius: "var(--radius-sm)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer",
-              color: "#fff",
-              background: "transparent",
-              border: "none",
-            }}
-          >
-            {menuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
-      </header>
-
-      {/* 移动端下拉菜单 */}
-      {menuOpen && (
-        <nav
-          className="sm:hidden"
-          style={{
-            position: "fixed",
-            top: "var(--nav-height)",
-            left: 0,
-            right: 0,
-            zIndex: 49,
-            background: "rgba(21,21,26,0.98)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            borderBottom: "1px solid var(--glass-border)",
-            padding: "8px 12px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 4,
-          }}
-          onClick={() => setMenuOpen(false)}
-        >
-          {NAV_ITEMS.map((item) => {
-            const isActive = location.pathname === item.to;
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className="no-underline font-torus"
-                style={{
-                  height: 40,
-                  padding: "0 14px",
-                  borderRadius: "var(--radius-sm)",
-                  display: "flex",
-                  alignItems: "center",
-                  color: isActive ? "#fff" : "var(--text-secondary)",
-                  fontSize: 14,
-                  fontWeight: isActive ? 600 : 500,
-                  background: isActive ? "var(--accent-soft)" : "transparent",
-                }}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-          <button
-            onClick={toggle}
-            className="font-torus"
-            style={{
-              height: 40,
-              padding: "0 14px",
-              borderRadius: "var(--radius-sm)",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              color: active ? "var(--accent)" : "var(--text-secondary)",
-              fontSize: 14,
-              fontWeight: 500,
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            {active ? <Minimize size={16} /> : <Maximize size={16} />}
-            {active ? "退出全屏" : "进入全屏"}
-          </button>
-        </nav>
-      )}
-    </>
+      {/* 右：全屏按钮 */}
+      <button
+        onClick={toggle}
+        aria-label={active ? "退出全屏" : "进入全屏"}
+        style={{
+          width: 34, height: 34, borderRadius: "var(--radius-sm)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer",
+          color: active ? "var(--accent)" : "var(--text-secondary)",
+          background: "transparent",
+          border: "none",
+          transition: "all 0.15s ease",
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "#fff"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = active ? "var(--accent)" : "var(--text-secondary)"; }}
+      >
+        {active ? <Minimize size={16} /> : <Maximize size={16} />}
+      </button>
+    </header>
   );
 };

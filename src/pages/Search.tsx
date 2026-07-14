@@ -90,7 +90,7 @@ const RangeFilter: React.FC<{
             left: `${((lo - min) / (max - min)) * 100}%`,
             right: `${(1 - (hi - min) / (max - min)) * 100}%`,
             height: 4,
-            background: "var(--lazer-gradient)",
+            background: "var(--accent)",
             borderRadius: 999,
             pointerEvents: "none",
           }}

@@ -63,8 +63,8 @@ const SectionPanel: React.FC<{
           <span style={{
             width: 32, height: 32, borderRadius: 10,
             display: "flex", alignItems: "center", justifyContent: "center",
-            background: "var(--lazer-gradient-soft)",
-            color: "var(--lazer-accent)",
+            background: "var(--accent-soft)",
+            color: "var(--accent)",
           }}>
             {meta.icon}
           </span>
@@ -396,7 +396,7 @@ export default function Settings() {
                     padding: "10px 12px",
                     borderRadius: 10,
                     border: "none",
-                    background: active ? "var(--lazer-gradient-soft)" : "transparent",
+                    background: active ? "var(--accent-soft)" : "transparent",
                     color: active ? "var(--lazer-accent)" : "var(--text-secondary)",
                     fontSize: 13,
                     fontWeight: active ? 600 : 500,

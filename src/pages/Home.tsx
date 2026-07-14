@@ -31,7 +31,7 @@ const SectionHeader: React.FC<{
         style={{
           width: 30, height: 30, borderRadius: 9,
           display: "flex", alignItems: "center", justifyContent: "center",
-          background: "var(--lazer-gradient-soft)", color: "var(--lazer-accent)",
+          background: "var(--accent-soft)", color: "var(--accent)",
         }}
       >
         {icon}
@@ -135,8 +135,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
       <div
         style={{
           position: "absolute", inset: 0,
-          background:
-            "linear-gradient(100deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.15) 100%)",
+          background: "rgba(0,0,0,0.6)",
           pointerEvents: "none",
         }}
       />
@@ -154,7 +153,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
           {set.hasStoryboard && (
             <span style={{
               fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-              background: "var(--lazer-gradient)", color: "#fff",
+              background: "var(--accent)", color: "#fff",
             }}>
               STORYBOARD
             </span>
@@ -256,7 +255,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
                 style={{
                   width: i === index ? 20 : 6, height: 6,
                   borderRadius: 999,
-                  background: i === index ? "var(--lazer-gradient)" : "rgba(255,255,255,0.4)",
+                  background: i === index ? "var(--accent)" : "rgba(255,255,255,0.4)",
                   border: "none", cursor: "pointer",
                   transition: "all 0.3s cubic-bezier(0.22,1,0.36,1)",
                 }}
@@ -325,7 +324,7 @@ const DownloadedCard: React.FC<{ loaded: LoadedBeatmapSet }> = ({ loaded }) => {
             <div
               style={{
                 position: "absolute", inset: 0,
-                background: "linear-gradient(120deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.4) 100%)",
+                background: "rgba(0,0,0,0.55)",
               }}
             />
           </>

@@ -1,13 +1,238 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useGameStore } from "@/store/useGameStore";
-import { GlassButton } from "@/components/glass/GlassButton";
-import { ModeBadge } from "@/components/common";
-import { Trash2, Play, Music2, HardDrive, AlertCircle, ChevronDown, ChevronUp, Upload } from "lucide-react";
+import { BeatmapCover, ModeBadge, StarRatingBar } from "@/components/common";
+import { Trash2, Play, Music2, HardDrive, AlertCircle, ChevronDown, ChevronUp, Upload, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { GameMode, Beatmap, LoadedBeatmapSet } from "@/types";
 import { MODE_FROM_ID } from "@/types";
 
 const MODE_FROM_NUM: Record<number, GameMode> = MODE_FROM_ID;
+
+/** 已下载卡片（基于 osu!web BeatmapCard 风格，适配 LoadedBeatmapSet） */
+const DownloadedCard: React.FC<{
+  set: LoadedBeatmapSet;
+  expanded: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+  onPlay: (beatmap: Beatmap) => void;
+}> = ({ set, expanded, onToggle, onDelete, onPlay }) => {
+  const navigate = useNavigate();
+  const [hover, setHover] = useState(false);
+  const modes = Array.from(new Set(set.beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3)));
+  const maxStars = set.beatmaps.length ? Math.max(...set.beatmaps.map((b) => b.difficulty_rating || 0)) : 0;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        borderRadius: 10,
+        overflow: "hidden",
+        background: "var(--card-bg)",
+        border: "1px solid var(--border)",
+        transition: "transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease",
+        transform: hover ? "translateY(-2px)" : "none",
+        boxShadow: hover ? "0 6px 20px rgba(0,0,0,0.35)" : "0 2px 6px rgba(0,0,0,0.2)",
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      {/* 卡片主体（横向：封面 + 信息盒） */}
+      <div style={{ display: "flex", height: 100, cursor: "pointer" }} onClick={() => navigate(`/set/${set.setId}`)}>
+        {/* 左侧方形封面 */}
+        <div style={{ position: "relative", width: 100, minWidth: 100, height: "100%", overflow: "hidden", zIndex: 2 }}>
+          <BeatmapCover
+            src={set.cover}
+            alt={set.title}
+            placeholderSize={32}
+            style={{ position: "absolute", inset: 0 }}
+            imgStyle={{
+              width: "100%", height: "100%", objectFit: "cover",
+              transform: hover ? "scale(1.05)" : "scale(1)",
+              transition: "transform 0.4s cubic-bezier(0.22,1,0.36,1)",
+            }}
+          />
+          {/* 已下载指示徽章 */}
+          <div
+            style={{
+              position: "absolute", top: 5, left: 5,
+              display: "flex", alignItems: "center", gap: 3,
+              padding: "2px 6px", borderRadius: 999,
+              background: "rgba(0,0,0,0.75)",
+              fontSize: 9, fontWeight: 700, color: "var(--success)",
+            }}
+          >
+            <CheckCircle2 size={10} />
+          </div>
+          {/* 难度数徽章 */}
+          <div
+            style={{
+              position: "absolute", bottom: 5, left: 5,
+              minWidth: 20, height: 20, borderRadius: 10,
+              padding: "0 5px",
+              background: "rgba(0,0,0,0.75)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 10, fontWeight: 700, color: "#fff",
+              lineHeight: 1,
+            }}
+          >
+            {set.beatmaps.length}
+          </div>
+        </div>
+
+        {/* 右侧信息盒 */}
+        <div
+          style={{
+            position: "relative",
+            flex: 1,
+            height: "100%",
+            marginLeft: -7,
+            borderRadius: 10,
+            overflow: "hidden",
+            background: "var(--card-info-bg)",
+            zIndex: 3,
+          }}
+        >
+          {set.cover && (
+            <>
+              <div
+                style={{
+                  position: "absolute", inset: 0,
+                  backgroundImage: `url(${set.cover})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  filter: "blur(25px) brightness(0.35) saturate(1.4)",
+                  transform: "scale(1.3)",
+                  opacity: hover ? 0.55 : 0.4,
+                  transition: "opacity 0.3s ease",
+                }}
+              />
+              <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)" }} />
+            </>
+          )}
+
+          {/* 内容层 */}
+          <div
+            style={{
+              position: "relative",
+              height: "100%",
+              padding: "7px 10px",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              overflow: "hidden",
+            }}
+          >
+            {/* 上部：标题 + 艺人 */}
+            <div style={{ minHeight: 0, overflow: "hidden" }}>
+              <div
+                className="font-torus"
+                style={{
+                  fontSize: 15, fontWeight: 600, color: "#fff",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  letterSpacing: "-0.01em", lineHeight: 1.2,
+                }}
+              >
+                {set.title}
+              </div>
+              <div
+                style={{
+                  fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.7)",
+                  marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  lineHeight: 1.3,
+                }}
+              >
+                {set.artist}
+              </div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 1 }}>
+                {new Date(set.downloadedAt).toLocaleDateString()}
+              </div>
+            </div>
+
+            {/* 下部：模式 + 星级 + 操作按钮 */}
+            <div style={{ display: "flex", alignItems: "center", gap: 5, overflow: "hidden" }}>
+              {modes.slice(0, 2).map((m) => {
+                const modeName: GameMode = MODE_FROM_NUM[m] || "standard";
+                return <ModeBadge key={m} mode={modeName} />;
+              })}
+              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                <StarRatingBar stars={maxStars} variant="dots" />
+                <span className="hud-num font-torus" style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
+                  {maxStars.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 操作按钮 */}
+          <div style={{ position: "absolute", top: 5, right: 5, display: "flex", gap: 4, zIndex: 4 }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggle(); }}
+              aria-label={expanded ? "折叠" : "展开"}
+              style={{
+                width: 22, height: 22, borderRadius: "50%", border: "none",
+                background: "rgba(0,0,0,0.5)", color: "#fff",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", transition: "all 0.2s ease",
+              }}
+            >
+              {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              aria-label="删除"
+              style={{
+                width: 22, height: 22, borderRadius: "50%", border: "none",
+                background: "rgba(0,0,0,0.5)", color: "var(--error)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", transition: "all 0.2s ease",
+              }}
+            >
+              <Trash2 size={11} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 展开的难度列表 */}
+      {expanded && (
+        <div
+          className="diff-grid"
+          style={{ padding: 8, borderTop: "1px solid var(--border)", animation: "stagger-fade-up 0.3s ease both" }}
+        >
+          {set.beatmaps.map((b) => {
+            const mode = MODE_FROM_NUM[b.mode] || "standard";
+            return (
+              <button
+                key={b.id}
+                onClick={() => onPlay(b)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "8px 10px", borderRadius: "var(--radius-sm)",
+                  background: "var(--surface-hover)", border: "1px solid var(--border)",
+                  cursor: "pointer", transition: "all 0.15s ease",
+                  textAlign: "left",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-elevated)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+              >
+                <ModeBadge mode={mode} />
+                <span
+                  className="font-torus"
+                  style={{ flex: 1, fontSize: 12, fontWeight: 500, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                >
+                  {b.version}
+                </span>
+                <StarRatingBar stars={b.difficulty_rating || 0} variant="compact" />
+                <Play size={12} style={{ color: "var(--accent)", flexShrink: 0 }} fill="currentColor" />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function Downloads() {
   const navigate = useNavigate();
@@ -18,7 +243,6 @@ export default function Downloads() {
   const importBeatmapFile = useGameStore((s) => s.importBeatmapFile);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const [coverError, setCoverError] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -84,23 +308,24 @@ export default function Downloads() {
           </h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <GlassButton
+          <button
             onClick={() => fileInputRef.current?.click()}
             disabled={importing}
+            className="hud-btn font-torus"
+            style={{ padding: "8px 14px", fontSize: 12, fontWeight: 600, color: "var(--accent)" }}
           >
-            <Upload size={14} className="mr-1.5" />
-            <span className="hidden sm:inline">{importing ? "导入中…" : "导入谱面"}</span>
-            <span className="sm:hidden">{importing ? "…" : "导入"}</span>
-          </GlassButton>
+            <Upload size={14} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
+            {importing ? "导入中…" : "导入谱面"}
+          </button>
           {items.length > 0 && (
-            <GlassButton
+            <button
               onClick={handleClear}
-              style={{ background: "var(--error-soft)", color: "var(--error)" }}
+              className="hud-btn font-torus"
+              style={{ padding: "8px 14px", fontSize: 12, fontWeight: 600, background: "var(--error-soft)", color: "var(--error)" }}
             >
-              <Trash2 size={14} className="mr-1.5" />
-              <span className="hidden sm:inline">清空全部</span>
-              <span className="sm:hidden">清空</span>
-            </GlassButton>
+              <Trash2 size={14} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
+              清空全部
+            </button>
           )}
         </div>
       </div>
@@ -124,103 +349,17 @@ export default function Downloads() {
           <div className="mt-1.5 text-xs opacity-70">去搜索页下载谱面吧</div>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {items.map((set) => {
-            const isExpanded = expanded.has(set.setId);
-            const coverSrc = coverError.has(set.setId) ? (set.backgroundUrl || set.cover) : set.cover;
-            return (
-              <div
-                key={set.setId}
-                className="flex flex-col gap-3 p-3 sm:gap-3 sm:p-4"
-                style={{
-                  background: "var(--card-bg)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-md)",
-                }}
-              >
-                <div className="flex gap-3">
-                  <img
-                    src={coverSrc}
-                    alt="cover"
-                    onError={() => {
-                      setCoverError((prev) => new Set(prev).add(set.setId));
-                    }}
-                    className="h-14 w-14 shrink-0 object-cover sm:h-16 sm:w-16"
-                    style={{ borderRadius: "var(--radius-sm)", background: "var(--surface-hover)" }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div
-                      className="font-torus truncate text-sm sm:text-base"
-                      style={{ color: "var(--text-primary)", fontWeight: 600 }}
-                    >
-                      {set.title}
-                    </div>
-                    <div
-                      className="mt-1 truncate text-xs sm:text-sm"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
-                      {set.artist}
-                    </div>
-                    <div className="mt-1.5 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-                      {set.beatmaps.length} 个难度 ·{" "}
-                      <span className="hidden sm:inline">下载于 </span>
-                      <span className="sm:hidden">· </span>
-                      {new Date(set.downloadedAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 gap-1.5 self-start sm:gap-2">
-                    <GlassButton
-                      onClick={() => toggleExpand(set.setId)}
-                      style={{ background: "var(--surface-elevated)", color: "var(--text-secondary)" }}
-                      aria-label={isExpanded ? "折叠" : "展开"}
-                    >
-                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </GlassButton>
-                    <GlassButton
-                      onClick={() => handleDelete(set.setId)}
-                      style={{
-                        background: "var(--error-soft)",
-                        color: "var(--error)",
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </GlassButton>
-                  </div>
-                </div>
-
-                {isExpanded && (
-                  <div className="flex flex-col gap-2">
-                    {set.beatmaps.map((b) => {
-                      const mode = MODE_FROM_NUM[b.mode] || "standard";
-                      return (
-                        <div
-                          key={b.id}
-                          className="flex items-center justify-between gap-2 px-3 py-2.5"
-                          style={{ background: "var(--surface-hover)", borderRadius: "var(--radius-sm)" }}
-                        >
-                          <div className="flex min-w-0 items-center gap-2.5">
-                            <ModeBadge mode={mode} />
-                            <span
-                              className="font-torus truncate text-xs sm:text-sm"
-                              style={{ color: "var(--text-primary)", fontWeight: 500 }}
-                            >
-                              {b.version}
-                            </span>
-                          </div>
-                          <GlassButton
-                            onClick={() => handlePlay(set, b)}
-                          >
-                            <Play size={14} className="mr-1" />
-                            <span className="hidden sm:inline">开始</span>
-                          </GlassButton>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="card-grid">
+          {items.map((set) => (
+            <DownloadedCard
+              key={set.setId}
+              set={set}
+              expanded={expanded.has(set.setId)}
+              onToggle={() => toggleExpand(set.setId)}
+              onDelete={() => handleDelete(set.setId)}
+              onPlay={(b) => handlePlay(set, b)}
+            />
+          ))}
         </div>
       )}
 
@@ -246,8 +385,6 @@ export default function Downloads() {
             bottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)",
             background: importMsg.ok ? "var(--success)" : "var(--error)",
             borderRadius: "var(--radius-sm)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
             boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
           }}
         >

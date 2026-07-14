@@ -44,7 +44,7 @@ export const Background: React.FC = () => {
           }}
         />
       )}
-      {/* 光斑层 */}
+      {/* 纯色光斑层（按设计规范不使用渐变） */}
       <div
         style={{
           position: "absolute",
@@ -53,8 +53,8 @@ export const Background: React.FC = () => {
           width: "60%",
           height: "60%",
           borderRadius: "50%",
-          background: `radial-gradient(circle, ${accent}40, transparent 70%)`,
-          filter: "blur(60px)",
+          background: `${accent}26`,
+          filter: "blur(80px)",
           opacity: 0.4,
         }}
       />
@@ -66,8 +66,8 @@ export const Background: React.FC = () => {
           width: "50%",
           height: "50%",
           borderRadius: "50%",
-          background: `radial-gradient(circle, ${accent}30, transparent 70%)`,
-          filter: "blur(80px)",
+          background: `${accent}1f`,
+          filter: "blur(100px)",
           opacity: 0.3,
         }}
       />

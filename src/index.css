@@ -74,8 +74,9 @@
   /* lazer 强调色 = accent 的别名（保持向后兼容） */
   --lazer-accent: var(--accent);
   --lazer-accent-2: #b366ff;
-  --lazer-gradient: linear-gradient(135deg, var(--accent), #ff66aa);
-  --lazer-gradient-soft: linear-gradient(135deg, var(--accent-soft), rgba(255, 102, 170, 0.18));
+  /* 渐变已移除（按设计规范使用纯色），保留变量名作为纯色别名以兼容旧引用 */
+  --lazer-gradient: var(--accent);
+  --lazer-gradient-soft: var(--accent-soft);
 
   /* 玻璃面板 */
   --glass-bg: rgba(255, 255, 255, 0.06);
@@ -275,25 +276,25 @@ body {
 }
 .hud-bar-fill {
   height: 100%;
-  background: var(--lazer-gradient);
+  background: var(--accent);
   border-radius: var(--radius-pill);
   transition: width 0.1s linear;
 }
 
 /* CTA 按钮 */
 .lazer-cta {
-  background: var(--lazer-gradient);
+  background: var(--accent);
   color: #fff;
   border: none;
   border-radius: var(--radius-pill);
   font-weight: 700;
-  box-shadow: 0 4px 16px var(--accent-strong);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   cursor: pointer;
 }
 .lazer-cta:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 24px var(--accent-strong);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
 }
 .lazer-cta:active { transform: scale(0.97); }
 
