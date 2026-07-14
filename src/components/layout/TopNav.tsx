@@ -1,9 +1,8 @@
 import React from "react";
 import { useGameStore } from "@/store/useGameStore";
 import { useTheme } from "@/hooks/useTheme";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import { Home, Search, Settings, Music2, HardDrive, Maximize, Minimize } from "lucide-react";
-import { Link } from "react-router-dom";
 import { useFullscreen } from "@/hooks/useFullscreen";
 
 const NAV_ITEMS = [
@@ -21,70 +20,81 @@ export const TopNav: React.FC = () => {
   // 游戏页面隐藏导航
   if (location.pathname.startsWith("/game")) return null;
 
+  const isDark = theme === "dark";
+
   return (
     <header
-      className="fixed left-1/2 top-1 z-50 -translate-x-1/2"
+      className="hud-panel"
       style={{
+        position: "fixed",
         top: "calc(env(safe-area-inset-top, 0px) + 4px)",
-        width: "min(calc(100% - 24px), 720px)",
-        borderRadius: 18,
-        background: theme === "dark" ? "rgba(9,9,12,0.62)" : "rgba(232,234,239,0.62)",
-        backdropFilter: "blur(20px) saturate(180%)",
-        WebkitBackdropFilter: "blur(20px) saturate(180%)",
-        border: "1px solid var(--border)",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: "calc(100% - 16px)",
+        maxWidth: 1180,
+        height: 48,
+        zIndex: 50,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "0 8px 0 16px",
+        background: isDark ? "rgba(9,9,12,0.72)" : "rgba(232,234,239,0.72)",
       }}
     >
-      <div className="flex items-center justify-between px-3 py-2 sm:px-4">
-        <Link
-          to="/"
-          className="flex items-center gap-2 no-underline"
-          style={{
-            color: "var(--accent)",
-            fontWeight: 700,
-            fontSize: 17,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          <Music2 size={20} className="shrink-0" />
-          <span>osu!web</span>
-        </Link>
+      {/* 左：Logo */}
+      <Link
+        to="/"
+        className="flex items-center gap-2 no-underline"
+        style={{
+          color: "var(--accent)",
+          fontWeight: 800,
+          fontSize: 16,
+          letterSpacing: "-0.02em",
+        }}
+      >
+        <Music2 size={18} className="shrink-0" />
+        <span className="hidden sm:inline">osu!web</span>
+      </Link>
 
-        {/* 导航：纯图标 */}
-        <nav className="flex items-center gap-1">
-          {NAV_ITEMS.map((item) => {
-            const isActive = location.pathname === item.to;
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                aria-label={item.label}
-                className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] no-underline transition-colors"
-                style={{
-                  background: isActive ? "var(--accent-soft)" : "transparent",
-                  color: isActive ? "var(--accent)" : "var(--text-secondary)",
-                }}
-              >
-                <Icon size={18} />
-              </Link>
-            );
-          })}
-        </nav>
+      {/* 中：导航 Tab（带文字标签） */}
+      <nav className="flex items-center gap-1">
+        {NAV_ITEMS.map((item) => {
+          const isActive = location.pathname === item.to;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={`hud-btn flex items-center gap-1.5 no-underline ${isActive ? "active" : ""}`}
+              style={{
+                height: 34,
+                padding: "0 10px",
+                borderRadius: 8,
+                color: isActive ? "var(--accent)" : "var(--text-secondary)",
+                fontSize: 13,
+                fontWeight: isActive ? 700 : 500,
+              }}
+            >
+              <Icon size={16} />
+              <span className="hidden sm:inline">{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
-        <button
-          onClick={toggle}
-          aria-label={active ? "退出全屏" : "进入全屏"}
-          className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border-none transition-colors"
-          style={{
-            background: active ? "var(--accent-soft)" : "transparent",
-            color: active ? "var(--accent)" : "var(--text-secondary)",
-            cursor: "pointer",
-          }}
-        >
-          {active ? <Minimize size={18} /> : <Maximize size={18} />}
-        </button>
-      </div>
+      {/* 右：全屏按钮 */}
+      <button
+        onClick={toggle}
+        aria-label={active ? "退出全屏" : "进入全屏"}
+        className="hud-btn"
+        style={{
+          width: 34, height: 34, borderRadius: 8,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer", color: active ? "var(--accent)" : "var(--text-secondary)",
+        }}
+      >
+        {active ? <Minimize size={16} /> : <Maximize size={16} />}
+      </button>
     </header>
   );
 };
