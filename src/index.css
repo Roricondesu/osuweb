@@ -138,146 +138,124 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* === HUD GUI 设计系统 === */
-
-/* HUD 专用字体（等宽数字） */
-@font-face {
-  font-family: "HUD Mono";
-  src: local("SF Mono"), local("JetBrains Mono"), local("Fira Code"), local("Consolas"), monospace;
-  font-display: swap;
-}
+/* === osu!lazer 风格设计系统 === */
 
 :root {
-  /* HUD 面板色 */
-  --hud-panel: rgba(255, 255, 255, 0.04);
-  --hud-panel-border: rgba(255, 255, 255, 0.12);
-  --hud-glow: 0 0 20px rgba(10, 132, 255, 0.15);
-  --hud-accent-glow: 0 0 12px var(--accent);
-  /* HUD 角标 */
-  --hud-corner-size: 12px;
-  --hud-corner-width: 2px;
+  /* lazer 强调色（紫色为主，可被 accent 覆盖） */
+  --lazer-accent: #8866ff;
+  --lazer-accent-2: #b366ff;
+  --lazer-gradient: linear-gradient(135deg, #8866ff, #ff66aa);
+  --lazer-gradient-soft: linear-gradient(135deg, rgba(136,102,255,0.18), rgba(255,102,170,0.18));
+  /* 玻璃面板 */
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
   /* 布局间距 */
   --nav-height: 56px;
-  --nowplaying-height: 72px;
+  --nowplaying-height: 76px;
+  /* 圆角 */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
 }
 
 html.dark {
-  --hud-panel: rgba(255, 255, 255, 0.03);
-  --hud-panel-border: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.08);
 }
 
-/* HUD 面板：切角 + 发光边框 */
+/* lazer 玻璃面板：大圆角 + 柔和模糊 + 微妙边框 */
 .hud-panel {
   position: relative;
-  background: var(--hud-panel);
-  border: 1px solid var(--hud-panel-border);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  clip-path: polygon(
-    var(--hud-corner-size) 0,
-    100% 0,
-    100% calc(100% - var(--hud-corner-size)),
-    calc(100% - var(--hud-corner-size)) 100%,
-    0 100%,
-    0 var(--hud-corner-size)
-  );
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
 }
 
-/* HUD 角标装饰（L 形） */
+/* 角标装饰：lazer 无角标，保留类名但无效果（兼容已用处） */
 .hud-corners::before,
 .hud-corners::after {
-  content: "";
-  position: absolute;
-  width: var(--hud-corner-size);
-  height: var(--hud-corner-size);
-  border-color: var(--accent);
-  border-style: solid;
-  pointer-events: none;
-  z-index: 1;
-}
-.hud-corners::before {
-  top: 0;
-  left: 0;
-  border-width: var(--hud-corner-width) 0 0 var(--hud-corner-width);
-}
-.hud-corners::after {
-  bottom: 0;
-  right: 0;
-  border-width: 0 var(--hud-corner-width) var(--hud-corner-width) 0;
+  content: none;
 }
 
-/* HUD 数字字体 */
+/* 等宽数字（分数/计时器用） */
 .hud-num {
-  font-family: "HUD Mono", "SF Mono", "JetBrains Mono", "Consolas", monospace;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
-/* HUD 扫描线背景纹理 */
-.hud-scanlines {
-  background-image: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(255, 255, 255, 0.015) 2px,
-    rgba(255, 255, 255, 0.015) 4px
-  );
-}
-
-/* HUD 网格背景 */
+/* 扫描线/网格：lazer 无此元素，保留类名但无效果 */
+.hud-scanlines,
 .hud-grid {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 32px 32px;
+  background-image: none;
 }
 
-/* HUD 发光按钮 */
+/* lazer 按钮：圆润 + hover 渐变高亮 */
 .hud-btn {
   position: relative;
-  border: 1px solid var(--hud-panel-border);
-  background: var(--hud-panel);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  transition: all 0.15s ease;
-  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  border: 1px solid transparent;
+  background: transparent;
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
 }
 .hud-btn:hover {
-  border-color: var(--accent);
-  box-shadow: var(--hud-glow);
+  background: var(--lazer-gradient-soft);
+  border-color: var(--glass-border);
 }
 .hud-btn:active {
-  transform: scale(0.97);
+  transform: scale(0.95);
 }
 .hud-btn.active {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  box-shadow: var(--hud-glow);
+  background: var(--lazer-gradient-soft);
+  border-color: var(--lazer-accent);
+  color: var(--lazer-accent);
 }
 
-/* HUD 进度条 */
+/* lazer 进度条：圆润 + 渐变填充 */
 .hud-bar-track {
   position: relative;
-  height: 4px;
+  height: 6px;
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
-  border-radius: 2px;
+  border-radius: var(--radius-pill);
 }
 .hud-bar-fill {
   height: 100%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
-  border-radius: 2px;
+  background: var(--lazer-gradient);
+  border-radius: var(--radius-pill);
   transition: width 0.1s linear;
 }
 
-/* HUD 标签 */
+/* lazer 标签 */
 .hud-tag {
-  font-family: "HUD Mono", monospace;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   color: var(--text-secondary);
+}
+
+/* lazer 渐变 CTA 按钮 */
+.lazer-cta {
+  background: var(--lazer-gradient);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(136, 102, 255, 0.4);
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  cursor: pointer;
+}
+.lazer-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(136, 102, 255, 0.55);
+}
+.lazer-cta:active {
+  transform: scale(0.97);
 }
 
 /* === 滚动条：细窄半透明 overlay 风格 === */
