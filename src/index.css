@@ -62,18 +62,23 @@ body {
   touch-action: manipulation;
 }
 
-/* 页面外壳留出顶部导航空间 */
+/* 页面外壳留出顶部导航 + 底部播放条空间 */
 .page-shell {
   min-height: 100%;
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 68px 16px calc(32px + env(safe-area-inset-bottom, 0px)) 16px;
+  padding: calc(var(--nav-height) + 12px) 16px calc(var(--nowplaying-height) + 16px + env(safe-area-inset-bottom, 0px)) 16px;
 }
 
 @media (min-width: 768px) {
   .page-shell {
-    padding: 84px 24px calc(40px + env(safe-area-inset-bottom, 0px)) 24px;
+    padding: calc(var(--nav-height) + 16px) 24px calc(var(--nowplaying-height) + 24px + env(safe-area-inset-bottom, 0px)) 24px;
   }
+}
+
+/* 无底部播放条时（游戏页/首次加载） */
+.page-shell.no-player {
+  padding-bottom: 32px;
 }
 
 /* 入场动画 */
@@ -133,13 +138,171 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* 隐藏所有滚动条 */
-*::-webkit-scrollbar {
-  display: none;
+/* === HUD GUI 设计系统 === */
+
+/* HUD 专用字体（等宽数字） */
+@font-face {
+  font-family: "HUD Mono";
+  src: local("SF Mono"), local("JetBrains Mono"), local("Fira Code"), local("Consolas"), monospace;
+  font-display: swap;
+}
+
+:root {
+  /* HUD 面板色 */
+  --hud-panel: rgba(255, 255, 255, 0.04);
+  --hud-panel-border: rgba(255, 255, 255, 0.12);
+  --hud-glow: 0 0 20px rgba(10, 132, 255, 0.15);
+  --hud-accent-glow: 0 0 12px var(--accent);
+  /* HUD 角标 */
+  --hud-corner-size: 12px;
+  --hud-corner-width: 2px;
+  /* 布局间距 */
+  --nav-height: 56px;
+  --nowplaying-height: 72px;
+}
+
+html.dark {
+  --hud-panel: rgba(255, 255, 255, 0.03);
+  --hud-panel-border: rgba(255, 255, 255, 0.08);
+}
+
+/* HUD 面板：切角 + 发光边框 */
+.hud-panel {
+  position: relative;
+  background: var(--hud-panel);
+  border: 1px solid var(--hud-panel-border);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  clip-path: polygon(
+    var(--hud-corner-size) 0,
+    100% 0,
+    100% calc(100% - var(--hud-corner-size)),
+    calc(100% - var(--hud-corner-size)) 100%,
+    0 100%,
+    0 var(--hud-corner-size)
+  );
+}
+
+/* HUD 角标装饰（L 形） */
+.hud-corners::before,
+.hud-corners::after {
+  content: "";
+  position: absolute;
+  width: var(--hud-corner-size);
+  height: var(--hud-corner-size);
+  border-color: var(--accent);
+  border-style: solid;
+  pointer-events: none;
+  z-index: 1;
+}
+.hud-corners::before {
+  top: 0;
+  left: 0;
+  border-width: var(--hud-corner-width) 0 0 var(--hud-corner-width);
+}
+.hud-corners::after {
+  bottom: 0;
+  right: 0;
+  border-width: 0 var(--hud-corner-width) var(--hud-corner-width) 0;
+}
+
+/* HUD 数字字体 */
+.hud-num {
+  font-family: "HUD Mono", "SF Mono", "JetBrains Mono", "Consolas", monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* HUD 扫描线背景纹理 */
+.hud-scanlines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.015) 2px,
+    rgba(255, 255, 255, 0.015) 4px
+  );
+}
+
+/* HUD 网格背景 */
+.hud-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* HUD 发光按钮 */
+.hud-btn {
+  position: relative;
+  border: 1px solid var(--hud-panel-border);
+  background: var(--hud-panel);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.15s ease;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+.hud-btn:hover {
+  border-color: var(--accent);
+  box-shadow: var(--hud-glow);
+}
+.hud-btn:active {
+  transform: scale(0.97);
+}
+.hud-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: var(--hud-glow);
+}
+
+/* HUD 进度条 */
+.hud-bar-track {
+  position: relative;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  border-radius: 2px;
+}
+.hud-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+
+/* HUD 标签 */
+.hud-tag {
+  font-family: "HUD Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* === 滚动条：细窄半透明 overlay 风格 === */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 * {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+/* 游戏画布内仍隐藏滚动条 */
+.game-shell::-webkit-scrollbar {
+  display: none;
 }
 
 /* 卡片样式（与 yuimusic 一致） */
