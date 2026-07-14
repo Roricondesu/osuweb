@@ -62,68 +62,23 @@ const SECTIONS: SectionItem[] = [
 
 /** osu! lazer 风格右侧内容面板 */
 const SectionPanel: React.FC<{
-  active: string;
   children: React.ReactNode;
-}> = ({ active, children }) => {
-  const meta = SECTIONS.find((s) => s.id === active);
-  const Icon = meta?.icon ?? AppearanceIcon;
-  return (
-    <section
-      key={active}
-      style={{
-        borderRadius: "var(--radius-lg)",
-        background: "var(--glass-bg)",
-        backdropFilter: "blur(24px) saturate(160%)",
-        WebkitBackdropFilter: "blur(24px) saturate(160%)",
-        border: "1px solid var(--glass-border)",
-        boxShadow: "var(--glass-shadow)",
-        overflow: "hidden",
-      }}
-    >
-      {meta && (
-        <div
-          style={{
-            padding: "20px 22px",
-            borderBottom: "1px solid var(--glass-border)",
-            background: "rgba(255,255,255,0.03)",
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-          }}
-        >
-          <span
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 12,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "var(--accent-soft)",
-              color: "var(--accent)",
-              boxShadow: "0 0 0 1px var(--glass-border)",
-            }}
-          >
-            <Icon size={20} color="var(--accent)" />
-          </span>
-          <h2
-            className="font-torus"
-            style={{
-              fontSize: 20,
-              fontWeight: 700,
-              letterSpacing: "-0.01em",
-              color: "var(--text-primary)",
-              margin: 0,
-            }}
-          >
-            {meta.title}
-          </h2>
-        </div>
-      )}
-      <div style={{ padding: 22 }}>{children}</div>
-    </section>
-  );
-};
+}> = ({ children }) => (
+  <section
+    style={{
+      borderRadius: "var(--radius-lg)",
+      background: "var(--glass-bg)",
+      backdropFilter: "blur(24px) saturate(160%)",
+      WebkitBackdropFilter: "blur(24px) saturate(160%)",
+      border: "1px solid var(--glass-border)",
+      boxShadow: "var(--glass-shadow)",
+      overflow: "hidden",
+      padding: 22,
+    }}
+  >
+    {children}
+  </section>
+);
 
 /** 设置项卡片容器 */
 const SettingRow: React.FC<{ children: React.ReactNode; style?: React.CSSProperties }> = ({
@@ -473,24 +428,22 @@ export default function Settings() {
     }
   };
 
-  const activeMeta = SECTIONS.find((s) => s.id === activeSection)!;
-
   return (
     <div className="page-shell">
       <div
         style={{
           display: "flex",
-          gap: 22,
+          gap: 20,
           minHeight: "calc(100vh - var(--nav-height) - var(--nowplaying-height) - 60px)",
         }}
       >
         {/* 左侧分类栏 */}
         <aside
           style={{
-            width: 230,
+            width: 200,
             flexShrink: 0,
             position: "sticky",
-            top: "calc(var(--nav-height) + 16px)",
+            top: "calc(var(--nav-height) + 12px)",
             alignSelf: "flex-start",
             maxHeight: "calc(100vh - var(--nav-height) - var(--nowplaying-height) - 60px)",
             overflowY: "auto",
@@ -499,8 +452,8 @@ export default function Settings() {
         >
           <div
             style={{
-              padding: 8,
-              borderRadius: 18,
+              padding: 6,
+              borderRadius: "var(--radius-lg)",
               background: "var(--glass-bg)",
               backdropFilter: "blur(24px) saturate(160%)",
               WebkitBackdropFilter: "blur(24px) saturate(160%)",
@@ -519,34 +472,21 @@ export default function Settings() {
                     width: "100%",
                     display: "flex",
                     alignItems: "center",
-                    gap: 12,
-                    padding: "10px 14px",
-                    borderRadius: 12,
+                    gap: 10,
+                    padding: "9px 12px",
+                    borderRadius: 10,
                     border: "none",
                     background: active ? "var(--accent-soft)" : "transparent",
-                    color: active ? "var(--lazer-accent)" : "var(--text-secondary)",
+                    color: active ? "var(--accent)" : "var(--text-secondary)",
                     fontSize: 13,
                     fontWeight: active ? 700 : 500,
                     cursor: "pointer",
-                    transition: "all 0.2s ease",
+                    transition: "all 0.15s ease",
                     marginBottom: 2,
                   }}
                   className="font-torus"
                 >
-                  <span
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 8,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: active ? "rgba(255,255,255,0.08)" : "transparent",
-                      transition: "background 0.2s ease",
-                    }}
-                  >
-                    <Icon size={17} color={active ? "var(--lazer-accent)" : "currentColor"} />
-                  </span>
+                  <Icon size={17} color={active ? "var(--accent)" : "currentColor"} />
                   {s.title}
                 </button>
               );
@@ -577,40 +517,19 @@ export default function Settings() {
                     display: "flex",
                     alignItems: "center",
                     gap: 6,
-                    color: active ? "var(--lazer-accent)" : "var(--text-secondary)",
+                    color: active ? "var(--accent)" : "var(--text-secondary)",
                     background: active ? "var(--accent-soft)" : "var(--glass-bg)",
                     border: "1px solid var(--glass-border)",
                   }}
                 >
-                  <Icon size={14} color={active ? "var(--lazer-accent)" : "currentColor"} />
+                  <Icon size={14} color={active ? "var(--accent)" : "currentColor"} />
                   {s.title}
                 </button>
               );
             })}
           </div>
 
-          {/* 面板标题区域（移动端显示） */}
-          <div className="md:hidden" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
-            <span
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 10,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "var(--accent-soft)",
-                color: "var(--accent)",
-              }}
-            >
-              <activeMeta.icon size={18} color="var(--accent)" />
-            </span>
-            <h2 className="font-torus" style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "var(--text-primary)" }}>
-              {activeMeta.title}
-            </h2>
-          </div>
-
-          <SectionPanel active={activeSection}>
+          <SectionPanel>
             {/* 外观 */}
             {activeSection === "appearance" && (
               <div className="flex flex-col gap-4">

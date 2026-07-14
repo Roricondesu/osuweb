@@ -9,6 +9,7 @@ export { BeatmapCover } from "./BeatmapCover";
 export { PageLoader } from "./PageLoader";
 export { ErrorBoundary } from "./ErrorBoundary";
 export { OsuModeIcon, OsuModeIconById } from "./OsuIcons";
+export { OsuLogoIcon } from "./OsuLogoIcon";
 export { OsuModIcon } from "./OsuModIcons";
 export {
   AppearanceIcon,

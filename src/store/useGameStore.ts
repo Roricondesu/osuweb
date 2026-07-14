@@ -59,6 +59,7 @@ interface GameState {
 
   // 已下载
   downloaded: Map<number, LoadedBeatmapSet>;
+  downloadsReady: boolean;
   downloadProgress: number; // 0-1
   downloadError: string | null;
   downloadSet: (set: BeatmapSet, force?: boolean, fullPackage?: boolean) => Promise<LoadedBeatmapSet | null>;
@@ -189,6 +190,7 @@ export const useGameStore = create<GameState>()(
       },
 
       downloaded: new Map(),
+      downloadsReady: false,
       downloadProgress: 0,
       downloadError: null,
       downloadSet: async (set_, force = false, fullPackage?: boolean) => {
@@ -252,6 +254,7 @@ export const useGameStore = create<GameState>()(
         set({ downloaded: new Map() });
       },
       loadDownloads: async () => {
+        if (get().downloadsReady) return;
         try {
           const map = await loadAllDownloads();
           set({ downloaded: map });
@@ -275,6 +278,7 @@ export const useGameStore = create<GameState>()(
         } catch (e) {
           console.warn("加载自定义皮肤失败", e);
         }
+        set({ downloadsReady: true });
       },
       importBeatmapFile: async (file) => {
         try {

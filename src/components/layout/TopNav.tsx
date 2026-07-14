@@ -5,10 +5,10 @@ import { Maximize, Minimize, Home, Search, Download, Settings as SettingsIcon } 
 import { useFullscreen } from "@/hooks/useFullscreen";
 
 const NAV_ITEMS = [
-  { to: "/", label: "Home", icon: Home },
-  { to: "/search", label: "Search", icon: Search },
-  { to: "/downloads", label: "Downloads", icon: Download },
-  { to: "/settings", label: "Settings", icon: SettingsIcon },
+  { to: "/", label: "首页", icon: Home },
+  { to: "/search", label: "搜索", icon: Search },
+  { to: "/downloads", label: "下载", icon: Download },
+  { to: "/settings", label: "设置", icon: SettingsIcon },
 ];
 
 export const TopNav: React.FC = () => {
@@ -69,28 +69,24 @@ export const TopNav: React.FC = () => {
             <Link
               key={item.to}
               to={item.to}
+              aria-label={item.label}
+              title={item.label}
               onMouseEnter={() => setHoveredIdx(idx)}
               onMouseLeave={() => setHoveredIdx(null)}
-              className="no-underline font-torus"
+              className="no-underline"
               style={{
+                width: 32,
                 height: 32,
-                minWidth: 32,
-                padding: "0 8px",
                 borderRadius: "var(--radius-pill)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 5,
                 color: isActive ? "#fff" : "var(--text-secondary)",
-                fontSize: 11,
-                fontWeight: isActive ? 600 : 500,
                 background: isActive ? "var(--accent)" : isHovered ? "var(--surface-hover)" : "transparent",
                 transition: "all 0.15s ease",
-                whiteSpace: "nowrap",
               }}
             >
-              <Icon size={14} style={{ flexShrink: 0 }} />
-              <span className="hidden md:inline">{item.label}</span>
+              <Icon size={16} style={{ flexShrink: 0 }} />
             </Link>
           );
         })}

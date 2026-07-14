@@ -1,229 +1,118 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useGameStore } from "@/store/useGameStore";
 import { BeatmapCover, ModeBadge, StarRatingBar } from "@/components/common";
-import { Trash2, Play, Music2, HardDrive, AlertCircle, ChevronDown, ChevronUp, Upload, CheckCircle2 } from "lucide-react";
+import {
+  HardDrive,
+  Upload,
+  Trash2,
+  Music2,
+  AlertCircle,
+  Play,
+  ChevronDown,
+  ChevronUp,
+  ArrowUpDown,
+  Calendar,
+  Type,
+  Star,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { GameMode, Beatmap, LoadedBeatmapSet } from "@/types";
 import { MODE_FROM_ID } from "@/types";
 
 const MODE_FROM_NUM: Record<number, GameMode> = MODE_FROM_ID;
 
-/** 已下载卡片（基于 osu!web BeatmapCard 风格，适配 LoadedBeatmapSet） */
-const DownloadedCard: React.FC<{
-  set: LoadedBeatmapSet;
-  expanded: boolean;
-  onToggle: () => void;
-  onDelete: () => void;
-  onPlay: (beatmap: Beatmap) => void;
-}> = ({ set, expanded, onToggle, onDelete, onPlay }) => {
-  const navigate = useNavigate();
-  const [hover, setHover] = useState(false);
-  const modes = Array.from(new Set(set.beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3)));
-  const maxStars = set.beatmaps.length ? Math.max(...set.beatmaps.map((b) => b.difficulty_rating || 0)) : 0;
+type SortBy = "newest" | "oldest" | "title" | "stars";
+
+const SORT_OPTIONS: { key: SortBy; label: string; icon: React.ElementType }[] = [
+  { key: "newest", label: "最新下载", icon: Calendar },
+  { key: "oldest", label: "最早下载", icon: Calendar },
+  { key: "title", label: "标题", icon: Type },
+  { key: "stars", label: "星级", icon: Star },
+];
+
+const SortButton: React.FC<{
+  sort: SortBy;
+  onChange: (s: SortBy) => void;
+}> = ({ sort, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const active = SORT_OPTIONS.find((o) => o.key === sort)!;
+
+  useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    if (open) window.addEventListener("mousedown", handle);
+    return () => window.removeEventListener("mousedown", handle);
+  }, [open]);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        borderRadius: 10,
-        overflow: "hidden",
-        background: "var(--card-bg)",
-        border: "1px solid var(--border)",
-        transition: "transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease",
-        transform: hover ? "translateY(-2px)" : "none",
-        boxShadow: hover ? "0 6px 20px rgba(0,0,0,0.35)" : "0 2px 6px rgba(0,0,0,0.2)",
-      }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      {/* 卡片主体（横向：封面 + 信息盒） */}
-      <div style={{ display: "flex", height: 100, cursor: "pointer" }} onClick={() => navigate(`/set/${set.setId}`)}>
-        {/* 左侧方形封面 */}
-        <div style={{ position: "relative", width: 100, minWidth: 100, height: "100%", overflow: "hidden", zIndex: 2 }}>
-          <BeatmapCover
-            src={set.cover}
-            alt={set.title}
-            placeholderSize={32}
-            style={{ position: "absolute", inset: 0 }}
-            imgStyle={{
-              width: "100%", height: "100%", objectFit: "cover",
-              transform: hover ? "scale(1.05)" : "scale(1)",
-              transition: "transform 0.4s cubic-bezier(0.22,1,0.36,1)",
-            }}
-          />
-          {/* 已下载指示徽章 */}
-          <div
-            style={{
-              position: "absolute", top: 5, left: 5,
-              display: "flex", alignItems: "center", gap: 3,
-              padding: "2px 6px", borderRadius: 999,
-              background: "rgba(0,0,0,0.75)",
-              fontSize: 9, fontWeight: 700, color: "var(--success)",
-            }}
-          >
-            <CheckCircle2 size={10} />
-          </div>
-          {/* 难度数徽章 */}
-          <div
-            style={{
-              position: "absolute", bottom: 5, left: 5,
-              minWidth: 20, height: 20, borderRadius: 10,
-              padding: "0 5px",
-              background: "rgba(0,0,0,0.75)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 10, fontWeight: 700, color: "#fff",
-              lineHeight: 1,
-            }}
-          >
-            {set.beatmaps.length}
-          </div>
-        </div>
-
-        {/* 右侧信息盒 */}
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="hud-btn"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "7px 12px",
+          borderRadius: "var(--radius-pill)",
+          fontSize: 12,
+          fontWeight: 600,
+          color: "var(--text-secondary)",
+          border: "1px solid var(--glass-border)",
+          background: "var(--glass-bg)",
+          cursor: "pointer",
+        }}
+      >
+        <ArrowUpDown size={13} />
+        <span className="font-torus">{active.label}</span>
+      </button>
+      {open && (
         <div
           style={{
-            position: "relative",
-            flex: 1,
-            height: "100%",
-            marginLeft: -7,
-            borderRadius: 10,
-            overflow: "hidden",
-            background: "var(--card-info-bg)",
-            zIndex: 3,
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            right: 0,
+            zIndex: 20,
+            minWidth: 130,
+            padding: 6,
+            borderRadius: "var(--radius-md)",
+            background: "var(--glass-bg)",
+            backdropFilter: "blur(24px) saturate(160%)",
+            WebkitBackdropFilter: "blur(24px) saturate(160%)",
+            border: "1px solid var(--glass-border)",
+            boxShadow: "var(--glass-shadow)",
           }}
         >
-          {set.cover && (
-            <div
-              style={{
-                position: "absolute", inset: 0,
-                backgroundImage: `url(${set.cover})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-                filter: "blur(25px) brightness(0.4) saturate(1.3)",
-                transform: "scale(1.3)",
-                opacity: hover ? 0.6 : 0.45,
-                transition: "opacity 0.3s ease",
-              }}
-            />
-          )}
-          {/* 深灰渐变半透明遮罩：左 #2E3835 → 右 90%透明（封面透过） */}
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 100%)" }} />
-
-          {/* 内容层 */}
-          <div
-            style={{
-              position: "relative",
-              height: "100%",
-              padding: "7px 10px",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              overflow: "hidden",
-            }}
-          >
-            {/* 上部：标题 + 艺人 */}
-            <div style={{ minHeight: 0, overflow: "hidden" }}>
-              <div
-                className="font-torus"
-                style={{
-                  fontSize: 15, fontWeight: 600, color: "#fff",
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  letterSpacing: "-0.01em", lineHeight: 1.2,
-                }}
-              >
-                {set.title}
-              </div>
-              <div
-                style={{
-                  fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.7)",
-                  marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  lineHeight: 1.3,
-                }}
-              >
-                {set.artist}
-              </div>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 1 }}>
-                {new Date(set.downloadedAt).toLocaleDateString()}
-              </div>
-            </div>
-
-            {/* 下部：模式 + 星级 + 操作按钮 */}
-            <div style={{ display: "flex", alignItems: "center", gap: 5, overflow: "hidden" }}>
-              {modes.slice(0, 2).map((m) => {
-                const modeName: GameMode = MODE_FROM_NUM[m] || "standard";
-                return <ModeBadge key={m} mode={modeName} />;
-              })}
-              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                <StarRatingBar stars={maxStars} variant="dots" />
-                <span className="hud-num font-torus" style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
-                  {maxStars.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 操作按钮 */}
-          <div style={{ position: "absolute", top: 5, right: 5, display: "flex", gap: 4, zIndex: 4 }}>
-            <button
-              onClick={(e) => { e.stopPropagation(); onToggle(); }}
-              aria-label={expanded ? "折叠" : "展开"}
-              style={{
-                width: 22, height: 22, borderRadius: "50%", border: "none",
-                background: "rgba(0,0,0,0.5)", color: "#fff",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", transition: "all 0.2s ease",
-              }}
-            >
-              {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); onDelete(); }}
-              aria-label="删除"
-              style={{
-                width: 22, height: 22, borderRadius: "50%", border: "none",
-                background: "rgba(0,0,0,0.5)", color: "var(--error)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", transition: "all 0.2s ease",
-              }}
-            >
-              <Trash2 size={11} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 展开的难度列表 */}
-      {expanded && (
-        <div
-          className="diff-grid"
-          style={{ padding: 8, borderTop: "1px solid var(--border)", animation: "stagger-fade-up 0.3s ease both" }}
-        >
-          {set.beatmaps.map((b) => {
-            const mode = MODE_FROM_NUM[b.mode] || "standard";
+          {SORT_OPTIONS.map((o) => {
+            const Icon = o.icon;
+            const selected = sort === o.key;
             return (
               <button
-                key={b.id}
-                onClick={() => onPlay(b)}
+                key={o.key}
+                onClick={() => {
+                  onChange(o.key);
+                  setOpen(false);
+                }}
                 style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  padding: "8px 10px", borderRadius: "var(--radius-sm)",
-                  background: "var(--surface-hover)", border: "1px solid var(--border)",
-                  cursor: "pointer", transition: "all 0.15s ease",
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "7px 10px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: selected ? "var(--accent-soft)" : "transparent",
+                  color: selected ? "var(--accent)" : "var(--text-primary)",
+                  fontSize: 12,
+                  fontWeight: selected ? 700 : 500,
+                  cursor: "pointer",
                   textAlign: "left",
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-elevated)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; }}
               >
-                <ModeBadge mode={mode} />
-                <span
-                  className="font-torus"
-                  style={{ flex: 1, fontSize: 12, fontWeight: 500, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
-                >
-                  {b.version}
-                </span>
-                <StarRatingBar stars={b.difficulty_rating || 0} variant="compact" />
-                <Play size={12} style={{ color: "var(--accent)", flexShrink: 0 }} fill="currentColor" />
+                <Icon size={13} />
+                {o.label}
               </button>
             );
           })}
@@ -233,44 +122,291 @@ const DownloadedCard: React.FC<{
   );
 };
 
+const DownloadRow: React.FC<{
+  set: LoadedBeatmapSet;
+  expanded: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+  onPlay: (beatmap: Beatmap) => void;
+}> = React.memo(({ set, expanded, onToggle, onDelete, onPlay }) => {
+  const navigate = useNavigate();
+  const [hover, setHover] = useState(false);
+  const modes = useMemo(
+    () => Array.from(new Set(set.beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3))).sort(),
+    [set.beatmaps],
+  );
+  const maxStars = useMemo(
+    () => (set.beatmaps.length ? Math.max(...set.beatmaps.map((b) => b.difficulty_rating || 0)) : 0),
+    [set.beatmaps],
+  );
+
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        contentVisibility: "auto",
+        containIntrinsicHeight: "92px",
+        borderBottom: "1px solid var(--border)",
+        background: hover ? "var(--surface-hover)" : "transparent",
+        transition: "background 0.15s ease",
+      }}
+    >
+      {/* 主行 */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "10px 12px",
+          cursor: "pointer",
+        }}
+        onClick={() => navigate(`/set/${set.setId}`)}
+      >
+        {/* 封面 */}
+        <div
+          style={{
+            position: "relative",
+            width: 72,
+            height: 72,
+            minWidth: 72,
+            borderRadius: 10,
+            overflow: "hidden",
+            background: "var(--surface-elevated)",
+          }}
+        >
+          <BeatmapCover
+            src={set.cover}
+            alt={set.title}
+            placeholderSize={28}
+            lazy
+            style={{ position: "absolute", inset: 0 }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              bottom: 4,
+              left: 4,
+              minWidth: 18,
+              height: 18,
+              borderRadius: 9,
+              padding: "0 4px",
+              background: "rgba(0,0,0,0.75)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 9,
+              fontWeight: 700,
+              color: "#fff",
+              lineHeight: 1,
+            }}
+          >
+            {set.beatmaps.length}
+          </div>
+        </div>
+
+        {/* 信息 */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+          <div
+            className="font-torus"
+            style={{
+              fontSize: 15,
+              fontWeight: 700,
+              color: "var(--text-primary)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            {set.title}
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 500,
+              color: "var(--text-secondary)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {set.artist}
+          </div>
+          <div style={{ fontSize: 10, color: "var(--text-tertiary)" }}>
+            {new Date(set.downloadedAt).toLocaleDateString()}
+          </div>
+        </div>
+
+        {/* 模式 + 星级 */}
+        <div
+          className="hidden sm:flex"
+          style={{ alignItems: "center", gap: 8, marginLeft: "auto", paddingRight: 8 }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {modes.slice(0, 3).map((m) => {
+              const modeName: GameMode = MODE_FROM_NUM[m] || "standard";
+              return <ModeBadge key={m} mode={modeName} />;
+            })}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <StarRatingBar stars={maxStars} variant="compact" />
+            <span className="hud-num font-torus" style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
+              {maxStars.toFixed(2)}
+            </span>
+          </div>
+        </div>
+
+        {/* 操作按钮 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+            aria-label={expanded ? "折叠" : "展开"}
+            className="hud-btn"
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--text-secondary)",
+              border: "1px solid transparent",
+              background: "transparent",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-elevated)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            aria-label="删除"
+            className="hud-btn"
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--error)",
+              border: "1px solid transparent",
+              background: "transparent",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--error-soft)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </div>
+
+      {/* 展开难度列表 */}
+      {expanded && (
+        <div
+          style={{
+            padding: "0 12px 12px 96px",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            animation: "stagger-fade-up 0.25s ease both",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {set.beatmaps.map((b) => {
+            const mode = MODE_FROM_NUM[b.mode] || "standard";
+            return (
+              <button
+                key={b.id}
+                onClick={() => onPlay(b)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  background: "var(--surface-hover)",
+                  border: "1px solid var(--border)",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-elevated)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
+              >
+                <ModeBadge mode={mode} />
+                <span
+                  className="font-torus"
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "var(--text-primary)",
+                    maxWidth: 160,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {b.version}
+                </span>
+                <StarRatingBar stars={b.difficulty_rating || 0} variant="compact" />
+                <Play size={11} style={{ color: "var(--accent)", flexShrink: 0 }} fill="currentColor" />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+});
+DownloadRow.displayName = "DownloadRow";
+
 export default function Downloads() {
   const navigate = useNavigate();
   const downloaded = useGameStore((s) => s.downloaded);
+  const downloadsReady = useGameStore((s) => s.downloadsReady);
   const loadDownloads = useGameStore((s) => s.loadDownloads);
   const deleteDownload = useGameStore((s) => s.deleteDownload);
   const clearDownloads = useGameStore((s) => s.clearDownloads);
   const importBeatmapFile = useGameStore((s) => s.importBeatmapFile);
-  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [sortBy, setSortBy] = useState<SortBy>("newest");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
-  const handleImportFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImporting(true);
-    setImportMsg(null);
-    try {
-      const loaded = await importBeatmapFile(file);
-      if (loaded) {
-        setImportMsg({ text: `已导入：${loaded.title}`, ok: true });
-      } else {
-        setImportMsg({ text: "导入失败，请检查文件格式", ok: false });
-      }
-    } catch {
-      setImportMsg({ text: "导入失败", ok: false });
-    }
-    setImporting(false);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    setTimeout(() => setImportMsg(null), 3000);
-  }, [importBeatmapFile]);
-
   useEffect(() => {
-    loadDownloads().finally(() => setLoading(false));
+    loadDownloads();
   }, [loadDownloads]);
 
-  const items = Array.from(downloaded.values());
+  const items = useMemo(() => {
+    const arr = Array.from(downloaded.values());
+    switch (sortBy) {
+      case "newest":
+        return arr.sort((a, b) => b.downloadedAt - a.downloadedAt);
+      case "oldest":
+        return arr.sort((a, b) => a.downloadedAt - b.downloadedAt);
+      case "title":
+        return arr.sort((a, b) => a.title.localeCompare(b.title, "zh-Hans-CN"));
+      case "stars": {
+        const starsOf = (s: LoadedBeatmapSet) =>
+          s.beatmaps.length ? Math.max(...s.beatmaps.map((b) => b.difficulty_rating || 0)) : 0;
+        return arr.sort((a, b) => starsOf(b) - starsOf(a));
+      }
+      default:
+        return arr;
+    }
+  }, [downloaded, sortBy]);
 
   const toggleExpand = (setId: number) => {
     setExpanded((prev) => {
@@ -288,30 +424,78 @@ export default function Downloads() {
 
   const handleDelete = async (setId: number) => {
     await deleteDownload(setId);
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.delete(setId);
+      return next;
+    });
   };
 
   const handleClear = async () => {
     if (confirm("确定清空所有本地下载吗？此操作不可恢复。")) {
       await clearDownloads();
+      setExpanded(new Set());
     }
   };
+
+  const handleImportFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setImporting(true);
+      setImportMsg(null);
+      try {
+        const loaded = await importBeatmapFile(file);
+        if (loaded) {
+          setImportMsg({ text: `已导入：${loaded.title}`, ok: true });
+        } else {
+          setImportMsg({ text: "导入失败，请检查文件格式", ok: false });
+        }
+      } catch {
+        setImportMsg({ text: "导入失败", ok: false });
+      }
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setTimeout(() => setImportMsg(null), 3000);
+    },
+    [importBeatmapFile],
+  );
 
   return (
     <div className="page-shell">
       {/* 页头 */}
-      <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center"
+        style={{ justifyContent: "space-between" }}
+      >
         <div className="flex items-center gap-2.5">
           <HardDrive size={22} style={{ color: "var(--accent)" }} />
-          <h1 className="font-torus text-xl sm:text-2xl" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
+          <h1 className="font-torus text-xl sm:text-2xl" style={{ color: "var(--text-primary)", fontWeight: 700 }}>
             下载管理
           </h1>
+          <span
+            className="font-torus"
+            style={{
+              marginLeft: 4,
+              padding: "2px 9px",
+              borderRadius: "var(--radius-pill)",
+              fontSize: 12,
+              fontWeight: 700,
+              background: "var(--accent-soft)",
+              color: "var(--accent)",
+            }}
+          >
+            {items.length}
+          </span>
         </div>
-        <div className="flex flex-wrap gap-2">
+
+        <div className="flex flex-wrap items-center gap-2">
+          <SortButton sort={sortBy} onChange={setSortBy} />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={importing}
             className="hud-btn font-torus"
-            style={{ padding: "8px 14px", fontSize: 12, fontWeight: 600, color: "var(--accent)" }}
+            style={{ padding: "7px 14px", fontSize: 12, fontWeight: 600, color: "var(--accent)" }}
           >
             <Upload size={14} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
             {importing ? "导入中…" : "导入谱面"}
@@ -320,7 +504,13 @@ export default function Downloads() {
             <button
               onClick={handleClear}
               className="hud-btn font-torus"
-              style={{ padding: "8px 14px", fontSize: 12, fontWeight: 600, background: "var(--error-soft)", color: "var(--error)" }}
+              style={{
+                padding: "7px 14px",
+                fontSize: 12,
+                fontWeight: 600,
+                background: "var(--error-soft)",
+                color: "var(--error)",
+              }}
             >
               <Trash2 size={14} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
               清空全部
@@ -329,7 +519,7 @@ export default function Downloads() {
         </div>
       </div>
 
-      {loading ? (
+      {!downloadsReady ? (
         <div className="py-12 text-center sm:py-16" style={{ color: "var(--text-secondary)" }}>
           加载中…
         </div>
@@ -348,9 +538,17 @@ export default function Downloads() {
           <div className="mt-1.5 text-xs opacity-70">去搜索页下载谱面吧</div>
         </div>
       ) : (
-        <div className="card-grid">
+        <div
+          style={{
+            borderRadius: "var(--radius-lg)",
+            background: "var(--card-bg)",
+            border: "1px solid var(--border)",
+            overflow: "hidden",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.2)",
+          }}
+        >
           {items.map((set) => (
-            <DownloadedCard
+            <DownloadRow
               key={set.setId}
               set={set}
               expanded={expanded.has(set.setId)}
@@ -362,10 +560,7 @@ export default function Downloads() {
         </div>
       )}
 
-      <div
-        className="mt-6 flex items-center gap-2 text-xs"
-        style={{ color: "var(--text-tertiary)" }}
-      >
+      <div className="mt-5 flex items-center gap-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
         <AlertCircle size={14} className="shrink-0" />
         <span>下载数据保存在浏览器 IndexedDB 中，清理浏览器数据会丢失。</span>
       </div>
