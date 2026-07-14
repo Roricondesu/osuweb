@@ -2,26 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-@font-face {
-  font-family: "Code Pro";
-  src: url("/fonts/code-pro.otf") format("opentype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Torus Pro";
-  src: url("/fonts/AlimamaFangYuanTiVF-Thin-2.ttf") format("truetype");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
+/* 字体通过 fontLoader.ts 从 IndexedDB 加载（持久化），此处不写 @font-face */
 
 :root {
-  font-family: "Code Pro", "SF Mono", "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  /* Torus Pro 作为全局默认字体（支持中文的可变圆体） */
+  font-family: "Torus Pro", "PingFang SC", "Microsoft YaHei", "Code Pro", system-ui, sans-serif;
+  font-variation-settings: "wght" 500, "BEVL" 100;
   line-height: 1.5;
-  font-weight: 400;
+  font-weight: 500;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -88,10 +76,11 @@
   --radius-pill: 999px;
 }
 
-/* Torus Pro 字体工具类（标题/品牌用，使用支持中文的可变字体 AlimamaFangYuanTiVF） */
+/* Torus Pro 标题/品牌加粗（全局默认已是 Torus Pro 500） */
 .font-torus {
   font-family: "Torus Pro", "PingFang SC", "Microsoft YaHei", "Code Pro", system-ui, sans-serif;
   font-variation-settings: "wght" 700, "BEVL" 100;
+  font-weight: 700;
 }
 
 html,
@@ -222,6 +211,7 @@ body {
 .hud-num {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
+  font-variation-settings: "wght" 600, "BEVL" 100;
 }
 
 /* 按钮 */
@@ -232,6 +222,7 @@ body {
   transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   border-radius: var(--radius-sm);
   cursor: pointer;
+  font-variation-settings: "wght" 600, "BEVL" 100;
 }
 .hud-btn:hover {
   background: var(--surface-hover);
@@ -266,6 +257,7 @@ body {
   border: none;
   border-radius: var(--radius-pill);
   font-weight: 700;
+  font-variation-settings: "wght" 700, "BEVL" 100;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   cursor: pointer;

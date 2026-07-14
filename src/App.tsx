@@ -5,6 +5,7 @@ import { Background } from "@/components/layout/Background";
 import { useGameStore } from "@/store/useGameStore";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import { PageLoader, ErrorBoundary } from "@/components/common";
+import { loadFonts } from "@/utils/fontLoader";
 
 const Home = lazy(() => import("@/pages/Home"));
 const Search = lazy(() => import("@/pages/Search"));
@@ -39,6 +40,7 @@ export default function App() {
 
   useEffect(() => {
     loadDownloads();
+    loadFonts();
   }, [loadDownloads]);
 
   // 全局页面缩放：实时生效
