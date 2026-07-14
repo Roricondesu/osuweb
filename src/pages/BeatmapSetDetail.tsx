@@ -59,10 +59,10 @@ const DifficultyCard: React.FC<{
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        borderRadius: 10,
+        borderRadius: "var(--radius-sm)",
         overflow: "hidden",
-        background: "#1a231f",
-        border: `1px solid ${hover ? sc : "rgba(255,255,255,0.08)"}`,
+        background: "var(--card-info-bg)",
+        border: `1px solid ${hover ? sc : "var(--border)"}`,
         transition: "all 0.2s cubic-bezier(0.22,1,0.36,1)",
         transform: hover ? "translateY(-2px)" : "none",
         boxShadow: hover ? `0 8px 24px ${sc}33` : "0 2px 8px rgba(0,0,0,0.2)",
@@ -129,9 +129,9 @@ const DifficultyCard: React.FC<{
         {/* 最佳成绩 */}
         {bestScore && (
           <div style={{
-            marginTop: 10, padding: "6px 10px", borderRadius: 10,
+            marginTop: 10, padding: "6px 10px", borderRadius: "var(--radius-sm)",
             background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.08)",
+            border: "1px solid var(--border)",
             display: "flex", alignItems: "center", gap: 6, fontSize: 11,
           }}>
             <Trophy size={12} style={{ color: sc }} />
@@ -270,7 +270,7 @@ export default function BeatmapSetDetail() {
         <div
           style={{
             overflow: "hidden",
-            borderRadius: 20,
+            borderRadius: "var(--radius-lg)",
             background: "var(--glass-bg)",
             backdropFilter: "blur(24px) saturate(160%)",
             WebkitBackdropFilter: "blur(24px) saturate(160%)",
@@ -300,7 +300,7 @@ export default function BeatmapSetDetail() {
               aria-label="返回"
               style={{
                 position: "absolute", top: 12, left: 12,
-                width: 38, height: 38, borderRadius: 12,
+                width: 38, height: 38, borderRadius: "var(--radius-md)",
                 border: "none", background: "rgba(0,0,0,0.4)", color: "#fff",
                 backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
                 display: "flex", alignItems: "center", justifyContent: "center",
@@ -316,9 +316,9 @@ export default function BeatmapSetDetail() {
                 aria-label={isFav ? "取消收藏" : "收藏"}
                 style={{
                   position: "absolute", top: 12, right: 12,
-                  width: 38, height: 38, borderRadius: 12,
+                  width: 38, height: 38, borderRadius: "var(--radius-md)",
                   border: "none", background: "rgba(0,0,0,0.4)",
-                  color: isFav ? "#ff375f" : "#fff",
+                  color: isFav ? "var(--error)" : "#fff",
                   backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   cursor: "pointer",
@@ -336,7 +336,7 @@ export default function BeatmapSetDetail() {
                 </div>
               )}
               <h1 className="font-torus" style={{
-                fontSize: 22, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em",
+                fontSize: "clamp(18px, 4vw, 22px)", fontWeight: 700, color: "#fff", letterSpacing: "-0.02em",
                 margin: 0,
               }}>
                 {detailSet?.title_unicode || detailSet?.title || "加载中…"}
@@ -374,7 +374,7 @@ export default function BeatmapSetDetail() {
                 {loadedHasVideoMissing && (
                   <div style={{
                     display: "flex", alignItems: "center", gap: 8,
-                    padding: "10px 14px", borderRadius: 12,
+                    padding: "10px 14px", borderRadius: "var(--radius-md)",
                     background: "var(--glass-bg)", border: "1px solid var(--glass-border)",
                   }}>
                     <Download size={14} style={{ color: "var(--lazer-accent)", flexShrink: 0 }} />
@@ -412,7 +412,7 @@ export default function BeatmapSetDetail() {
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "8px 14px", borderRadius: 12,
+                  padding: "8px 14px", borderRadius: "var(--radius-md)",
                   background: "var(--glass-bg)", border: "1px solid var(--glass-border)",
                 }}>
                   <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>下载类型</span>
@@ -441,7 +441,7 @@ export default function BeatmapSetDetail() {
               </div>
             )}
             {downloadError && (
-              <p style={{ marginTop: 8, fontSize: 12, color: "#ff375f" }}>
+              <p style={{ marginTop: 8, fontSize: 12, color: "var(--error)" }}>
                 下载失败：{downloadError}
               </p>
             )}
@@ -485,16 +485,12 @@ export default function BeatmapSetDetail() {
         {sorted.length === 0 ? (
           <div style={{
             padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-secondary)",
-            borderRadius: 16, background: "var(--glass-bg)", border: "1px solid var(--glass-border)",
+            borderRadius: "var(--radius-lg)", background: "var(--glass-bg)", border: "1px solid var(--glass-border)",
           }}>
             {isLoading ? "加载中…" : "无难度"}
           </div>
         ) : (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-            gap: 12,
-          }}>
+          <div className="diff-grid">
             {sorted.map((b) => {
               const mode = MODE_FROM_NUM[b.mode];
               const canPlay = !!loaded;

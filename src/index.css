@@ -60,27 +60,60 @@
   --bg-base: #15151a;
   --surface: rgba(255, 255, 255, 0.05);
   --surface-elevated: rgba(255, 255, 255, 0.1);
+  --surface-hover: rgba(255, 255, 255, 0.08);
   --border: rgba(255, 255, 255, 0.08);
   --text-primary: rgba(255, 255, 255, 0.88);
   --text-secondary: rgba(255, 255, 255, 0.48);
+  --text-tertiary: rgba(255, 255, 255, 0.28);
+
+  /* 强调色（useTheme 动态更新） */
   --accent: #8866ff;
   --accent-soft: rgba(136, 102, 255, 0.14);
   --accent-strong: rgba(136, 102, 255, 0.28);
+
+  /* lazer 强调色 = accent 的别名（保持向后兼容） */
+  --lazer-accent: var(--accent);
+  --lazer-accent-2: #b366ff;
+  --lazer-gradient: linear-gradient(135deg, var(--accent), #ff66aa);
+  --lazer-gradient-soft: linear-gradient(135deg, var(--accent-soft), rgba(255, 102, 170, 0.18));
+
+  /* 玻璃面板 */
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-hover: var(--surface-hover);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
+
+  /* 卡片底色 */
+  --card-bg: #1e1e26;
+  --card-info-bg: #1a231f;
+
+  /* 语义色 */
+  --error: #ff375f;
+  --error-soft: rgba(255, 55, 95, 0.12);
+  --success: #66cc44;
+  --warning: #ff9100;
 
   /* 模式色 */
   --mode-standard: #ff66aa;
   --mode-taiko: #ff9100;
   --mode-catch: #66cc44;
   --mode-mania: #9966ff;
-}
 
-html.dark {
-  --bg-base: #15151a;
-  --surface: rgba(255, 255, 255, 0.05);
-  --surface-elevated: rgba(255, 255, 255, 0.1);
-  --border: rgba(255, 255, 255, 0.08);
-  --text-primary: rgba(255, 255, 255, 0.88);
-  --text-secondary: rgba(255, 255, 255, 0.48);
+  /* 判定色 */
+  --judgement-300: #66cc44;
+  --judgement-100: #0a84ff;
+  --judgement-50: #ff9100;
+  --judgement-miss: #ff375f;
+
+  /* 布局间距 */
+  --nav-height: 56px;
+  --nowplaying-height: 76px;
+
+  /* 圆角 */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
 }
 
 /* Torus Pro 字体工具类（标题/品牌用） */
@@ -99,7 +132,6 @@ body {
   color: var(--text-primary);
   background: var(--bg-base);
   overflow-x: hidden;
-  /* 防止双击缩放 */
   touch-action: manipulation;
 }
 
@@ -108,35 +140,50 @@ body {
   min-height: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: calc(var(--nav-height) + 12px) 16px calc(var(--nowplaying-height) + 16px + env(safe-area-inset-bottom, 0px)) 16px;
+  padding: calc(var(--nav-height) + 12px) 12px calc(var(--nowplaying-height) + 16px + env(safe-area-inset-bottom, 0px)) 12px;
 }
 
 @media (min-width: 768px) {
   .page-shell {
-    padding: calc(var(--nav-height) + 16px) 24px calc(var(--nowplaying-height) + 24px + env(safe-area-inset-bottom, 0px)) 24px;
+    max-width: 1100px;
+    padding: calc(var(--nav-height) + 20px) 24px calc(var(--nowplaying-height) + 24px + env(safe-area-inset-bottom, 0px)) 24px;
   }
 }
 
-/* 无底部播放条时（游戏页/首次加载） */
-.page-shell.no-player {
-  padding-bottom: 32px;
+@media (min-width: 1200px) {
+  .page-shell {
+    max-width: 1200px;
+  }
 }
 
-/* 入场动画 */
+/* === 响应式网格工具类 === */
+.card-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 480px) {
+  .card-grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 10px; }
+}
+@media (min-width: 768px) {
+  .card-grid { gap: 12px; }
+}
+
+.diff-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 560px) {
+  .diff-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+}
+
+/* === 入场动画 === */
 @keyframes stagger-fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(18px) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(18px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
-
-.animate-enter {
-  animation: stagger-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
+.animate-enter { animation: stagger-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .animate-enter-1 { animation-delay: 0.04s; }
 .animate-enter-2 { animation-delay: 0.1s; }
 .animate-enter-3 { animation-delay: 0.18s; }
@@ -153,12 +200,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-enter,
-  .page-transition {
-    animation: none;
-    opacity: 1;
-    transform: none;
-  }
+  .animate-enter, .page-transition { animation: none; opacity: 1; transform: none; }
 }
 
 /* 可折叠区块 */
@@ -167,46 +209,26 @@ body {
   grid-template-rows: 0fr;
   transition: grid-template-rows 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.collapsible-content.open {
-  grid-template-rows: 1fr;
-}
-.collapsible-inner {
-  overflow: hidden;
-}
+.collapsible-content.open { grid-template-rows: 1fr; }
+.collapsible-inner { overflow: hidden; }
 
 @keyframes spin-slow {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
-/* === osu!lazer 风格设计系统 === */
-
-:root {
-  /* lazer 强调色（紫色为主，可被 accent 覆盖） */
-  --lazer-accent: #8866ff;
-  --lazer-accent-2: #b366ff;
-  --lazer-gradient: linear-gradient(135deg, #8866ff, #ff66aa);
-  --lazer-gradient-soft: linear-gradient(135deg, rgba(136,102,255,0.18), rgba(255,102,170,0.18));
-  /* 玻璃面板 */
-  --glass-bg: rgba(255, 255, 255, 0.06);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
-  /* 布局间距 */
-  --nav-height: 56px;
-  --nowplaying-height: 76px;
-  /* 圆角 */
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --radius-pill: 999px;
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
-html.dark {
-  --glass-bg: rgba(255, 255, 255, 0.04);
-  --glass-border: rgba(255, 255, 255, 0.08);
+@keyframes rank-pop {
+  0% { transform: scale(0.3); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
-/* lazer 玻璃面板：大圆角 + 柔和模糊 + 微妙边框 */
+/* === 玻璃面板 === */
 .hud-panel {
   position: relative;
   background: var(--glass-bg);
@@ -217,47 +239,33 @@ html.dark {
   box-shadow: var(--glass-shadow);
 }
 
-/* 角标装饰：lazer 无角标，保留类名但无效果（兼容已用处） */
-.hud-corners::before,
-.hud-corners::after {
-  content: none;
-}
-
-/* 等宽数字（分数/计时器用） */
+/* 等宽数字 */
 .hud-num {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
 }
 
-/* 扫描线/网格：lazer 无此元素，保留类名但无效果 */
-.hud-scanlines,
-.hud-grid {
-  background-image: none;
-}
-
-/* lazer 按钮：圆润 + hover 渐变高亮 */
+/* 按钮 */
 .hud-btn {
   position: relative;
   border: 1px solid transparent;
   background: transparent;
   transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 .hud-btn:hover {
-  background: var(--lazer-gradient-soft);
+  background: var(--surface-hover);
   border-color: var(--glass-border);
 }
-.hud-btn:active {
-  transform: scale(0.95);
-}
+.hud-btn:active { transform: scale(0.95); }
 .hud-btn.active {
-  background: var(--lazer-gradient-soft);
-  border-color: var(--lazer-accent);
-  color: var(--lazer-accent);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-/* lazer 进度条：圆润 + 渐变填充 */
+/* 进度条 */
 .hud-bar-track {
   position: relative;
   height: 6px;
@@ -272,115 +280,42 @@ html.dark {
   transition: width 0.1s linear;
 }
 
-/* lazer 标签 */
-.hud-tag {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--text-secondary);
-}
-
-/* lazer 渐变 CTA 按钮 */
+/* CTA 按钮 */
 .lazer-cta {
   background: var(--lazer-gradient);
   color: #fff;
   border: none;
   border-radius: var(--radius-pill);
   font-weight: 700;
-  box-shadow: 0 4px 16px rgba(136, 102, 255, 0.4);
+  box-shadow: 0 4px 16px var(--accent-strong);
   transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   cursor: pointer;
 }
 .lazer-cta:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 24px rgba(136, 102, 255, 0.55);
+  box-shadow: 0 6px 24px var(--accent-strong);
 }
-.lazer-cta:active {
-  transform: scale(0.97);
-}
+.lazer-cta:active { transform: scale(0.97); }
 
-/* === 滚动条：细窄半透明 overlay 风格 === */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
-}
+/* === 滚动条 === */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+* { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.15) transparent; }
 
-/* 游戏画布内仍隐藏滚动条 */
-.game-shell::-webkit-scrollbar {
-  display: none;
-}
+.game-shell::-webkit-scrollbar { display: none; }
 
-/* 卡片样式（osu!web 风格） */
+/* 卡片 */
 .solid-card {
   position: relative;
-  background: #1e1e26;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-html.dark .solid-card {
-  background: #1e1e26;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-/* 鼠标边缘高光 */
-.glow-card {
-  --mouse-x: 50%;
-  --mouse-y: 50%;
-  position: relative;
-  overflow: hidden;
-}
-
-.glow-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.25s ease;
-  padding: 1.5px;
-  background: radial-gradient(
-    420px circle at var(--mouse-x) var(--mouse-y),
-    rgba(255, 255, 255, 0.55),
-    rgba(255, 255, 255, 0.18) 40%,
-    transparent 70%
-  );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-}
-
-html.dark .glow-card::before {
-  background: radial-gradient(
-    420px circle at var(--mouse-x) var(--mouse-y),
-    rgba(255, 255, 255, 0.4),
-    rgba(255, 255, 255, 0.12) 40%,
-    transparent 70%
-  );
-}
-
-.glow-card.glow-active::before {
-  opacity: 1;
-}
-
-/* 游戏页面：横屏全屏 Canvas */
+/* 游戏页面 */
 .game-shell {
   position: fixed;
   inset: 0;
@@ -389,30 +324,23 @@ html.dark .glow-card::before {
   user-select: none;
   -webkit-user-select: none;
 }
-
 .game-shell canvas {
   display: block;
   width: 100%;
   height: 100%;
 }
 
-
-
-/* 按钮：渐变发光 */
-.btn-glow {
-  position: relative;
-  overflow: hidden;
-  transition: transform 0.15s ease;
+/* 横向滚动容器（最近下载等） */
+.h-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
 }
-
-.btn-glow:active {
-  transform: scale(0.96);
-}
-
-.btn-glow::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent 60%);
-  pointer-events: none;
+.h-scroll > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
 }

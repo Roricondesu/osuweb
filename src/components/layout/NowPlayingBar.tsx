@@ -83,15 +83,16 @@ export const NowPlayingBar: React.FC = () => {
               {fmtTime(currentTime)}
             </span>
             <div
-              className="hud-bar-track"
-              style={{ flex: 1, height: 4, cursor: "pointer" }}
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const pct = (e.clientX - rect.left) / rect.width;
                 seek(pct * duration);
               }}
+              style={{ flex: 1, padding: "8px 0", margin: "-8px 0", cursor: "pointer", boxSizing: "content-box" }}
             >
-              <div className="hud-bar-fill" style={{ width: `${progress}%` }} />
+              <div className="hud-bar-track" style={{ height: 4 }}>
+                <div className="hud-bar-fill" style={{ width: `${progress}%` }} />
+              </div>
             </div>
             <span className="hud-num" style={{ fontSize: 10, color: "var(--text-secondary)", minWidth: 28, textAlign: "right" }}>
               {fmtTime(duration)}
@@ -127,7 +128,7 @@ export const NowPlayingBar: React.FC = () => {
         </div>
 
         {/* 音量 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, width: 84 }} className="hidden sm:flex">
+        <div className="hidden sm:flex" style={{ alignItems: "center", gap: 6, flexShrink: 0, width: 84 }}>
           <button
             onClick={() => setVolume(volume > 0 ? 0 : 0.5)}
             style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--text-secondary)", padding: 4 }}

@@ -15,6 +15,7 @@ export const useTheme = () => {
   useEffect(() => {
     const html = document.documentElement;
     html.style.setProperty("--accent", accent);
+    html.style.setProperty("--lazer-accent", accent);
     // 解析 hex → rgba 软色
     const m = accent.match(/^#([0-9a-f]{6})$/i);
     if (m) {
@@ -23,6 +24,9 @@ export const useTheme = () => {
       const b = parseInt(m[1].slice(4, 6), 16);
       html.style.setProperty("--accent-soft", `rgba(${r},${g},${b},0.14)`);
       html.style.setProperty("--accent-strong", `rgba(${r},${g},${b},0.28)`);
+      // 同步 lazer 渐变（accent → 粉色固定第二色）
+      html.style.setProperty("--lazer-gradient", `linear-gradient(135deg, ${accent}, #ff66aa)`);
+      html.style.setProperty("--lazer-gradient-soft", `linear-gradient(135deg, rgba(${r},${g},${b},0.18), rgba(255,102,170,0.18))`);
     }
   }, [accent]);
 };

@@ -237,11 +237,11 @@ export default function Search() {
           WebkitBackdropFilter: "blur(24px) saturate(160%)",
           border: "1px solid var(--glass-border)",
           boxShadow: "var(--glass-shadow)",
-          padding: 20,
+          padding: "clamp(14px, 4vw, 20px)",
           animation: "stagger-fade-up 0.4s cubic-bezier(0.22,1,0.36,1) both",
         }}
       >
-        <h1 className="font-torus" style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--text-primary)", margin: 0 }}>
+        <h1 className="font-torus" style={{ fontSize: "clamp(18px, 4vw, 22px)", fontWeight: 600, letterSpacing: "-0.01em", color: "var(--text-primary)", margin: 0 }}>
           搜索谱面
         </h1>
         <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>
@@ -378,7 +378,7 @@ export default function Search() {
               }}
             >
               {SORT_OPTIONS.map((o) => (
-                <option key={o.key} value={o.key} style={{ background: "#1a1a1f", color: "#fff" }}>
+                <option key={o.key} value={o.key} style={{ background: "var(--card-bg)", color: "#fff" }}>
                   {o.label}
                 </option>
               ))}
@@ -475,14 +475,14 @@ export default function Search() {
       {/* 错误 */}
       {error && (
         <div
-          style={{
-            marginTop: 16, padding: 14, borderRadius: "var(--radius-md)",
-            background: "rgba(255,69,58,0.08)", border: "1px solid rgba(255,69,58,0.3)",
-            color: "#ff453a", fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
+            style={{
+              marginTop: 16, padding: 14, borderRadius: "var(--radius-md)",
+              background: "var(--error-soft)", border: "1px solid var(--error)",
+              color: "var(--error)", fontSize: 13,
+            }}
+          >
+            {error}
+          </div>
       )}
 
       {/* 结果统计 */}
@@ -518,12 +518,7 @@ export default function Search() {
         </div>
       ) : (
         <>
-          <section
-            style={{
-              marginTop: 16, display: "grid", gap: 12,
-              gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
-            }}
-          >
+          <section className="card-grid" style={{ marginTop: 16 }}>
             {visibleResults.map((set, i) => (
               <BeatmapCard key={set.id} set={set} index={i} />
             ))}

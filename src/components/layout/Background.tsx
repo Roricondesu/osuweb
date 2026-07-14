@@ -4,9 +4,7 @@ import { usePlayerStore } from "@/store/usePlayerStore";
 
 /** 全屏背景：默认渐变光斑 + 谱面封面模糊层 */
 export const Background: React.FC = () => {
-  const theme = useGameStore((s) => s.settings.theme);
   const accent = useGameStore((s) => s.settings.accent);
-  const isDark = theme === "dark";
   const coverUrl = usePlayerStore((s) => s.coverUrl);
 
   return (
@@ -21,7 +19,7 @@ export const Background: React.FC = () => {
         pointerEvents: "none",
       }}
     >
-      {/* 模糊封面层（lazer 风格沉浸背景） */}
+      {/* 模糊封面层 */}
       {coverUrl && (
         <div
           style={{
@@ -30,7 +28,7 @@ export const Background: React.FC = () => {
             backgroundImage: `url(${coverUrl})`,
             backgroundSize: "cover",
             backgroundPosition: "center",
-            filter: `blur(60px) brightness(${isDark ? 0.3 : 0.5}) saturate(1.2)`,
+            filter: "blur(60px) brightness(0.3) saturate(1.2)",
             opacity: 0.7,
             transition: "opacity 0.6s ease, background-image 0.6s ease",
           }}
@@ -42,9 +40,7 @@ export const Background: React.FC = () => {
           style={{
             position: "absolute",
             inset: 0,
-            background: isDark
-              ? "rgba(9,9,12,0.55)"
-              : "rgba(232,234,239,0.4)",
+            background: "rgba(21,21,26,0.55)",
           }}
         />
       )}
@@ -59,7 +55,7 @@ export const Background: React.FC = () => {
           borderRadius: "50%",
           background: `radial-gradient(circle, ${accent}40, transparent 70%)`,
           filter: "blur(60px)",
-          opacity: isDark ? 0.4 : 0.3,
+          opacity: 0.4,
         }}
       />
       <div
@@ -72,7 +68,7 @@ export const Background: React.FC = () => {
           borderRadius: "50%",
           background: `radial-gradient(circle, ${accent}30, transparent 70%)`,
           filter: "blur(80px)",
-          opacity: isDark ? 0.3 : 0.25,
+          opacity: 0.3,
         }}
       />
     </div>

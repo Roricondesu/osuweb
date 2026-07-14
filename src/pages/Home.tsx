@@ -279,9 +279,9 @@ const DownloadedCard: React.FC<{ loaded: LoadedBeatmapSet }> = ({ loaded }) => {
     <div
       onClick={() => navigate(`/set/${loaded.setId}`)}
       style={{
-        flexShrink: 0, width: 360, height: 100, cursor: "pointer",
+        flexShrink: 0, width: "min(360px, 85vw)", height: 100, cursor: "pointer",
         display: "flex",
-        borderRadius: 10, overflow: "hidden",
+        borderRadius: "var(--radius-sm)", overflow: "hidden",
         transition: "transform 0.25s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s ease",
         boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
       }}
@@ -308,7 +308,7 @@ const DownloadedCard: React.FC<{ loaded: LoadedBeatmapSet }> = ({ loaded }) => {
       <div
         style={{
           position: "relative", flex: 1, height: "100%", marginLeft: -7,
-          borderRadius: 10, overflow: "hidden", background: "#1a231f",
+          borderRadius: "var(--radius-sm)", overflow: "hidden", background: "var(--card-info-bg)",
         }}
       >
         {loaded.cover && (
@@ -325,7 +325,7 @@ const DownloadedCard: React.FC<{ loaded: LoadedBeatmapSet }> = ({ loaded }) => {
             <div
               style={{
                 position: "absolute", inset: 0,
-                background: "linear-gradient(120deg, rgba(26,35,31,0.85) 0%, rgba(26,35,31,0.6) 100%)",
+                background: "linear-gradient(120deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.4) 100%)",
               }}
             />
           </>
@@ -473,14 +473,14 @@ export default function Home() {
       {/* 错误 */}
       {error && (
         <div
-          style={{
-            marginTop: 16, padding: 14, borderRadius: "var(--radius-md)",
-            background: "rgba(255,69,58,0.08)", border: "1px solid rgba(255,69,58,0.3)",
-            color: "#ff453a", fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
+            style={{
+              marginTop: 16, padding: 14, borderRadius: "var(--radius-md)",
+              background: "var(--error-soft)", border: "1px solid var(--error)",
+              color: "var(--error)", fontSize: 13,
+            }}
+          >
+            {error}
+          </div>
       )}
 
       {/* 加载中 */}
@@ -505,12 +505,7 @@ export default function Home() {
               subtitle="从 osu.direct 镜像获取最新上架的谱面"
               onMore={() => navigate("/search")}
             />
-            <div
-              style={{
-                display: "grid", gap: 12,
-                gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
-              }}
-            >
+            <div className="card-grid">
               {searchResults.map((set, i) => (
                 <BeatmapCard key={set.id} set={set} index={i} />
               ))}
@@ -526,13 +521,7 @@ export default function Home() {
                 subtitle={`${recentDownloads.length} 个已下载的谱面`}
                 onMore={() => navigate("/downloads")}
               />
-              <div
-                style={{
-                  display: "flex", gap: 12, overflowX: "auto",
-                  paddingBottom: 8, margin: "0 -4px", padding: "0 4px 8px",
-                  scrollbarWidth: "thin",
-                }}
-              >
+              <div className="h-scroll">
                 {recentDownloads.map((d) => (
                   <DownloadedCard key={d.setId} loaded={d} />
                 ))}
@@ -548,12 +537,7 @@ export default function Home() {
                 title="我的收藏"
                 subtitle={`${favSets.length} 个收藏的谱面`}
               />
-              <div
-                style={{
-                  display: "grid", gap: 12,
-                  gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
-                }}
-              >
+              <div className="card-grid">
                 {favSets.map((set, i) => (
                   <BeatmapCard key={set.id} set={set} index={i} />
                 ))}
