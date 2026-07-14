@@ -42,11 +42,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   audioUrl: null,
   coverUrl: null,
 
-  playSet: (set, audioUrl, coverUrl) => {
+  playSet: (nextSet, audioUrl, coverUrl) => {
     const el = get().audioEl;
     if (!el) return;
     // 同一谱面则 toggle
-    if (get().currentSet?.id === set.id) {
+    if (get().currentSet?.id === nextSet.id) {
       get().toggle();
       return;
     }
@@ -55,9 +55,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     el.volume = get().volume;
     el.play().catch(() => {});
     set({
-      currentSet: set,
+      currentSet: nextSet,
       audioUrl,
-      coverUrl: coverUrl || set.covers?.cover || null,
+      coverUrl: coverUrl || nextSet.covers?.cover || null,
       isPlaying: true,
       currentTime: 0,
     });

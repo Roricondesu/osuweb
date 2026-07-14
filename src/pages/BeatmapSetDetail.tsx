@@ -1,19 +1,155 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "@/store/useGameStore";
-import { GlassButton } from "@/components/glass/GlassButton";
-import { DifficultyBadge, ModeBadge, BeatmapCover, StoryboardBadge, VideoBadge } from "@/components/common";
-import { ArrowLeft, Download, Play, Loader2, CheckCircle2, Trophy } from "lucide-react";
+import { ModeBadge, BeatmapCover, StoryboardBadge, VideoBadge, StarRatingBar } from "@/components/common";
+import { ModSelectOverlay, ModSelectButton } from "@/components/game/ModSelectOverlay";
+import { ArrowLeft, Download, Play, Loader2, CheckCircle2, Trophy, Heart, Music } from "lucide-react";
 import type { GameMode, Beatmap, ScoreRecord } from "@/types";
 import { MODE_LABEL, MODE_COLOR } from "@/types";
 import { formatTime } from "@/utils/formatTime";
 import { getScoresForBeatmap } from "@/utils/scoreStorage";
+import { useFavoritesStore } from "@/store/useFavoritesStore";
+import { usePlayerStore } from "@/store/usePlayerStore";
 
 const MODE_FROM_NUM: Record<number, GameMode> = {
   0: "standard",
   1: "taiko",
   2: "catch",
   3: "mania",
+};
+
+const PREVIEW_URL = (setId: number) => `https://b.ppy.sh/preview/${setId}.mp3`;
+
+/** AR/CS/OD/HP 迷你条形图 */
+const StatBar: React.FC<{ label: string; value?: number; max?: number; color?: string }> = ({ label, value, max = 10, color = "var(--lazer-accent)" }) => {
+  const pct = value != null ? Math.min(100, (value / max) * 100) : 0;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", width: 20, letterSpacing: "0.05em" }}>{label}</span>
+      <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 999, transition: "width 0.3s ease" }} />
+      </div>
+      <span className="hud-num" style={{ fontSize: 11, fontWeight: 700, color: "var(--text-primary)", minWidth: 28, textAlign: "right" }}>
+        {value != null ? value.toFixed(1) : "-"}
+      </span>
+    </div>
+  );
+};
+
+/** 难度卡片 */
+const DifficultyCard: React.FC<{
+  beatmap: Beatmap;
+  mode: GameMode;
+  canPlay: boolean;
+  bestScore?: ScoreRecord;
+  onPlay: () => void;
+}> = ({ beatmap, mode, canPlay, bestScore, onPlay }) => {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        borderRadius: 16,
+        overflow: "hidden",
+        background: hover ? "var(--glass-bg)" : "var(--glass-bg)",
+        border: `1px solid ${hover ? "var(--lazer-accent)" : "var(--glass-border)"}`,
+        transition: "all 0.2s cubic-bezier(0.22,1,0.36,1)",
+        transform: hover ? "translateY(-2px)" : "none",
+        boxShadow: hover ? "0 8px 24px rgba(0,0,0,0.25)" : "none",
+      }}
+    >
+      {/* 顶部星级条带 */}
+      <div style={{ height: 4, background: "rgba(255,255,255,0.06)" }}>
+        <div style={{
+          height: "100%",
+          width: `${Math.min(100, (beatmap.difficulty_rating / 10) * 100)}%`,
+          background: "var(--lazer-gradient)",
+          transition: "width 0.3s ease",
+        }} />
+      </div>
+
+      <div style={{ padding: "14px 14px 12px" }}>
+        {/* 头部 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <ModeBadge mode={mode} />
+          {beatmap.bpm && (
+            <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>
+              {beatmap.bpm} BPM
+            </span>
+          )}
+          <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>
+            {formatTime(beatmap.total_length)}
+          </span>
+        </div>
+
+        {/* 版本名 */}
+        <div style={{
+          fontSize: 14, fontWeight: 700, color: "var(--text-primary)",
+          letterSpacing: "-0.01em", marginBottom: 10,
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>
+          {beatmap.version || "Default"}
+        </div>
+
+        {/* 星级条 */}
+        <div style={{ marginBottom: 10 }}>
+          <StarRatingBar stars={beatmap.difficulty_rating} variant="full" />
+        </div>
+
+        {/* AR/CS/OD/HP 迷你条 */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          <StatBar label="AR" value={beatmap.ar} />
+          {mode === "mania" ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", width: 20, letterSpacing: "0.05em" }}>K</span>
+              <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ width: `${Math.min(100, (Math.round(beatmap.cs || 4) / 18) * 100)}%`, height: "100%", background: "var(--lazer-accent)", borderRadius: 999 }} />
+              </div>
+              <span className="hud-num" style={{ fontSize: 11, fontWeight: 700, color: "var(--lazer-accent)", minWidth: 28, textAlign: "right" }}>
+                {Math.max(1, Math.round(beatmap.cs || 4))}K
+              </span>
+            </div>
+          ) : (
+            <StatBar label="CS" value={beatmap.cs} color="#ff66aa" />
+          )}
+          <StatBar label="OD" value={beatmap.od} color="#ff9100" />
+          <StatBar label="HP" value={beatmap.hp} color="#ff375f" />
+        </div>
+
+        {/* 最佳成绩 */}
+        {bestScore && (
+          <div style={{
+            marginTop: 10, padding: "6px 10px", borderRadius: 10,
+            background: "var(--lazer-gradient-soft)",
+            display: "flex", alignItems: "center", gap: 6, fontSize: 11,
+          }}>
+            <Trophy size={12} style={{ color: "var(--lazer-accent)" }} />
+            <span style={{ color: "var(--lazer-accent)", fontWeight: 700 }}>{bestScore.score.toLocaleString()}</span>
+            <span style={{ color: "var(--text-secondary)" }}>·</span>
+            <span style={{ color: "var(--text-secondary)" }}>{bestScore.accuracy.toFixed(2)}%</span>
+            <span style={{ color: "var(--text-secondary)" }}>·</span>
+            <span style={{ color: "var(--text-secondary)" }}>{bestScore.maxCombo}x</span>
+          </div>
+        )}
+
+        {/* 播放按钮 */}
+        <button
+          onClick={onPlay}
+          disabled={!canPlay}
+          className="lazer-cta"
+          style={{
+            width: "100%", marginTop: 12, padding: "10px 16px",
+            fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            opacity: canPlay ? 1 : 0.4, cursor: canPlay ? "pointer" : "not-allowed",
+          }}
+        >
+          <Play size={15} fill="currentColor" />
+          {canPlay ? "游玩" : "需下载"}
+        </button>
+      </div>
+    </div>
+  );
 };
 
 export default function BeatmapSetDetail() {
@@ -31,15 +167,20 @@ export default function BeatmapSetDetail() {
   const [downloading, setDownloading] = useState(false);
   const [filterMode, setFilterMode] = useState<GameMode | null>(null);
   const [fullPackage, setFullPackage] = useState(() => useGameStore.getState().settings.downloadFullPackage);
-  // 每个难度的最佳成绩：beatmapId -> ScoreRecord
   const [bestScores, setBestScores] = useState<Record<number, ScoreRecord | undefined>>({});
+  const [modOpen, setModOpen] = useState(false);
+
+  const favorites = useFavoritesStore((s) => s.favorites);
+  const toggleFavorite = useFavoritesStore((s) => s.toggleFavorite);
+  const playSet = usePlayerStore((s) => s.playSet);
+  const currentSet = usePlayerStore((s) => s.currentSet);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
 
   useEffect(() => {
     if (setId) loadDetail(Number(setId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setId]);
 
-  // 加载各难度的历史最佳成绩
   const reloadScores = React.useCallback(() => {
     if (!detailSet) return;
     const map: Record<number, ScoreRecord | undefined> = {};
@@ -56,7 +197,6 @@ export default function BeatmapSetDetail() {
     reloadScores();
   }, [reloadScores]);
 
-  // 从游戏返回（页面重新获得焦点）时刷新成绩
   useEffect(() => {
     const onFocus = () => reloadScores();
     window.addEventListener("focus", onFocus);
@@ -64,6 +204,8 @@ export default function BeatmapSetDetail() {
   }, [reloadScores]);
 
   const loaded = setId ? downloaded.get(Number(setId)) : undefined;
+  const isFav = detailSet ? favorites.includes(detailSet.id) : false;
+  const isCurrentPreview = currentSet?.id === detailSet?.id;
 
   const handleDownload = async () => {
     if (!detailSet) return;
@@ -72,14 +214,12 @@ export default function BeatmapSetDetail() {
     setDownloading(false);
   };
 
-  // 已下载但缺少视频（谱面声明有视频但 videoUrl 为空）时，提供补充下载入口
   const loadedHasVideoMissing = !!loaded && !loaded.videoUrl &&
     (loaded.beatmaps || []).some((b) => b.parsed?.videoFilename);
 
   const handleDownloadFull = async () => {
     if (!detailSet) return;
     setDownloading(true);
-    // force=true 强制重新下载完整包（含视频）
     await downloadSet(detailSet, true, true);
     setDownloading(false);
   };
@@ -90,7 +230,11 @@ export default function BeatmapSetDetail() {
     navigate(`/game/${detailSet.id}/${mode}/${beatmap.id}`);
   };
 
-  // 收集可用的模式
+  const handlePreviewToggle = () => {
+    if (!detailSet) return;
+    playSet(detailSet, PREVIEW_URL(detailSet.id), detailSet.covers?.["cover@2x"] || detailSet.covers?.cover);
+  };
+
   const availableModes = new Set<GameMode>();
   (detailSet?.beatmaps || []).forEach((b) => {
     const m = MODE_FROM_NUM[b.mode];
@@ -103,7 +247,6 @@ export default function BeatmapSetDetail() {
     return true;
   });
 
-  // 排序：按星级升序
   const sorted = [...filteredBeatmaps].sort(
     (a, b) => a.difficulty_rating - b.difficulty_rating,
   );
@@ -114,9 +257,19 @@ export default function BeatmapSetDetail() {
   return (
     <div className="page-shell">
       <section className="animate-enter animate-enter-1">
-        <div className="solid-card overflow-hidden">
+        <div
+          style={{
+            overflow: "hidden",
+            borderRadius: 20,
+            background: "var(--glass-bg)",
+            backdropFilter: "blur(24px) saturate(160%)",
+            WebkitBackdropFilter: "blur(24px) saturate(160%)",
+            border: "1px solid var(--glass-border)",
+            boxShadow: "var(--glass-shadow)",
+          }}
+        >
           {/* 头部封面区 */}
-          <div style={{ position: "relative", aspectRatio: "16/9", maxHeight: 320, overflow: "hidden" }}>
+          <div style={{ position: "relative", aspectRatio: "16/9", maxHeight: 340, overflow: "hidden" }}>
             <BeatmapCover
               src={cover}
               alt={detailSet?.title}
@@ -126,56 +279,59 @@ export default function BeatmapSetDetail() {
               style={{ position: "absolute", inset: 0 }}
               imgStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent 60%)",
-                pointerEvents: "none",
-              }}
-            />
+            <div style={{
+              position: "absolute", inset: 0,
+              background: "linear-gradient(to top, rgba(0,0,0,0.9), transparent 55%)",
+              pointerEvents: "none",
+            }} />
+            {/* 返回 */}
             <button
               onClick={() => navigate(-1)}
               aria-label="返回"
               style={{
-                position: "absolute",
-                top: 12,
-                left: 12,
-                width: 36,
-                height: 36,
-                borderRadius: 12,
-                border: "none",
-                background: "rgba(0,0,0,0.4)",
-                color: "#fff",
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                position: "absolute", top: 12, left: 12,
+                width: 38, height: 38, borderRadius: 12,
+                border: "none", background: "rgba(0,0,0,0.4)", color: "#fff",
+                backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+                display: "flex", alignItems: "center", justifyContent: "center",
                 cursor: "pointer",
               }}
             >
               <ArrowLeft size={18} />
             </button>
-
-            <div
-              style={{
-                position: "absolute",
-                bottom: 16,
-                left: 16,
-                right: 16,
-              }}
-            >
+            {/* 收藏 */}
+            {detailSet && (
+              <button
+                onClick={() => toggleFavorite(detailSet.id)}
+                aria-label={isFav ? "取消收藏" : "收藏"}
+                style={{
+                  position: "absolute", top: 12, right: 12,
+                  width: 38, height: 38, borderRadius: 12,
+                  border: "none", background: "rgba(0,0,0,0.4)",
+                  color: isFav ? "#ff375f" : "#fff",
+                  backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer",
+                }}
+              >
+                <Heart size={18} fill={isFav ? "currentColor" : "none"} />
+              </button>
+            )}
+            {/* 标题信息 */}
+            <div style={{ position: "absolute", bottom: 16, left: 16, right: 16 }}>
               {(detailSet?.hasStoryboard || detailSet?.hasVideo) && (
-                <div className="mb-2" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
                   {detailSet?.hasStoryboard && <StoryboardBadge size="md" />}
                   {detailSet?.hasVideo && <VideoBadge size="md" />}
                 </div>
               )}
-              <h1 className="text-xl font-bold md:text-2xl" style={{ color: "#fff", letterSpacing: "-0.02em" }}>
+              <h1 style={{
+                fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em",
+                margin: 0,
+              }}>
                 {detailSet?.title_unicode || detailSet?.title || "加载中…"}
               </h1>
-              <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+              <p style={{ marginTop: 4, fontSize: 13, color: "rgba(255,255,255,0.7)", margin: 0 }}>
                 {detailSet?.artist_unicode || detailSet?.artist}
                 {detailSet?.creator ? ` · ${detailSet.creator}` : ""}
                 {detailSet?.bpm ? ` · ${detailSet.bpm} BPM` : ""}
@@ -183,35 +339,46 @@ export default function BeatmapSetDetail() {
             </div>
           </div>
 
-          {/* 下载操作区 */}
-          <div className="p-4 md:p-5">
+          {/* 操作区 */}
+          <div style={{ padding: "16px 18px" }}>
             {loaded ? (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 size={20} style={{ color: "var(--accent)" }} />
-                  <span className="flex-1 text-sm" style={{ color: "var(--text-primary)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <CheckCircle2 size={20} style={{ color: "var(--lazer-accent)" }} />
+                  <span style={{ flex: 1, fontSize: 13, color: "var(--text-primary)" }}>
                     已下载 {loaded.beatmaps.length} 个难度
                   </span>
-                  <GlassButton onClick={() => {}} active>
-                    <Play size={14} /> 已就绪
-                  </GlassButton>
+                  <button
+                    onClick={handlePreviewToggle}
+                    className="hud-btn"
+                    style={{
+                      padding: "8px 14px", fontSize: 12, fontWeight: 700,
+                      color: isCurrentPreview && isPlaying ? "var(--lazer-accent)" : "var(--text-secondary)",
+                      display: "flex", alignItems: "center", gap: 6,
+                    }}
+                  >
+                    <Music size={14} />
+                    {isCurrentPreview && isPlaying ? "暂停预览" : "试听"}
+                  </button>
                 </div>
                 {loadedHasVideoMissing && (
-                  <div className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "var(--surface-elevated)" }}>
-                    <Download size={14} style={{ color: "var(--accent)", flexShrink: 0 }} />
-                    <span className="flex-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "10px 14px", borderRadius: 12,
+                    background: "var(--glass-bg)", border: "1px solid var(--glass-border)",
+                  }}>
+                    <Download size={14} style={{ color: "var(--lazer-accent)", flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontSize: 12, color: "var(--text-secondary)" }}>
                       当前为 mini 包（无视频），可下载完整包以启用视频背景
                     </span>
                     <button
                       onClick={handleDownloadFull}
                       disabled={downloading}
-                      className="rounded-full px-3 py-1 text-xs font-medium transition-transform active:scale-95"
+                      className="hud-btn"
                       style={{
-                        border: "1px solid var(--accent)",
-                        color: "var(--accent)",
-                        background: "var(--accent-soft)",
-                        cursor: downloading ? "not-allowed" : "pointer",
-                        opacity: downloading ? 0.6 : 1,
+                        padding: "6px 12px", fontSize: 12, fontWeight: 600,
+                        color: "var(--lazer-accent)",
+                        opacity: downloading ? 0.5 : 1,
                       }}
                     >
                       下载完整包
@@ -221,80 +388,50 @@ export default function BeatmapSetDetail() {
               </div>
             ) : downloading ? (
               <div>
-                <div className="mb-2 flex items-center justify-between text-sm">
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 8 }}>
                   <span style={{ color: "var(--text-secondary)" }}>下载中…</span>
-                  <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                  <span className="hud-num" style={{ color: "var(--lazer-accent)", fontWeight: 700 }}>
                     {Math.round(downloadProgress * 100)}%
                   </span>
                 </div>
-                <div
-                  style={{
-                    width: "100%",
-                    height: 6,
-                    borderRadius: 3,
-                    background: "var(--surface-elevated)",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${downloadProgress * 100}%`,
-                      height: "100%",
-                      background: "var(--accent)",
-                      transition: "width 0.2s ease",
-                    }}
-                  />
+                <div className="hud-bar-track" style={{ height: 6 }}>
+                  <div className="hud-bar-fill" style={{ width: `${downloadProgress * 100}%` }} />
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between rounded-xl px-3 py-2" style={{ background: "var(--surface-elevated)" }}>
-                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>下载类型</span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setFullPackage(false)}
-                      className="rounded-full px-3 py-1 text-xs font-medium transition-transform active:scale-95"
-                      style={{
-                        border: "1px solid",
-                        borderColor: !fullPackage ? "var(--accent)" : "var(--border)",
-                        color: !fullPackage ? "var(--accent)" : "var(--text-primary)",
-                        background: !fullPackage ? "var(--accent-soft)" : "transparent",
-                        cursor: "pointer",
-                      }}
-                    >
-                      mini（小）
-                    </button>
-                    <button
-                      onClick={() => setFullPackage(true)}
-                      className="rounded-full px-3 py-1 text-xs font-medium transition-transform active:scale-95"
-                      style={{
-                        border: "1px solid",
-                        borderColor: fullPackage ? "var(--accent)" : "var(--border)",
-                        color: fullPackage ? "var(--accent)" : "var(--text-primary)",
-                        background: fullPackage ? "var(--accent-soft)" : "transparent",
-                        cursor: "pointer",
-                      }}
-                    >
-                      full（含 Storyboard）
-                    </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "8px 14px", borderRadius: 12,
+                  background: "var(--glass-bg)", border: "1px solid var(--glass-border)",
+                }}>
+                  <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>下载类型</span>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {[
+                      { val: false, label: "mini（小）" },
+                      { val: true, label: "full（含 Storyboard）" },
+                    ].map((opt) => (
+                      <button
+                        key={String(opt.val)}
+                        onClick={() => setFullPackage(opt.val)}
+                        className="hud-btn"
+                        style={{
+                          padding: "5px 12px", fontSize: 12, fontWeight: 600,
+                          color: fullPackage === opt.val ? "var(--lazer-accent)" : "var(--text-secondary)",
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <GlassButton onClick={handleDownload} accent style={{ width: "100%" }}>
+                <button onClick={handleDownload} className="lazer-cta" style={{ width: "100%", padding: "12px 20px", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                   <Download size={16} /> 下载谱面（{sorted.length} 个难度）
-                </GlassButton>
-                <div className="flex items-center justify-center gap-1.5 text-[11px]" style={{ color: "var(--text-secondary)" }}>
-                  <span>下载源：</span>
-                  <span style={{ color: "var(--text-primary)" }}>osu.direct</span>
-                  <span>·</span>
-                  <span style={{ color: "var(--text-primary)" }}>Kitsu</span>
-                  <span>·</span>
-                  <span style={{ color: "var(--text-primary)" }}>Chimu</span>
-                  <span style={{ color: "var(--accent)" }}>（并行竞速）</span>
-                </div>
+                </button>
               </div>
             )}
             {downloadError && (
-              <p className="mt-2 text-xs" style={{ color: "#ff453a" }}>
+              <p style={{ marginTop: 8, fontSize: 12, color: "#ff375f" }}>
                 下载失败：{downloadError}
               </p>
             )}
@@ -303,21 +440,15 @@ export default function BeatmapSetDetail() {
       </section>
 
       {/* 模式过滤 */}
-      <section className="mt-4 animate-enter animate-enter-2">
-        <div className="solid-card p-4">
-          <div className="mb-3 text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-            选择模式
-          </div>
-          <div className="flex flex-wrap gap-2">
+      {availableModes.size > 1 && (
+        <section className="mt-4 animate-enter animate-enter-2">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             <button
               onClick={() => setFilterMode(null)}
-              className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95"
+              className="hud-btn"
               style={{
-                border: "1px solid",
-                borderColor: filterMode === null ? "var(--accent)" : "var(--border)",
-                color: filterMode === null ? "var(--accent)" : "var(--text-primary)",
-                background: filterMode === null ? "var(--accent-soft)" : "transparent",
-                cursor: "pointer",
+                padding: "6px 14px", fontSize: 12, fontWeight: 600,
+                color: filterMode === null ? "var(--lazer-accent)" : "var(--text-secondary)",
               }}
             >
               全部
@@ -326,102 +457,55 @@ export default function BeatmapSetDetail() {
               <button
                 key={m}
                 onClick={() => setFilterMode(m)}
-                className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95"
+                className="hud-btn"
                 style={{
-                  border: "1px solid",
-                  borderColor: filterMode === m ? MODE_COLOR[m] : "var(--border)",
-                  color: filterMode === m ? MODE_COLOR[m] : "var(--text-primary)",
-                  background: filterMode === m ? `${MODE_COLOR[m]}22` : "transparent",
-                  cursor: "pointer",
+                  padding: "6px 14px", fontSize: 12, fontWeight: 600,
+                  color: filterMode === m ? MODE_COLOR[m] : "var(--text-secondary)",
                 }}
               >
                 {MODE_LABEL[m]}
               </button>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      {/* 难度列表 */}
+      {/* 难度卡片网格 */}
       <section className="mt-4 animate-enter animate-enter-3">
-        <div className="solid-card divide-y" style={{ borderColor: "var(--border)" }}>
-          {sorted.length === 0 ? (
-            <div className="p-6 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
-              {isLoading ? "加载中…" : "无难度"}
-            </div>
-          ) : (
-            sorted.map((b) => {
+        {sorted.length === 0 ? (
+          <div style={{
+            padding: 32, textAlign: "center", fontSize: 13, color: "var(--text-secondary)",
+            borderRadius: 16, background: "var(--glass-bg)", border: "1px solid var(--glass-border)",
+          }}>
+            {isLoading ? "加载中…" : "无难度"}
+          </div>
+        ) : (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+            gap: 12,
+          }}>
+            {sorted.map((b) => {
               const mode = MODE_FROM_NUM[b.mode];
               const canPlay = !!loaded;
               return (
-                <div
+                <DifficultyCard
                   key={b.id}
-                  className="flex items-center gap-3 p-3 md:p-4"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <ModeBadge mode={mode} />
-                      <DifficultyBadge stars={b.difficulty_rating} />
-                      {b.bpm && (
-                        <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                          {b.bpm} BPM
-                        </span>
-                      )}
-                      <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                        {formatTime(b.total_length)}
-                      </span>
-                    </div>
-                    <div className="mt-1 truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      {b.version}
-                    </div>
-                    <div className="mt-0.5 flex gap-3 text-[11px]" style={{ color: "var(--text-secondary)" }}>
-                      <span>AR {b.ar?.toFixed(1) ?? "-"}</span>
-                      {mode === "mania" ? (
-                        <span style={{ color: "var(--accent)" }}>{Math.max(1, Math.round(b.cs || 4))}K</span>
-                      ) : (
-                        <span>CS {b.cs?.toFixed(1) ?? "-"}</span>
-                      )}
-                      <span>OD {b.od?.toFixed(1) ?? "-"}</span>
-                      <span>HP {b.hp?.toFixed(1) ?? "-"}</span>
-                    </div>
-                    {bestScores[b.id] && (
-                      <div className="mt-1 flex items-center gap-1.5 text-[11px]" style={{ color: "var(--accent)" }}>
-                        <Trophy size={11} />
-                        <span>最佳 {bestScores[b.id]!.score.toLocaleString()}</span>
-                        <span style={{ color: "var(--text-secondary)" }}>·</span>
-                        <span>{bestScores[b.id]!.accuracy.toFixed(2)}%</span>
-                        <span style={{ color: "var(--text-secondary)" }}>·</span>
-                        <span>{bestScores[b.id]!.maxCombo}x</span>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => handleStart(b, mode)}
-                    disabled={!canPlay}
-                    aria-label={`游玩 ${b.version}`}
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 12,
-                      border: "none",
-                      background: canPlay ? "var(--accent)" : "var(--surface-elevated)",
-                      color: canPlay ? "#fff" : "var(--text-secondary)",
-                      cursor: canPlay ? "pointer" : "not-allowed",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Play size={16} fill="currentColor" />
-                  </button>
-                </div>
+                  beatmap={b}
+                  mode={mode}
+                  canPlay={canPlay}
+                  bestScore={bestScores[b.id]}
+                  onPlay={() => handleStart(b, mode)}
+                />
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        )}
       </section>
+
+      {/* Mod 按钮 + 浮层 */}
+      <ModSelectButton onClick={() => setModOpen(true)} />
+      <ModSelectOverlay open={modOpen} onClose={() => setModOpen(false)} />
     </div>
   );
 }

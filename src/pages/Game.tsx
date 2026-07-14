@@ -3,7 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "@/store/useGameStore";
 import { createEngine, type GameEngine, type ScoreState } from "@/engine";
 import { GlassButton } from "@/components/glass/GlassButton";
-import { RotateCcw, ArrowLeft, Pause, Play, Menu, X, Maximize, Minimize, Eye, Home } from "lucide-react";
+import { ModSelectOverlay } from "@/components/game/ModSelectOverlay";
+import { RotateCcw, ArrowLeft, Pause, Play, Menu, X, Maximize, Minimize, Eye, Home, Zap } from "lucide-react";
 import type { GameMode, Replay, ScoreRecord } from "@/types";
 import { MODE_LABEL } from "@/types";
 import { useOrientation } from "@/hooks/useOrientation";
@@ -80,6 +81,7 @@ export default function Game() {
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [modOverlayOpen, setModOverlayOpen] = useState(false);
   const [availableReplays, setAvailableReplays] = useState<Replay[]>([]);
   const [selectedReplay, setSelectedReplay] = useState<Replay | null>(null);
   const [justSavedReplay, setJustSavedReplay] = useState(false);
@@ -388,12 +390,24 @@ export default function Game() {
 
   if (errorMsg) {
     return (
-      <div className="page-shell">
-        <div className="solid-card p-6 text-center">
-          <p className="text-sm" style={{ color: "#ff453a" }}>{errorMsg}</p>
-          <GlassButton onClick={() => navigate(-1)} className="mt-4">
-            <ArrowLeft size={14} /> 返回
-          </GlassButton>
+      <div className="page-shell" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div
+          style={{
+            maxWidth: 420, padding: 24, textAlign: "center",
+            borderRadius: "var(--radius-lg)",
+            background: "var(--glass-bg)",
+            backdropFilter: "blur(24px) saturate(160%)",
+            WebkitBackdropFilter: "blur(24px) saturate(160%)",
+            border: "1px solid var(--glass-border)",
+            boxShadow: "var(--glass-shadow)",
+          }}
+        >
+          <p style={{ color: "#ff453a", fontSize: 14, margin: 0 }}>{errorMsg}</p>
+          <div style={{ marginTop: 16 }}>
+            <GlassButton onClick={() => navigate(-1)}>
+              <ArrowLeft size={14} /> 返回
+            </GlassButton>
+          </div>
         </div>
       </div>
     );
@@ -427,6 +441,32 @@ export default function Game() {
           touchAction: "none",
         }}
       />
+
+      {/* 加载中浮层 */}
+      {phase === "loading" && (
+        <div
+          style={{
+            position: "absolute", inset: 0, zIndex: 15,
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", gap: 12,
+            background: "rgba(0,0,0,0.5)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+          }}
+        >
+          <div
+            style={{
+              width: 36, height: 36, borderRadius: "50%",
+              border: "3px solid var(--glass-border)",
+              borderTopColor: "var(--lazer-accent)",
+              animation: "spin-slow 0.8s linear infinite",
+            }}
+          />
+          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600, margin: 0 }}>
+            加载谱面中…
+          </p>
+        </div>
+      )}
 
       {/* 回放模式标识 */}
       {selectedReplay && phase === "playing" && (
@@ -580,9 +620,9 @@ export default function Game() {
           style={{
             position: "absolute",
             inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
+            background: "linear-gradient(180deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.75) 100%)",
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
@@ -590,16 +630,17 @@ export default function Game() {
             gap: 16,
             zIndex: 20,
             padding: 24,
+            animation: "page-fade-in 0.3s ease both",
           }}
         >
           <div style={{ textAlign: "center" }}>
-            <p className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.6)", margin: 0 }}>
               {MODE_LABEL[gameMode]} 模式
             </p>
-            <h2 className="mt-1 text-2xl font-bold" style={{ color: "#fff" }}>
+            <h2 style={{ marginTop: 6, fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", color: "#fff", margin: "6px 0 0" }}>
               准备好了吗？
             </h2>
-            <p className="mt-2 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+            <p style={{ marginTop: 8, fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
               {selectedReplay ? "回放模式：将按录制输入自动游玩" : "点击开始后立即播放音频"}
             </p>
           </div>
@@ -613,12 +654,14 @@ export default function Game() {
               style={{
                 padding: "10px 14px",
                 borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.2)",
+                border: "1px solid var(--glass-border)",
                 background: "rgba(0,0,0,0.4)",
+                backdropFilter: "blur(8px)",
                 color: "#fff",
-                fontSize: 14,
+                fontSize: 13,
                 outline: "none",
-                minWidth: 220,
+                minWidth: 240,
+                cursor: "pointer",
               }}
             >
               <option value="">新游戏</option>
@@ -629,12 +672,34 @@ export default function Game() {
               ))}
             </select>
           )}
-          <GlassButton onClick={handleStart} accent style={{ padding: "14px 28px", fontSize: 16 }}>
+          <button
+            onClick={handleStart}
+            className="lazer-cta"
+            style={{ padding: "14px 32px", fontSize: 16, fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", gap: 8 }}
+          >
             <Play size={18} fill="currentColor" />
             {selectedReplay ? "播放回放" : "开始游戏"}
-          </GlassButton>
+          </button>
+          {!selectedReplay && (
+            <button
+              onClick={() => setModOverlayOpen(true)}
+              className="hud-btn"
+              style={{
+                padding: "10px 20px", fontSize: 13, fontWeight: 600,
+                color: "#fff", background: "rgba(255,255,255,0.08)",
+                backdropFilter: "blur(10px)",
+                display: "flex", alignItems: "center", gap: 6,
+              }}
+            >
+              <Zap size={14} />
+              Mods {mods.length > 0 && `· ${mods.length}`}
+            </button>
+          )}
         </div>
       )}
+
+      {/* Mod 选择浮层 */}
+      <ModSelectOverlay open={modOverlayOpen} onClose={() => setModOverlayOpen(false)} />
 
       {/* 暂停页浮层 */}
       {phase === "paused" && (
@@ -668,71 +733,142 @@ const ResultScreen: React.FC<{
     score.judgements.miss;
 
   let rank = "D";
-  if (score.accuracy >= 95) rank = "S";
-  else if (score.accuracy >= 90) rank = "A";
-  else if (score.accuracy >= 80) rank = "B";
-  else if (score.accuracy >= 70) rank = "C";
+  let rankColor = "#ff375f";
+  if (score.accuracy >= 100) { rank = "SS"; rankColor = "#ffd60a"; }
+  else if (score.accuracy >= 95) { rank = "S"; rankColor = "#ff9100"; }
+  else if (score.accuracy >= 90) { rank = "A"; rankColor = "#66cc44"; }
+  else if (score.accuracy >= 80) { rank = "B"; rankColor = "#0a84ff"; }
+  else if (score.accuracy >= 70) { rank = "C"; rankColor = "#9966ff"; }
 
   const failed = score.health <= 0;
+  const acc100 = Math.min(100, Math.max(0, score.accuracy));
 
   return (
-    <div className="page-shell">
-      <div className="solid-card p-6 md:p-8 animate-enter">
-        <div className="text-center">
-          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+    <div className="page-shell" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div
+        style={{
+          width: "min(640px, 100%)",
+          borderRadius: "var(--radius-lg)",
+          background: "var(--glass-bg)",
+          backdropFilter: "blur(28px) saturate(160%)",
+          WebkitBackdropFilter: "blur(28px) saturate(160%)",
+          border: "1px solid var(--glass-border)",
+          boxShadow: "var(--glass-shadow)",
+          padding: "clamp(20px, 4vw, 32px)",
+          animation: "stagger-fade-up 0.5s cubic-bezier(0.22,1,0.36,1) both",
+        }}
+      >
+        {/* 顶部 */}
+        <div style={{ textAlign: "center" }}>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-secondary)", margin: 0 }}>
             {MODE_LABEL[mode]} · 结算
           </p>
-          <h1 className="mt-2 text-3xl font-bold md:text-4xl" style={{ color: failed ? "#ff375f" : "var(--accent)" }}>
+          <h1
+            style={{
+              fontSize: "clamp(26px, 4vw, 34px)", fontWeight: 800, letterSpacing: "-0.02em",
+              color: failed ? "#ff375f" : "var(--text-primary)", margin: "4px 0 0",
+            }}
+          >
             {failed ? "失败" : "完成！"}
           </h1>
           {justSaved && (
-            <p className="mt-2 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+            <p style={{ marginTop: 6, fontSize: 12, color: "var(--lazer-accent)" }}>
               回放已自动保存
             </p>
           )}
+        </div>
 
-          {/* 评级 */}
+        {/* 评级徽章 */}
+        <div style={{ display: "flex", justifyContent: "center", margin: "20px 0 16px" }}>
           <div
-            className="mx-auto my-4 flex h-24 w-24 items-center justify-center sm:my-6 sm:h-28 sm:w-28"
             style={{
-              borderRadius: "50%",
-              background: "var(--accent-soft)",
-              border: "3px solid var(--accent)",
+              position: "relative",
+              width: 120, height: 120, borderRadius: "50%",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: `radial-gradient(circle at 30% 30%, ${rankColor}33, ${rankColor}11 60%, transparent 80%)`,
+              border: `2px solid ${rankColor}`,
+              boxShadow: `0 0 32px ${rankColor}55, inset 0 0 20px ${rankColor}22`,
+              animation: "rank-pop 0.6s cubic-bezier(0.22,1.4,0.36,1) both",
             }}
           >
-            <span className="text-5xl font-extrabold sm:text-6xl" style={{ color: "var(--accent)" }}>{rank}</span>
+            <span
+              className="hud-num"
+              style={{
+                fontSize: 56, fontWeight: 900, color: rankColor,
+                textShadow: `0 0 16px ${rankColor}88`,
+                letterSpacing: "-0.04em",
+              }}
+            >
+              {rank}
+            </span>
+            <style>{`@keyframes rank-pop { 0%{transform:scale(0.4);opacity:0} 60%{transform:scale(1.08);opacity:1} 100%{transform:scale(1)} }`}</style>
+          </div>
+        </div>
+
+        {/* 准确率条 */}
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>准确率</span>
+            <span className="hud-num" style={{ fontSize: 22, fontWeight: 800, color: rankColor, letterSpacing: "-0.01em" }}>
+              {score.accuracy.toFixed(2)}%
+            </span>
+          </div>
+          <div
+            style={{
+              height: 8, borderRadius: 999, overflow: "hidden",
+              background: "rgba(255,255,255,0.06)",
+            }}
+          >
+            <div
+              style={{
+                width: `${acc100}%`, height: "100%",
+                background: `linear-gradient(90deg, ${rankColor}aa, ${rankColor})`,
+                borderRadius: 999,
+                boxShadow: `0 0 8px ${rankColor}88`,
+                transition: "width 0.8s cubic-bezier(0.22,1,0.36,1)",
+              }}
+            />
           </div>
         </div>
 
         {/* 主要数据 */}
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+        <div
+          style={{
+            display: "grid", gap: 8,
+            gridTemplateColumns: "repeat(3, 1fr)",
+            marginBottom: 14,
+          }}
+        >
           <Stat label="分数" value={Math.round(score.score).toLocaleString()} />
-          <Stat label="准确率" value={`${score.accuracy.toFixed(2)}%`} />
           <Stat label="最大连击" value={`${score.maxCombo}x`} />
           <Stat label="总命中" value={String(total)} />
         </div>
 
         {/* 判定明细 */}
-        <div className="mt-5 grid grid-cols-4 gap-1.5 sm:mt-6 sm:gap-2">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 20 }}>
           <Judgement label="300" count={score.judgements["300"]} color="#66cc44" />
           <Judgement label="100" count={score.judgements["100"]} color="#0a84ff" />
           <Judgement label="50" count={score.judgements["50"]} color="#ff9100" />
           <Judgement label="Miss" count={score.judgements.miss} color="#ff375f" />
         </div>
 
-        {/* 操作：移动端纵向排列，桌面端横向 */}
-        <div className="mt-6 flex flex-col gap-2.5 sm:mt-8 sm:flex-row sm:gap-3">
-          <GlassButton onClick={onBack} className="w-full sm:flex-1">
+        {/* 操作 */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <GlassButton onClick={onBack} style={{ flex: 1, minWidth: 120 }}>
             <ArrowLeft size={14} /> 返回
           </GlassButton>
           {canWatchReplay && onWatchReplay && (
-            <GlassButton onClick={onWatchReplay} className="w-full sm:flex-1">
+            <GlassButton onClick={onWatchReplay} style={{ flex: 1, minWidth: 120 }}>
               <Eye size={14} /> 查看回放
             </GlassButton>
           )}
-          <GlassButton onClick={onRetry} accent className="w-full sm:flex-1">
+          <button
+            onClick={onRetry}
+            className="lazer-cta"
+            style={{ flex: 1, minWidth: 120, padding: "12px 0", fontSize: 14, fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+          >
             <RotateCcw size={14} /> 再来一次
-          </GlassButton>
+          </button>
         </div>
       </div>
     </div>
@@ -767,20 +903,23 @@ const PauseOverlay: React.FC<{
       }}
     >
       <div
-        className="solid-card"
         style={{
           width: "min(420px, 92vw)",
-          borderRadius: 22,
+          borderRadius: "var(--radius-lg)",
           padding: "28px 24px",
           display: "flex",
           flexDirection: "column",
           gap: 20,
+          background: "var(--glass-bg)",
+          backdropFilter: "blur(28px) saturate(160%)",
+          WebkitBackdropFilter: "blur(28px) saturate(160%)",
+          border: "1px solid var(--glass-border)",
           boxShadow: "0 24px 60px rgba(0,0,0,0.45)",
         }}
       >
         <div style={{ textAlign: "center" }}>
-          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{MODE_LABEL[mode]} 模式</p>
-          <h2 className="mt-1 text-2xl font-bold" style={{ color: "var(--text-primary)" }}>已暂停</h2>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-secondary)", margin: 0 }}>{MODE_LABEL[mode]} 模式</p>
+          <h2 style={{ marginTop: 4, fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", color: "var(--text-primary)" }}>已暂停</h2>
         </div>
 
         {score && (
@@ -846,9 +985,16 @@ const PauseJudgement: React.FC<{ label: string; count: number; color: string }> 
 );
 
 const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="solid-card p-3 text-center" style={{ borderRadius: 14 }}>
-    <div className="text-xs" style={{ color: "var(--text-secondary)" }}>{label}</div>
-    <div className="mt-1 text-base font-bold md:text-lg" style={{ color: "var(--text-primary)" }}>
+  <div
+    style={{
+      padding: "10px 8px", textAlign: "center",
+      borderRadius: "var(--radius-md)",
+      background: "rgba(255,255,255,0.04)",
+      border: "1px solid var(--glass-border)",
+    }}
+  >
+    <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--text-secondary)" }}>{label}</div>
+    <div className="hud-num" style={{ marginTop: 4, fontSize: 16, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
       {value}
     </div>
   </div>
@@ -856,13 +1002,14 @@ const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
 
 const Judgement: React.FC<{ label: string; count: number; color: string }> = ({ label, count, color }) => (
   <div
-    className="p-2 text-center"
     style={{
-      borderRadius: 10,
+      padding: "8px 4px", textAlign: "center",
+      borderRadius: "var(--radius-sm)",
       background: `${color}1a`,
+      border: `1px solid ${color}33`,
     }}
   >
-    <div className="text-xs font-bold" style={{ color }}>{label}</div>
-    <div className="text-base font-bold" style={{ color: "var(--text-primary)" }}>{count}</div>
+    <div style={{ fontSize: 11, fontWeight: 800, color }}>{label}</div>
+    <div className="hud-num" style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>{count}</div>
   </div>
 );

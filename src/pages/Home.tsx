@@ -1,18 +1,347 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useGameStore } from "@/store/useGameStore";
-import { BeatmapCard } from "@/components/common";
+import { BeatmapCard, BeatmapCover, StarRatingBar, ModeBadge } from "@/components/common";
 import { useNavigate } from "react-router-dom";
-import { TrendingUp, Search as SearchIcon } from "lucide-react";
-import { GlassButton } from "@/components/glass/GlassButton";
-import type { GameMode } from "@/types";
+import { Play, ChevronLeft, ChevronRight, Download, Search as SearchIcon, Flame, Heart } from "lucide-react";
+import type { GameMode, BeatmapSet, LoadedBeatmapSet } from "@/types";
+import { useFavoritesStore } from "@/store/useFavoritesStore";
+import { usePlayerStore } from "@/store/usePlayerStore";
 
 const MODE_TABS: { key: GameMode | null; label: string }[] = [
   { key: null, label: "全部" },
   { key: "standard", label: "osu!" },
-  { key: "taiko", label: "太鼓" },
-  { key: "catch", label: "接水果" },
-  { key: "mania", label: "下落式" },
+  { key: "taiko", label: "Taiko" },
+  { key: "catch", label: "Catch" },
+  { key: "mania", label: "Mania" },
 ];
+
+const HERO_ROTATE_MS = 6000;
+
+const PREVIEW_URL = (setId: number) => `https://b.ppy.sh/preview/${setId}.mp3`;
+
+const SectionHeader: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  onMore?: () => void;
+}> = ({ icon, title, subtitle, onMore }) => (
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <span
+        style={{
+          width: 30, height: 30, borderRadius: 9,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: "var(--lazer-gradient-soft)", color: "var(--lazer-accent)",
+        }}
+      >
+        {icon}
+      </span>
+      <div>
+        <h2 style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.01em", color: "var(--text-primary)", margin: 0 }}>
+          {title}
+        </h2>
+        {subtitle && (
+          <p style={{ fontSize: 11, color: "var(--text-secondary)", margin: "2px 0 0" }}>{subtitle}</p>
+        )}
+      </div>
+    </div>
+    {onMore && (
+      <button
+        onClick={onMore}
+        className="hud-btn"
+        style={{ padding: "6px 12px", fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}
+      >
+        查看更多
+      </button>
+    )}
+  </div>
+);
+
+/** Hero 轮播 */
+const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
+  const navigate = useNavigate();
+  const playSet = usePlayerStore((s) => s.playSet);
+  const stop = usePlayerStore((s) => s.stop);
+  const [index, setIndex] = useState(0);
+  const timerRef = useRef<number | null>(null);
+
+  // 当 sets 改变时重置
+  useEffect(() => {
+    setIndex(0);
+  }, [sets]);
+
+  const goTo = useCallback((i: number) => {
+    setIndex(((i % sets.length) + sets.length) % sets.length);
+  }, [sets.length]);
+
+  const next = useCallback(() => goTo(index + 1), [index, goTo]);
+  const prev = useCallback(() => goTo(index - 1), [index, goTo]);
+
+  // 自动轮播
+  useEffect(() => {
+    if (sets.length <= 1) return;
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => {
+      setIndex((i) => (i + 1) % sets.length);
+    }, HERO_ROTATE_MS);
+    return () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+    };
+  }, [index, sets.length]);
+
+  // 卸载时停止预览
+  useEffect(() => {
+    return () => stop();
+  }, [stop]);
+
+  if (sets.length === 0) return null;
+  const set = sets[index];
+  if (!set) return null;
+
+  const cover = set.covers?.["cover@2x"] || set.covers?.cover || "";
+  const maxStars = set.beatmaps.length ? Math.max(...set.beatmaps.map((b) => b.difficulty_rating || 0)) : 0;
+  const modes = Array.from(new Set(set.beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3))).slice(0, 2);
+  const modeNames = ["standard", "taiko", "catch", "mania"] as const;
+
+  const handlePlay = () => {
+    navigate(`/set/${set.id}`);
+  };
+  const handlePreview = () => {
+    playSet(set, PREVIEW_URL(set.id), cover);
+  };
+
+  return (
+    <div
+      style={{
+        position: "relative", overflow: "hidden", borderRadius: "var(--radius-lg)",
+        aspectRatio: "16/7", minHeight: 220, cursor: "pointer",
+        border: "1px solid var(--glass-border)", boxShadow: "var(--glass-shadow)",
+      }}
+      onClick={handlePreview}
+    >
+      {/* 背景封面 */}
+      <BeatmapCover
+        src={cover}
+        alt={set.title}
+        placeholderSize={56}
+        style={{ position: "absolute", inset: 0 }}
+        imgStyle={{
+          width: "100%", height: "100%", objectFit: "cover",
+          transform: "scale(1.04)",
+          transition: "transform 0.8s cubic-bezier(0.22,1,0.36,1)",
+        }}
+      />
+      {/* 渐变遮罩 */}
+      <div
+        style={{
+          position: "absolute", inset: 0,
+          background:
+            "linear-gradient(100deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.15) 100%)",
+          pointerEvents: "none",
+        }}
+      />
+      {/* 内容 */}
+      <div
+        style={{
+          position: "absolute", inset: 0, padding: "clamp(16px, 4vw, 32px)",
+          display: "flex", flexDirection: "column", justifyContent: "flex-end",
+        }}
+      >
+        <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+          {modes.map((m) => (
+            <ModeBadge key={m} mode={modeNames[m]} />
+          ))}
+          {set.hasStoryboard && (
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+              background: "var(--lazer-gradient)", color: "#fff",
+            }}>
+              STORYBOARD
+            </span>
+          )}
+        </div>
+        <h1
+          style={{
+            fontSize: "clamp(20px, 3.5vw, 32px)", fontWeight: 800,
+            letterSpacing: "-0.02em", color: "#fff", margin: 0,
+            textShadow: "0 2px 12px rgba(0,0,0,0.4)",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            maxWidth: "80%",
+          }}
+        >
+          {set.title_unicode || set.title}
+        </h1>
+        <p
+          style={{
+            fontSize: "clamp(12px, 1.5vw, 14px)", color: "rgba(255,255,255,0.78)",
+            margin: "4px 0 0",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            maxWidth: "80%",
+          }}
+        >
+          {set.artist_unicode || set.artist} · {set.creator}
+        </p>
+        <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+          <div style={{ width: 140 }}>
+            <StarRatingBar stars={maxStars} variant="full" height={6} />
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); handlePlay(); }}
+            className="lazer-cta"
+            style={{
+              padding: "10px 22px", fontSize: 13, fontWeight: 700, color: "#fff",
+              display: "flex", alignItems: "center", gap: 6,
+            }}
+          >
+            <Play size={14} fill="currentColor" />
+            立即游玩
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); navigate(`/set/${set.id}`); }}
+            className="hud-btn"
+            style={{
+              padding: "10px 18px", fontSize: 13, fontWeight: 600, color: "#fff",
+              background: "rgba(255,255,255,0.1)", backdropFilter: "blur(10px)",
+            }}
+          >
+            查看详情
+          </button>
+        </div>
+      </div>
+
+      {/* 左右箭头 */}
+      {sets.length > 1 && (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); prev(); }}
+            aria-label="上一个"
+            style={{
+              position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
+              width: 36, height: 36, borderRadius: "50%",
+              border: "1px solid var(--glass-border)",
+              background: "rgba(0,0,0,0.4)", backdropFilter: "blur(12px)",
+              color: "#fff", cursor: "pointer", display: "flex",
+              alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); next(); }}
+            aria-label="下一个"
+            style={{
+              position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+              width: 36, height: 36, borderRadius: "50%",
+              border: "1px solid var(--glass-border)",
+              background: "rgba(0,0,0,0.4)", backdropFilter: "blur(12px)",
+              color: "#fff", cursor: "pointer", display: "flex",
+              alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <ChevronRight size={18} />
+          </button>
+
+          {/* 指示点 */}
+          <div
+            style={{
+              position: "absolute", bottom: 12, right: 16, display: "flex", gap: 6,
+            }}
+          >
+            {sets.map((_, i) => (
+              <button
+                key={i}
+                onClick={(e) => { e.stopPropagation(); goTo(i); }}
+                aria-label={`第 ${i + 1} 个`}
+                style={{
+                  width: i === index ? 20 : 6, height: 6,
+                  borderRadius: 999,
+                  background: i === index ? "var(--lazer-gradient)" : "rgba(255,255,255,0.4)",
+                  border: "none", cursor: "pointer",
+                  transition: "all 0.3s cubic-bezier(0.22,1,0.36,1)",
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+/** 最近下载的横向卡片 */
+const DownloadedCard: React.FC<{ loaded: LoadedBeatmapSet }> = ({ loaded }) => {
+  const navigate = useNavigate();
+  const modes = Array.from(new Set(loaded.beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3))).slice(0, 2);
+  const modeNames = ["standard", "taiko", "catch", "mania"] as const;
+  const maxStars = loaded.beatmaps.length ? Math.max(...loaded.beatmaps.map((b) => b.difficulty_rating || 0)) : 0;
+
+  return (
+    <div
+      onClick={() => navigate(`/set/${loaded.setId}`)}
+      style={{
+        flexShrink: 0, width: 220, cursor: "pointer",
+        borderRadius: 16, overflow: "hidden",
+        background: "var(--glass-bg)",
+        backdropFilter: "blur(20px) saturate(160%)",
+        WebkitBackdropFilter: "blur(20px) saturate(160%)",
+        border: "1px solid var(--glass-border)",
+        transition: "transform 0.25s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s ease",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-4px)";
+        e.currentTarget.style.boxShadow = "0 12px 32px rgba(0,0,0,0.35)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "var(--glass-shadow)";
+      }}
+    >
+      <div style={{ position: "relative", aspectRatio: "3/2", overflow: "hidden" }}>
+        <BeatmapCover
+          src={loaded.cover}
+          alt={loaded.title}
+          placeholderSize={36}
+          style={{ position: "absolute", inset: 0 }}
+          imgStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+        <div
+          style={{
+            position: "absolute", inset: 0,
+            background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 55%)",
+            pointerEvents: "none",
+          }}
+        />
+        <div style={{ position: "absolute", top: 6, left: 6, display: "flex", gap: 4 }}>
+          {modes.map((m) => (
+            <ModeBadge key={m} mode={modeNames[m]} />
+          ))}
+        </div>
+      </div>
+      <div style={{ padding: "8px 10px 10px" }}>
+        <div
+          style={{
+            fontSize: 13, fontWeight: 700, color: "var(--text-primary)",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          {loaded.title}
+        </div>
+        <div
+          style={{
+            fontSize: 11, color: "var(--text-secondary)", marginTop: 2,
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          }}
+        >
+          {loaded.artist}
+        </div>
+        <div style={{ marginTop: 6 }}>
+          <StarRatingBar stars={maxStars} variant="compact" />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function Home() {
   const navigate = useNavigate();
@@ -21,6 +350,8 @@ export default function Home() {
   const error = useGameStore((s) => s.searchError);
   const searchMode = useGameStore((s) => s.searchMode);
   const loadFeatured = useGameStore((s) => s.loadFeatured);
+  const downloaded = useGameStore((s) => s.downloaded);
+  const favorites = useFavoritesStore((s) => s.favorites);
 
   useEffect(() => {
     if (searchResults.length === 0 && !loading) {
@@ -29,73 +360,194 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Hero 选取：取前 6 个，有封面且星级较高的优先
+  const heroSets = useMemo(() => {
+    return searchResults
+      .filter((s) => s.covers?.cover || s.covers?.["cover@2x"])
+      .slice(0, 6);
+  }, [searchResults]);
+
+  // 最近下载（按 downloadedAt 倒序，最多 10 个）
+  const recentDownloads = useMemo(() => {
+    return Array.from(downloaded.values())
+      .sort((a, b) => b.downloadedAt - a.downloadedAt)
+      .slice(0, 10);
+  }, [downloaded]);
+
+  // 收藏的谱面（在 searchResults 或 downloaded 中能找到的）
+  const favSets = useMemo(() => {
+    if (favorites.length === 0) return [];
+    const favInResults = searchResults.filter((s) => favorites.includes(s.id));
+    const favInDownloads: BeatmapSet[] = [];
+    for (const fav of favorites) {
+      const d = downloaded.get(fav);
+      if (d && !favInResults.some((s) => s.id === d.setId)) {
+        // LoadedBeatmapSet → BeatmapSet 简易映射
+        favInDownloads.push({
+          id: d.setId,
+          title: d.title,
+          artist: d.artist,
+          creator: "",
+          covers: { cover: d.cover },
+          beatmaps: d.beatmaps,
+          hasStoryboard: d.hasStoryboard,
+        });
+      }
+    }
+    return [...favInResults, ...favInDownloads].slice(0, 10);
+  }, [favorites, searchResults, downloaded]);
+
   return (
     <div className="page-shell">
-      <section className="animate-enter animate-enter-1">
-        <div className="solid-card p-5 md:p-6">
-          <div className="flex items-center gap-2">
-            <TrendingUp size={20} style={{ color: "var(--accent)" }} />
-            <h1 className="text-xl font-bold md:text-2xl" style={{ color: "var(--text-primary)" }}>
-              热门谱面
-            </h1>
-          </div>
-          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-            从 osu.direct 镜像获取最新上架的谱面，下载后即可游玩
-          </p>
+      {/* Hero */}
+      <section style={{ animation: "stagger-fade-up 0.4s cubic-bezier(0.22,1,0.36,1) both" }}>
+        <HeroCarousel sets={heroSets} />
+      </section>
 
-          {/* 模式过滤 */}
-          <div className="mt-4 flex flex-wrap gap-2">
-            {MODE_TABS.map((tab) => (
+      {/* 模式过滤 + 搜索入口 */}
+      <section
+        style={{
+          marginTop: 16, display: "flex", flexWrap: "wrap", gap: 8,
+          alignItems: "center", justifyContent: "space-between",
+        }}
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {MODE_TABS.map((tab) => {
+            const active = searchMode === tab.key;
+            return (
               <button
                 key={tab.label}
                 onClick={() => loadFeatured(tab.key)}
-                className="rounded-full px-3 py-1.5 text-xs font-medium transition-transform active:scale-95"
+                className="hud-btn"
                 style={{
-                  border: "1px solid",
-                  borderColor: searchMode === tab.key ? "var(--accent)" : "var(--border)",
-                  color: searchMode === tab.key ? "var(--accent)" : "var(--text-primary)",
-                  background: searchMode === tab.key ? "var(--accent-soft)" : "transparent",
-                  cursor: "pointer",
+                  padding: "7px 16px", fontSize: 12, fontWeight: 600,
+                  color: active ? "var(--lazer-accent)" : "var(--text-secondary)",
                 }}
               >
                 {tab.label}
               </button>
-            ))}
-          </div>
-
-          <div className="mt-4 flex justify-end">
-            <GlassButton onClick={() => navigate("/search")} scheme="dark">
-              <SearchIcon size={14} /> 搜索谱面
-            </GlassButton>
-          </div>
+            );
+          })}
         </div>
+        <button
+          onClick={() => navigate("/search")}
+          className="hud-btn"
+          style={{
+            padding: "7px 14px", fontSize: 12, fontWeight: 600,
+            color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 4,
+          }}
+        >
+          <SearchIcon size={12} />
+          搜索谱面
+        </button>
       </section>
 
+      {/* 错误 */}
       {error && (
-        <div className="solid-card mt-4 p-4 text-sm" style={{ color: "#ff453a", background: "rgba(255,69,58,0.08)" }}>
+        <div
+          style={{
+            marginTop: 16, padding: 14, borderRadius: "var(--radius-md)",
+            background: "rgba(255,69,58,0.08)", border: "1px solid rgba(255,69,58,0.3)",
+            color: "#ff453a", fontSize: 13,
+          }}
+        >
           {error}
         </div>
       )}
 
-      {loading ? (
-        <div className="mt-6 flex items-center justify-center py-16">
+      {/* 加载中 */}
+      {loading && searchResults.length === 0 ? (
+        <div style={{ display: "flex", justifyContent: "center", padding: "64px 0" }}>
           <div
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: "50%",
-              border: "3px solid var(--border)",
-              borderTopColor: "var(--accent)",
+              width: 32, height: 32, borderRadius: "50%",
+              border: "3px solid var(--glass-border)",
+              borderTopColor: "var(--lazer-accent)",
               animation: "spin-slow 0.8s linear infinite",
             }}
           />
         </div>
       ) : (
-        <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {searchResults.map((set, i) => (
-            <BeatmapCard key={set.id} set={set} index={i} />
-          ))}
-        </section>
+        <>
+          {/* 热门谱面 */}
+          <section style={{ marginTop: 20 }}>
+            <SectionHeader
+              icon={<Flame size={16} />}
+              title="热门谱面"
+              subtitle="从 osu.direct 镜像获取最新上架的谱面"
+              onMore={() => navigate("/search")}
+            />
+            <div
+              style={{
+                display: "grid", gap: 12,
+                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              }}
+            >
+              {searchResults.map((set, i) => (
+                <BeatmapCard key={set.id} set={set} index={i} />
+              ))}
+            </div>
+          </section>
+
+          {/* 最近下载 */}
+          {recentDownloads.length > 0 && (
+            <section style={{ marginTop: 32 }}>
+              <SectionHeader
+                icon={<Download size={16} />}
+                title="最近下载"
+                subtitle={`${recentDownloads.length} 个已下载的谱面`}
+                onMore={() => navigate("/downloads")}
+              />
+              <div
+                style={{
+                  display: "flex", gap: 12, overflowX: "auto",
+                  paddingBottom: 8, margin: "0 -4px", padding: "0 4px 8px",
+                  scrollbarWidth: "thin",
+                }}
+              >
+                {recentDownloads.map((d) => (
+                  <DownloadedCard key={d.setId} loaded={d} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 我的收藏 */}
+          {favSets.length > 0 && (
+            <section style={{ marginTop: 32 }}>
+              <SectionHeader
+                icon={<Heart size={16} />}
+                title="我的收藏"
+                subtitle={`${favSets.length} 个收藏的谱面`}
+              />
+              <div
+                style={{
+                  display: "grid", gap: 12,
+                  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                }}
+              >
+                {favSets.map((set, i) => (
+                  <BeatmapCard key={set.id} set={set} index={i} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 空状态 */}
+          {!loading && searchResults.length === 0 && !error && (
+            <div
+              style={{
+                marginTop: 16, padding: 32, borderRadius: "var(--radius-lg)",
+                background: "var(--glass-bg)", border: "1px solid var(--glass-border)",
+                textAlign: "center",
+              }}
+            >
+              <p style={{ color: "var(--text-secondary)", fontSize: 13, margin: 0 }}>
+                暂无内容，去搜索页找找看吧
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
