@@ -512,7 +512,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
-  accent: "#0a84ff",
+  accent: "#8866ff",
   volume: 0.7,
   offset: 0,
   auto: false,

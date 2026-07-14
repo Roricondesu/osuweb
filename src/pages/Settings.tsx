@@ -34,7 +34,7 @@ const ACCENTS = [
   { key: "#ff375f", label: "红" },
   { key: "#ff9100", label: "橙" },
   { key: "#66cc44", label: "绿" },
-  { key: "#9966ff", label: "紫" },
+  { key: "#8866ff", label: "紫" },
   { key: "#ff66aa", label: "粉" },
 ];
 
