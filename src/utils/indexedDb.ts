@@ -37,6 +37,9 @@ type StoredBeatmapSet = Omit<LoadedBeatmapSet, "audioUrl" | "backgroundUrl" | "v
   videoBlob?: Blob;
   coverBlob?: Blob;
   assetBlobs?: Record<string, Blob>;
+  // coverUrl 从 LoadedBeatmapSet 继承，不需 Omit
+  // 旧数据可能残留 cover 字段（在线 URL），加载时作为回退
+  cover?: string;
 };
 
 async function blobFromUrl(url: string): Promise<Blob | undefined> {
@@ -105,11 +108,12 @@ export async function saveDownload(set: LoadedBeatmapSet): Promise<void> {
     coverBlob,
     assetBlobs,
   };
-  // 序列化时移除 Blob URL 字段，避免存入失效的 URL
+  // 移除 Blob URL 字段（刷新后失效），保留 coverUrl 作为回退
   delete (stored as Partial<LoadedBeatmapSet>).audioUrl;
   delete (stored as Partial<LoadedBeatmapSet>).backgroundUrl;
   delete (stored as Partial<LoadedBeatmapSet>).videoUrl;
-  delete (stored as Partial<LoadedBeatmapSet>).cover;
+  // cover 是 blob URL，刷新后失效；用 coverUrl 替换，作为 coverBlob 不可用时的回退
+  (stored as StoredBeatmapSet).cover = set.coverUrl || "";
   delete (stored as Partial<LoadedBeatmapSet>).assetUrls;
 
   const db = await openDB();
@@ -148,7 +152,8 @@ export async function loadAllDownloads(): Promise<Map<number, LoadedBeatmapSet>>
           audioUrl: urlFromBlob(s.audioBlob) || "",
           backgroundUrl: urlFromBlob(s.backgroundBlob),
           videoUrl: urlFromBlob(s.videoBlob),
-          cover: urlFromBlob(s.coverBlob) || "",
+          // 优先用本地 blob 重建封面 URL；回退到在线 coverUrl / 旧数据中的 cover 字段
+          cover: urlFromBlob(s.coverBlob) || s.coverUrl || s.cover || "",
           assetUrls,
         };
         map.set(loaded.setId, loaded);

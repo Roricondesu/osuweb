@@ -357,6 +357,8 @@ export interface LoadedBeatmapSet {
   title: string;
   artist: string;
   cover: string;
+  /** 原始在线封面 URL（下载时来自 API），用作 blob 失效时的回退 */
+  coverUrl?: string;
   audioUrl: string; // Blob URL
   backgroundUrl?: string; // Blob URL
   videoUrl?: string; // 视频背景 Blob URL

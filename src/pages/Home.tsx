@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { useGameStore } from "@/store/useGameStore";
 import { BeatmapCard, BeatmapCover, StarRatingBar, ModeBadge, OsuModeIcon } from "@/components/common";
 import { useNavigate } from "react-router-dom";
-import { Play, ChevronLeft, ChevronRight, Download, Search as SearchIcon, Flame, Heart } from "lucide-react";
-import type { GameMode, BeatmapSet, LoadedBeatmapSet } from "@/types";
+import { Play, ChevronLeft, ChevronRight, Search as SearchIcon, Flame, Heart } from "lucide-react";
+import type { GameMode, BeatmapSet } from "@/types";
 import { MODE_COLOR } from "@/types";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 
@@ -263,102 +263,6 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
   );
 };
 
-/** 最近下载的横向卡片（osu!web 风格） */
-const DownloadedCard: React.FC<{ loaded: LoadedBeatmapSet }> = ({ loaded }) => {
-  const navigate = useNavigate();
-  const modes = Array.from(new Set(loaded.beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3)));
-  const maxStars = loaded.beatmaps.length ? Math.max(...loaded.beatmaps.map((b) => b.difficulty_rating || 0)) : 0;
-
-  return (
-    <div
-      onClick={() => navigate(`/set/${loaded.setId}`)}
-      style={{
-        flexShrink: 0, width: "min(360px, 85vw)", height: 100, cursor: "pointer",
-        display: "flex",
-        borderRadius: "var(--radius-sm)", overflow: "hidden",
-        transition: "transform 0.25s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s ease",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-3px)";
-        e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.4)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
-      }}
-    >
-      {/* 方形封面 */}
-      <div style={{ position: "relative", width: 100, minWidth: 100, height: "100%", overflow: "hidden", zIndex: 1 }}>
-        <BeatmapCover
-          src={loaded.cover}
-          alt={loaded.title}
-          placeholderSize={32}
-          style={{ position: "absolute", inset: 0 }}
-          imgStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
-      </div>
-      {/* 信息盒 */}
-      <div
-        style={{
-          position: "relative", flex: 1, height: "100%", marginLeft: -7,
-          borderRadius: "var(--radius-sm)", overflow: "hidden", background: "var(--card-info-bg)",
-        }}
-      >
-        {loaded.cover && (
-          <div
-            style={{
-              position: "absolute", inset: 0,
-              backgroundImage: `url(${loaded.cover})`,
-              backgroundSize: "cover", backgroundPosition: "center",
-              filter: "blur(25px) brightness(0.4) saturate(1.3)",
-              transform: "scale(1.3)", opacity: 0.5,
-            }}
-          />
-        )}
-        {/* 深灰渐变半透明遮罩：左 #2E3835 → 右 90%透明（封面透过） */}
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 100%)" }} />
-        <div
-          style={{
-            position: "relative", height: "100%", padding: "6px 10px",
-            display: "flex", flexDirection: "column", justifyContent: "space-between",
-          }}
-        >
-          <div style={{ minHeight: 0, overflow: "hidden" }}>
-            <div
-              style={{
-                fontSize: 15, fontWeight: 600, color: "#fff",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                letterSpacing: "-0.01em", lineHeight: 1.25,
-              }}
-            >
-              {loaded.title}
-            </div>
-            <div
-              style={{
-                fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.75)",
-                marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                lineHeight: 1.3,
-              }}
-            >
-              {loaded.artist}
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <StarRatingBar stars={maxStars} variant="dots" />
-            <span className="hud-num" style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>
-              {maxStars.toFixed(2)}
-            </span>
-            <span style={{ marginLeft: "auto", fontSize: 10, color: "rgba(255,255,255,0.5)" }}>
-              {modes.length} 模式
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 export default function Home() {
   const navigate = useNavigate();
   const searchResults = useGameStore((s) => s.searchResults);
@@ -382,13 +286,6 @@ export default function Home() {
       .filter((s) => s.covers?.cover || s.covers?.["cover@2x"])
       .slice(0, 6);
   }, [searchResults]);
-
-  // 最近下载（按 downloadedAt 倒序，最多 10 个）
-  const recentDownloads = useMemo(() => {
-    return Array.from(downloaded.values())
-      .sort((a, b) => b.downloadedAt - a.downloadedAt)
-      .slice(0, 10);
-  }, [downloaded]);
 
   // 收藏的谱面（在 searchResults 或 downloaded 中能找到的）
   const favSets = useMemo(() => {
@@ -507,23 +404,6 @@ export default function Home() {
               ))}
             </div>
           </section>
-
-          {/* 最近下载 */}
-          {recentDownloads.length > 0 && (
-            <section style={{ marginTop: 32 }}>
-              <SectionHeader
-                icon={<Download size={16} />}
-                title="最近下载"
-                subtitle={`${recentDownloads.length} 个已下载的谱面`}
-                onMore={() => navigate("/downloads")}
-              />
-              <div className="h-scroll">
-                {recentDownloads.map((d) => (
-                  <DownloadedCard key={d.setId} loaded={d} />
-                ))}
-              </div>
-            </section>
-          )}
 
           {/* 我的收藏 */}
           {favSets.length > 0 && (
