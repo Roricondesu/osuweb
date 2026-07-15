@@ -109,19 +109,6 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           : "0 2px 6px rgba(0,0,0,0.2)",
       }}
     >
-      {/* 底层：lime 面板（整个卡片最底层，hover 时被上层遮挡区域缩小而露出） */}
-      {!isLoadedSet(set) && !isDownloaded && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0, right: 0, bottom: 0,
-            width: 38,
-            background: "#D4F792",
-            zIndex: 0,
-          }}
-        />
-      )}
-
       {/* 左侧方形封面（100×100） */}
       <div
         style={{
@@ -172,13 +159,26 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           zIndex: 3,
         }}
       >
-        {/* 深色背景（模糊封面+渐变），hover 时向左收缩露出底层 lime，右边缘圆角即 lime 左边缘形状 */}
+        {/* 底层：lime 面板（始终在右侧，无圆角，被上层深色背景遮挡） */}
+        {!isLoadedSet(set) && !isDownloaded && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0, right: 0, bottom: 0,
+              width: 38,
+              background: "#D4F792",
+              zIndex: 1,
+            }}
+          />
+        )}
+
+        {/* 上层：深色背景（模糊封面+渐变），hover 时向左收缩露出 lime，右边缘圆角即 lime 左边缘形状 */}
         <div
           style={{
             position: "absolute",
             top: 0, left: 0, bottom: 0,
             right: hover && !isLoadedSet(set) && !isDownloaded ? 38 : 0,
-            borderRadius: "10px 20px 20px 10px",
+            borderRadius: 10,
             overflow: "hidden",
             zIndex: 2,
             transition: "right 0.3s cubic-bezier(0.22,1,0.36,1)",
@@ -206,6 +206,18 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 70%)",
             }}
           />
+          {/* 右侧不透明遮挡，避免 lime 透过半透明背景显露 */}
+          {!isLoadedSet(set) && !isDownloaded && (
+            <div
+              style={{
+                position: "absolute",
+                top: 0, right: 0, bottom: 0,
+                width: 16,
+                background: "#2E3835",
+                borderRadius: "0 20px 20px 0",
+              }}
+            />
+          )}
         </div>
 
         {/* 内容层 */}
