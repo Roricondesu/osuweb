@@ -206,6 +206,18 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 70%)",
             }}
           />
+          {/* 右侧不透明遮挡，避免 lime 透过半透明背景显露 */}
+          {!isLoadedSet(set) && !isDownloaded && (
+            <div
+              style={{
+                position: "absolute",
+                top: 0, right: 0, bottom: 0,
+                width: 16,
+                background: "#2E3835",
+                borderRadius: "0 20px 20px 0",
+              }}
+            />
+          )}
         </div>
 
         {/* 内容层 */}
