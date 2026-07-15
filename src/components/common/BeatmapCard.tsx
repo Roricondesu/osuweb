@@ -5,7 +5,7 @@ import { StatusBadge } from "./StatusBadge";
 import { BeatmapCover } from "./BeatmapCover";
 import { StoryboardBadge, VideoBadge } from "./StoryboardBadge";
 import { useNavigate } from "react-router-dom";
-import { Download, Loader2, CheckCircle2, Heart, MessageSquare } from "lucide-react";
+import { Download, Loader2, CheckCircle2, Heart } from "lucide-react";
 import { OsuModeIconById } from "./OsuIcons";
 import { useGameStore } from "@/store/useGameStore";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
@@ -85,11 +85,6 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     toggleFavorite(data.id);
-  };
-
-  const handleDetailClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigate(`/set/${data.id}`);
   };
 
   return (
@@ -268,27 +263,24 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           </div>
         </div>
 
-        {/* 右侧悬停操作面板 */}
+        {/* 右侧悬停操作面板：被卡片圆角裁切 */}
         {!isLoadedSet(set) && !isDownloaded && (
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
               position: "absolute",
-              top: "50%",
-              right: 8,
-              transform: hover
-                ? "translateY(-50%) translateX(0)"
-                : "translateY(-50%) translateX(100%)",
+              top: 0,
+              right: 0,
+              bottom: 0,
               width: 38,
-              padding: "10px 0",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: 10,
+              justifyContent: "center",
+              gap: 12,
               background: "#D4F792",
-              borderRadius: 14,
-              boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
               opacity: hover ? 1 : 0,
+              transform: hover ? "translateX(0)" : "translateX(100%)",
               transition: "all 0.3s cubic-bezier(0.22,1,0.36,1)",
               zIndex: 4,
             }}
@@ -313,25 +305,6 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               <Heart size={16} fill={isFavorite ? "#2E3835" : "none"} />
             </button>
             <button
-              onClick={handleDetailClick}
-              aria-label="查看详情"
-              style={{
-                background: "transparent",
-                border: "none",
-                padding: 4,
-                color: "#2E3835",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                opacity: hover ? 1 : 0,
-                transform: hover ? "scale(1)" : "scale(0.7)",
-                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.1s",
-              }}
-            >
-              <MessageSquare size={16} />
-            </button>
-            <button
               onClick={handleDownloadClick}
               aria-label={isDownloading ? "下载中" : "后台下载"}
               style={{
@@ -345,7 +318,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
                 justifyContent: "center",
                 opacity: hover ? 1 : 0,
                 transform: hover ? "scale(1)" : "scale(0.7)",
-                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.15s",
+                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.1s",
               }}
             >
               {isDownloading ? (
