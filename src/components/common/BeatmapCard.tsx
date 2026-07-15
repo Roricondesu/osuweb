@@ -159,18 +159,18 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               backgroundImage: `url(${data.cover})`,
               backgroundSize: "cover",
               backgroundPosition: "center",
-              filter: "blur(25px) brightness(0.4) saturate(1.3)",
+              filter: "blur(18px) brightness(0.4) saturate(1.3)",
               transform: "scale(1.3)",
               opacity: hover ? 0.6 : 0.45,
               transition: "opacity 0.3s ease",
             }}
           />
         )}
-        {/* 深灰渐变半透明遮罩：左 #2E3835 → 右 90%透明（封面透过） */}
+        {/* 深灰渐变半透明遮罩：左 #2E3835 → 右 70%透明（封面透过） */}
         <div
           style={{
             position: "absolute", inset: 0,
-            background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 100%)",
+            background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 70%)",
           }}
         />
 

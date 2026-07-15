@@ -163,7 +163,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
             justifyContent: "space-between",
             gap: 10,
             overflow: "hidden",
-            borderRadius: isMobile ? "0 0 var(--radius-lg) var(--radius-lg)" : "0 var(--radius-lg) var(--radius-lg) 0",
+            borderRadius: isMobile ? "var(--radius-lg) var(--radius-lg) 0 0" : "var(--radius-lg) 0 0 var(--radius-lg)",
           }}
         >
           {/* 背景模糊封面 */}
@@ -173,13 +173,13 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
                 position: "absolute", inset: 0,
                 backgroundImage: `url(${cover})`,
                 backgroundSize: "cover", backgroundPosition: "center",
-                filter: "blur(28px) brightness(0.35) saturate(1.2)",
+                filter: "blur(20px) brightness(0.35) saturate(1.2)",
                 transform: "scale(1.2)", opacity: 0.45,
                 pointerEvents: "none",
               }}
             />
           )}
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(30,30,38,0.95) 0%, rgba(30,30,38,0.75) 100%)", pointerEvents: "none" }} />
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(30,30,38,0.95) 0%, rgba(30,30,38,0.7) 70%)", pointerEvents: "none" }} />
 
           {/* 顶部：标签 */}
           <div style={{ position: "relative", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
