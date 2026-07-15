@@ -159,40 +159,71 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           zIndex: 3,
         }}
       >
-        {/* 模糊封面作为背景（透过渐变可见） */}
-        {data.cover && (
+        {/* 底层：lime 操作面板（被上层深色背景遮挡，hover 时露出） */}
+        {!isLoadedSet(set) && !isDownloaded && (
           <div
             style={{
-              position: "absolute", inset: 0,
-              backgroundImage: `url(${data.cover})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              filter: "blur(18px) brightness(0.4) saturate(1.3)",
-              transform: "scale(1.3)",
-              opacity: hover ? 0.6 : 0.45,
-              transition: "opacity 0.3s ease",
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: 38,
+              background: "#D4F792",
+              zIndex: 1,
             }}
           />
         )}
-        {/* 深灰渐变半透明遮罩：左 #2E3835 → 右 70%透明（封面透过） */}
+
+        {/* 上层：深色背景（模糊封面 + 渐变），hover 时向左收缩露出 lime */}
         <div
           style={{
-            position: "absolute", inset: 0,
-            background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 70%)",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: hover && !isLoadedSet(set) && !isDownloaded ? 38 : 0,
+            borderRadius: 14,
+            overflow: "hidden",
+            zIndex: 2,
+            transition: "right 0.3s cubic-bezier(0.22,1,0.36,1)",
           }}
-        />
+        >
+          {/* 模糊封面作为背景（透过渐变可见） */}
+          {data.cover && (
+            <div
+              style={{
+                position: "absolute", inset: 0,
+                backgroundImage: `url(${data.cover})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                filter: "blur(18px) brightness(0.4) saturate(1.3)",
+                transform: "scale(1.3)",
+                opacity: hover ? 0.6 : 0.45,
+                transition: "opacity 0.3s ease",
+              }}
+            />
+          )}
+          {/* 深灰渐变半透明遮罩：左 #2E3835 → 右 70%透明（封面透过） */}
+          <div
+            style={{
+              position: "absolute", inset: 0,
+              background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 70%)",
+            }}
+          />
+        </div>
 
         {/* 内容层 */}
         <div
           style={{
             position: "relative",
             height: "100%",
-            padding: hover ? "7px 54px 7px 10px" : "7px 10px",
+            padding: hover && !isLoadedSet(set) && !isDownloaded ? "7px 48px 7px 10px" : "7px 10px",
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
             overflow: "hidden",
             transition: "padding 0.3s cubic-bezier(0.22,1,0.36,1)",
+            zIndex: 3,
           }}
         >
           {/* 上部：标题 + 艺人 + mapper */}
@@ -263,7 +294,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           </div>
         </div>
 
-        {/* 右侧悬停操作面板：被卡片圆角裁切 */}
+        {/* 右侧操作按钮（叠在 lime 面板上） */}
         {!isLoadedSet(set) && !isDownloaded && (
           <div
             onClick={(e) => e.stopPropagation()}
@@ -278,12 +309,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               alignItems: "center",
               justifyContent: "center",
               gap: 12,
-              background: "#D4F792",
-              maskImage: "radial-gradient(16px at 0 50%, #0000 99%, #000)",
-              WebkitMaskImage: "radial-gradient(16px at 0 50%, #0000 99%, #000)",
               opacity: hover ? 1 : 0,
-              transform: hover ? "translateX(0)" : "translateX(100%)",
-              transition: "all 0.3s cubic-bezier(0.22,1,0.36,1)",
+              transition: "opacity 0.25s cubic-bezier(0.22,1,0.36,1) 0.1s",
               zIndex: 4,
             }}
           >
@@ -299,9 +326,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                opacity: hover ? 1 : 0,
                 transform: hover ? "scale(1)" : "scale(0.7)",
-                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.05s",
+                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.1s",
               }}
             >
               <Heart size={16} fill={isFavorite ? "#2E3835" : "none"} />
@@ -318,9 +344,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                opacity: hover ? 1 : 0,
                 transform: hover ? "scale(1)" : "scale(0.7)",
-                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.1s",
+                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.15s",
               }}
             >
               {isDownloading ? (
