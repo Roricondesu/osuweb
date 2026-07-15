@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, Suspense, lazy } from "react";
+import { TransitionGroup, CSSTransition } from "react-transition-group";
 import { TopNav } from "@/components/layout/TopNav";
 import { Background } from "@/components/layout/Background";
 import { useGameStore } from "@/store/useGameStore";
@@ -17,20 +18,29 @@ const Downloads = lazy(() => import("@/pages/Downloads"));
 function AppRoutes() {
   const location = useLocation();
   return (
-    <div key={location.pathname} className="page-transition">
-      <Suspense fallback={<PageLoader />}>
-        <ErrorBoundary>
-          <Routes location={location}>
-            <Route path="/" element={<Home />} />
-            <Route path="/search" element={<Search />} />
-            <Route path="/set/:setId" element={<BeatmapSetDetail />} />
-            <Route path="/game/:setId/:mode/:diff" element={<Game />} />
-            <Route path="/downloads" element={<Downloads />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
-        </ErrorBoundary>
-      </Suspense>
-    </div>
+    <TransitionGroup component={null}>
+      <CSSTransition
+        key={location.pathname}
+        timeout={280}
+        classNames="page-switch"
+        unmountOnExit
+      >
+        <div className="page-transition-wrap">
+          <Suspense fallback={<PageLoader />}>
+            <ErrorBoundary>
+              <Routes location={location}>
+                <Route path="/" element={<Home />} />
+                <Route path="/search" element={<Search />} />
+                <Route path="/set/:setId" element={<BeatmapSetDetail />} />
+                <Route path="/game/:setId/:mode/:diff" element={<Game />} />
+                <Route path="/downloads" element={<Downloads />} />
+                <Route path="/settings" element={<Settings />} />
+              </Routes>
+            </ErrorBoundary>
+          </Suspense>
+        </div>
+      </CSSTransition>
+    </TransitionGroup>
   );
 }
 

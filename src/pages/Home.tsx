@@ -55,13 +55,21 @@ const SectionHeader: React.FC<{
   </div>
 );
 
-/** Hero 轮播 */
+/** Hero 推荐（移动端紧凑，桌面端卡片化） */
 const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
   const timerRef = useRef<number | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // 当 sets 改变时重置
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
   useEffect(() => {
     setIndex(0);
   }, [sets]);
@@ -73,7 +81,6 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
   const next = useCallback(() => goTo(index + 1), [index, goTo]);
   const prev = useCallback(() => goTo(index - 1), [index, goTo]);
 
-  // 自动轮播
   useEffect(() => {
     if (sets.length <= 1) return;
     if (timerRef.current) window.clearTimeout(timerRef.current);
@@ -85,7 +92,6 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
     };
   }, [index, sets.length]);
 
-  // 卸载时清除定时器
   useEffect(() => {
     return () => {
       if (timerRef.current) window.clearTimeout(timerRef.current);
@@ -104,147 +110,194 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
   return (
     <div
       style={{
-        position: "relative", overflow: "hidden", borderRadius: "var(--radius-lg)",
-        aspectRatio: "16/7", minHeight: 220, cursor: "pointer",
-        border: "1px solid var(--glass-border)", boxShadow: "var(--glass-shadow)",
+        position: "relative",
+        overflow: "hidden",
+        borderRadius: "var(--radius-lg)",
+        border: "1px solid var(--glass-border)",
+        boxShadow: "var(--glass-shadow)",
+        background: "var(--card-bg)",
+        cursor: "pointer",
       }}
       onClick={() => navigate(`/set/${set.id}`)}
     >
-      {/* 背景封面 */}
-      <BeatmapCover
-        src={cover}
-        alt={set.title}
-        placeholderSize={56}
-        style={{ position: "absolute", inset: 0 }}
-        imgStyle={{
-          width: "100%", height: "100%", objectFit: "cover",
-          transform: "scale(1.04)",
-          transition: "transform 0.8s cubic-bezier(0.22,1,0.36,1)",
-        }}
-      />
-      {/* 渐变遮罩 */}
       <div
         style={{
-          position: "absolute", inset: 0,
-          background: "rgba(0,0,0,0.6)",
-          pointerEvents: "none",
-        }}
-      />
-      {/* 内容 */}
-      <div
-        style={{
-          position: "absolute", inset: 0, padding: "clamp(16px, 4vw, 32px)",
-          display: "flex", flexDirection: "column", justifyContent: "flex-end",
-          overflow: "hidden",
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          alignItems: "stretch",
+          minHeight: isMobile ? 0 : 200,
+          maxHeight: isMobile ? "none" : 240,
         }}
       >
-        <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-          {modes.map((m) => (
-            <ModeBadge key={m} mode={modeNames[m]} />
-          ))}
-          {set.hasStoryboard && (
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-              background: "var(--accent)", color: "#fff",
-            }}>
-              STORYBOARD
-            </span>
-          )}
+        {/* 左侧/顶部封面 */}
+        <div
+          style={{
+            position: "relative",
+            width: isMobile ? "100%" : 260,
+            minWidth: isMobile ? "100%" : 260,
+            aspectRatio: isMobile ? "16/9" : undefined,
+            height: isMobile ? "auto" : "100%",
+            overflow: "hidden",
+            flexShrink: 0,
+          }}
+        >
+          <BeatmapCover
+            src={cover}
+            alt={set.title}
+            placeholderSize={48}
+            style={{ position: "absolute", inset: 0 }}
+            imgStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
         </div>
-        <h1
-          className="font-torus"
+
+        {/* 右侧信息 */}
+        <div
           style={{
-            fontSize: "clamp(20px, 3.5vw, 32px)", fontWeight: 700,
-            letterSpacing: "-0.02em", color: "#fff", margin: 0,
-            textShadow: "0 2px 12px rgba(0,0,0,0.4)",
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            maxWidth: "80%",
+            position: "relative",
+            flex: 1,
+            minWidth: 0,
+            padding: isMobile ? 16 : 20,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            gap: 10,
+            overflow: "hidden",
           }}
         >
-          {set.title_unicode || set.title}
-        </h1>
-        <p
-          style={{
-            fontSize: "clamp(12px, 1.5vw, 14px)", color: "rgba(255,255,255,0.78)",
-            margin: "4px 0 0",
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            maxWidth: "80%",
-          }}
-        >
-          {set.artist_unicode || set.artist} · {set.creator}
-        </p>
-        <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", overflow: "hidden", maxWidth: "100%" }}>
-          <div style={{ width: 140, flexShrink: 0 }}>
-            <StarRatingBar stars={maxStars} variant="full" height={6} />
+          {/* 背景模糊封面 */}
+          {cover && (
+            <div
+              style={{
+                position: "absolute", inset: 0,
+                backgroundImage: `url(${cover})`,
+                backgroundSize: "cover", backgroundPosition: "center",
+                filter: "blur(28px) brightness(0.35) saturate(1.2)",
+                transform: "scale(1.2)", opacity: 0.45,
+                pointerEvents: "none",
+              }}
+            />
+          )}
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(30,30,38,0.95) 0%, rgba(30,30,38,0.75) 100%)", pointerEvents: "none" }} />
+
+          {/* 顶部：标签 */}
+          <div style={{ position: "relative", display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {modes.map((m) => (
+              <ModeBadge key={m} mode={modeNames[m]} />
+            ))}
+            {set.hasStoryboard && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+                background: "var(--accent)", color: "#fff",
+              }}>
+                SB
+              </span>
+            )}
           </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); navigate(`/set/${set.id}`); }}
-            className="hud-btn"
-            style={{
-              padding: "10px 18px", fontSize: 13, fontWeight: 600, color: "#fff",
-              background: "rgba(255,255,255,0.1)", backdropFilter: "blur(10px)",
-              flexShrink: 0,
-            }}
-          >
-            查看详情
-          </button>
+
+          {/* 中部：标题信息 */}
+          <div style={{ position: "relative", minWidth: 0 }}>
+            <h1
+              className="font-torus"
+              style={{
+                fontSize: isMobile ? 18 : 24,
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
+                color: "#fff",
+                margin: 0,
+                lineHeight: 1.2,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {set.title_unicode || set.title}
+            </h1>
+            <p
+              style={{
+                fontSize: 13,
+                color: "rgba(255,255,255,0.72)",
+                margin: "4px 0 0",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {set.artist_unicode || set.artist} · {set.creator}
+            </p>
+          </div>
+
+          {/* 底部：星级 + 查看 */}
+          <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ width: 120, flexShrink: 0 }}>
+              <StarRatingBar stars={maxStars} variant="full" height={5} />
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); navigate(`/set/${set.id}`); }}
+              className="hud-btn"
+              style={{
+                padding: "8px 14px",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#fff",
+                background: "rgba(255,255,255,0.1)",
+                backdropFilter: "blur(10px)",
+                flexShrink: 0,
+                borderRadius: "var(--radius-sm)",
+              }}
+            >
+              查看详情
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* 左右箭头 */}
+      {/* 指示点 + 箭头 */}
       {sets.length > 1 && (
-        <>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: isMobile ? "10px 14px" : "10px 16px",
+            borderTop: "1px solid var(--glass-border)",
+            background: "rgba(255,255,255,0.02)",
+          }}
+        >
           <button
             onClick={(e) => { e.stopPropagation(); prev(); }}
             aria-label="上一个"
-            style={{
-              position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
-              width: 36, height: 36, borderRadius: "50%",
-              border: "1px solid var(--glass-border)",
-              background: "rgba(0,0,0,0.4)", backdropFilter: "blur(12px)",
-              color: "#fff", cursor: "pointer", display: "flex",
-              alignItems: "center", justifyContent: "center",
-            }}
+            className="hud-btn"
+            style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft size={16} />
           </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); next(); }}
-            aria-label="下一个"
-            style={{
-              position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
-              width: 36, height: 36, borderRadius: "50%",
-              border: "1px solid var(--glass-border)",
-              background: "rgba(0,0,0,0.4)", backdropFilter: "blur(12px)",
-              color: "#fff", cursor: "pointer", display: "flex",
-              alignItems: "center", justifyContent: "center",
-            }}
-          >
-            <ChevronRight size={18} />
-          </button>
-
-          {/* 指示点 */}
-          <div
-            style={{
-              position: "absolute", bottom: 12, right: 16, display: "flex", gap: 6,
-            }}
-          >
+          <div style={{ display: "flex", gap: 5 }}>
             {sets.map((_, i) => (
               <button
                 key={i}
                 onClick={(e) => { e.stopPropagation(); goTo(i); }}
                 aria-label={`第 ${i + 1} 个`}
                 style={{
-                  width: i === index ? 20 : 6, height: 6,
+                  width: i === index ? 18 : 5,
+                  height: 5,
                   borderRadius: 999,
-                  background: i === index ? "var(--accent)" : "rgba(255,255,255,0.4)",
-                  border: "none", cursor: "pointer",
+                  background: i === index ? "var(--accent)" : "rgba(255,255,255,0.35)",
+                  border: "none",
+                  cursor: "pointer",
                   transition: "all 0.3s cubic-bezier(0.22,1,0.36,1)",
                 }}
               />
             ))}
           </div>
-        </>
+          <button
+            onClick={(e) => { e.stopPropagation(); next(); }}
+            aria-label="下一个"
+            className="hud-btn"
+            style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
       )}
     </div>
   );
