@@ -163,6 +163,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
             justifyContent: "space-between",
             gap: 10,
             overflow: "hidden",
+            borderRadius: isMobile ? "0 0 var(--radius-lg) var(--radius-lg)" : "0 var(--radius-lg) var(--radius-lg) 0",
           }}
         >
           {/* 背景模糊封面 */}
