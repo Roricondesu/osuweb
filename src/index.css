@@ -83,7 +83,10 @@
   font-weight: 700;
 }
 
-html,
+html {
+  height: 100%;
+}
+
 body,
 #root {
   min-height: 100%;
@@ -92,6 +95,7 @@ body,
 
 #root {
   position: relative;
+  min-height: 100dvh;
 }
 
 body {
@@ -184,10 +188,9 @@ body {
 }
 /* 页面切换动画容器 */
 .page-transition-wrap {
-  position: absolute;
-  inset: 0;
+  position: relative;
   width: 100%;
-  min-height: 100%;
+  min-height: 100dvh;
   overflow-x: hidden;
 }
 

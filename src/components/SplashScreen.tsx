@@ -61,10 +61,9 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ progress, done, onEx
           style={{
             fontSize: "clamp(36px, 8vw, 56px)",
             fontWeight: 900,
-            color: "#ff66aa",
+            color: "var(--accent)",
             letterSpacing: "-0.04em",
             lineHeight: 1,
-            textShadow: "0 4px 24px rgba(255, 102, 170, 0.3)",
           }}
         >
           osu!
@@ -98,7 +97,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ progress, done, onEx
             width: `${pct}%`,
             height: "100%",
             borderRadius: 999,
-            background: "linear-gradient(90deg, #ff66aa, #ff9100)",
+            background: "var(--accent)",
             transition: "width 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         />

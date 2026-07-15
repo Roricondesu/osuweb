@@ -58,6 +58,9 @@ export default function App() {
 
   // 加载资源：字体 + 下载
   useEffect(() => {
+    const startTime = Date.now();
+    const MIN_DISPLAY_MS = 1200; // 最小显示时间，避免秒加载时画面一闪而过
+
     // 字体加载（50% 权重）
     loadFonts((r) => {
       fontProgressRef.current = r;
@@ -76,9 +79,15 @@ export default function App() {
       const combined = fp * 0.5 + dp * 0.5;
       setSplashProgress(Math.min(0.95, combined));
       if (fp >= 1 && downloadsDoneRef.current) {
-        setSplashProgress(1);
-        setTimeout(() => setSplashDone(true), 200);
+        finishSplash();
       }
+    }
+
+    function finishSplash() {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
+      setSplashProgress(1);
+      setTimeout(() => setSplashDone(true), remaining + 200);
     }
 
     // 安全超时：最多等 8 秒就进入
