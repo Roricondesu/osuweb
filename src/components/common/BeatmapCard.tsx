@@ -254,34 +254,62 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           </div>
         </div>
 
-        {/* 后台下载按钮（仅未下载的搜索结果卡片显示），居中 y+1 */}
+        {/* 右侧悬停下载面板 */}
         {!isLoadedSet(set) && !isDownloaded && (
-          <button
-            onClick={handleDownloadClick}
-            aria-label={isDownloading ? "下载中" : "后台下载"}
+          <div
+            onClick={(e) => e.stopPropagation()}
             style={{
-              position: "absolute", top: "calc(50% + 1px)", left: "50%",
-              transform: hover
-                ? "translate(-50%, -50%) scale(1)"
-                : "translate(-50%, -50%) scale(0.6)",
-              width: 34, height: 34, borderRadius: "50%",
-              border: "none",
-              background: isDownloading ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.65)",
-              color: isDownloading ? "var(--accent)" : "#fff",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: isDownloading ? "default" : "pointer",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: 40,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(0,0,0,0.55)",
+              borderLeft: "1px solid rgba(255,255,255,0.08)",
+              backdropFilter: "blur(10px) saturate(130%)",
+              WebkitBackdropFilter: "blur(10px) saturate(130%)",
               opacity: hover ? 1 : 0,
-              transition: "all 0.25s cubic-bezier(0.22,1,0.36,1)",
+              transform: hover ? "translateX(0)" : "translateX(100%)",
+              transition: "all 0.3s cubic-bezier(0.22,1,0.36,1)",
               zIndex: 4,
             }}
           >
-            {isDownloading ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <Download size={15} />
-            )}
-          </button>
+            <button
+              onClick={handleDownloadClick}
+              aria-label={isDownloading ? "下载中" : "后台下载"}
+              style={{
+                position: "absolute",
+                top: "calc(50% + 1px)",
+                left: "50%",
+                transform: hover
+                  ? "translate(-50%, -50%) scale(1)"
+                  : "translate(-50%, -50%) scale(0.6)",
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                border: "none",
+                background: isDownloading ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.65)",
+                color: isDownloading ? "var(--accent)" : "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: isDownloading ? "default" : "pointer",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+                opacity: hover ? 1 : 0,
+                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.05s",
+                zIndex: 5,
+              }}
+            >
+              {isDownloading ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Download size={14} />
+              )}
+            </button>
+          </div>
         )}
 
         {/* 已下载标识 */}

@@ -106,6 +106,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
   const maxStars = set.beatmaps.length ? Math.max(...set.beatmaps.map((b) => b.difficulty_rating || 0)) : 0;
   const modes = Array.from(new Set(set.beatmaps.map((b) => b.mode).filter((m) => m >= 0 && m <= 3))).slice(0, 2);
   const modeNames = ["standard", "taiko", "catch", "mania"] as const;
+  const infoRadius = isMobile ? "var(--radius-lg) var(--radius-lg) 0 0" : "var(--radius-lg) 0 0 var(--radius-lg)";
 
   return (
     <div
@@ -133,7 +134,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
         <div
           style={{
             position: "relative",
-            width: isMobile ? "100%" : 260,
+            width: isMobile ? "100%" : "50%",
             minWidth: isMobile ? "100%" : 260,
             aspectRatio: isMobile ? "16/9" : undefined,
             height: isMobile ? "auto" : 240,
@@ -163,7 +164,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
             justifyContent: "space-between",
             gap: 10,
             overflow: "hidden",
-            borderRadius: isMobile ? "var(--radius-lg) var(--radius-lg) 0 0" : "var(--radius-lg) 0 0 var(--radius-lg)",
+            borderRadius: infoRadius,
           }}
         >
           {/* 背景模糊封面 */}
@@ -176,10 +177,11 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
                 filter: "blur(20px) brightness(0.35) saturate(1.2)",
                 transform: "scale(1.2)", opacity: 0.45,
                 pointerEvents: "none",
+                borderRadius: infoRadius,
               }}
             />
           )}
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(30,30,38,0.95) 0%, rgba(30,30,38,0.7) 70%)", pointerEvents: "none" }} />
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(30,30,38,0.95) 0%, rgba(30,30,38,0.7) 70%)", pointerEvents: "none", borderRadius: infoRadius }} />
 
           {/* 顶部：标签 */}
           <div style={{ position: "relative", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
