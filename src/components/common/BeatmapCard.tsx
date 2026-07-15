@@ -154,6 +154,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           flex: 1,
           height: "100%",
           marginLeft: -7,
+          borderRadius: 10,
+          overflow: "hidden",
           zIndex: 3,
         }}
       >
