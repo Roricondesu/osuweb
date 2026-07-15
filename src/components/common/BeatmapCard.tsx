@@ -280,6 +280,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               justifyContent: "center",
               gap: 12,
               background: "#D4F792",
+              borderRadius: "10px 0 0 10px",
               transform: hover ? "translateX(0)" : "translateX(100%)",
               transition: "transform 0.3s cubic-bezier(0.22,1,0.36,1)",
               zIndex: 4,
