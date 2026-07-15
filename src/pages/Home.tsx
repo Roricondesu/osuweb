@@ -136,7 +136,8 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
             width: isMobile ? "100%" : 260,
             minWidth: isMobile ? "100%" : 260,
             aspectRatio: isMobile ? "16/9" : undefined,
-            height: isMobile ? "auto" : "100%",
+            height: isMobile ? "auto" : 240,
+            alignSelf: isMobile ? "auto" : "stretch",
             overflow: "hidden",
             flexShrink: 0,
           }}

@@ -5,8 +5,7 @@ import { StatusBadge } from "./StatusBadge";
 import { BeatmapCover } from "./BeatmapCover";
 import { StoryboardBadge, VideoBadge } from "./StoryboardBadge";
 import { useNavigate } from "react-router-dom";
-import { useFavoritesStore } from "@/store/useFavoritesStore";
-import { Heart, Play, Download, Loader2, CheckCircle2 } from "lucide-react";
+import { Download, Loader2, CheckCircle2 } from "lucide-react";
 import { OsuModeIconById } from "./OsuIcons";
 import { useGameStore } from "@/store/useGameStore";
 
@@ -64,8 +63,6 @@ const getCardData = (s: BeatmapSet | LoadedBeatmapSet) => {
 
 export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index = 0, downloaded = false }) => {
   const navigate = useNavigate();
-  const favorites = useFavoritesStore((s) => s.favorites);
-  const toggleFavorite = useFavoritesStore((s) => s.toggleFavorite);
   const data = getCardData(set);
   const setId = data.id;
   const bgDownloadSet = useGameStore((s) => s.bgDownloadSet);
@@ -73,18 +70,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
   const bgTask = useGameStore((s) => s.bgDownloads.find((t) => t.setId === setId));
   const [hover, setHover] = useState(false);
 
-  const isFav = favorites.includes(setId);
   const isDownloading = bgTask && (bgTask.status === "downloading" || bgTask.status === "extracting");
-
-  const handlePlayClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigate(`/set/${setId}`);
-  };
-
-  const handleFavClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    toggleFavorite(setId);
-  };
 
   const handleDownloadClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -151,25 +137,6 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         >
           {data.beatmaps.length}
         </div>
-        {/* 收藏按钮（右上角） */}
-        <button
-          onClick={handleFavClick}
-          aria-label={isFav ? "取消收藏" : "收藏"}
-          style={{
-            position: "absolute", top: 5, right: 5,
-            width: 22, height: 22, borderRadius: "50%",
-            border: "none",
-            background: "rgba(0,0,0,0.5)",
-            color: isFav ? "#ff375f" : "#fff",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer",
-            transition: "all 0.2s ease",
-            opacity: hover || isFav ? 1 : 0,
-            transform: hover ? "scale(1)" : "scale(0.8)",
-          }}
-        >
-          <Heart size={11} fill={isFav ? "currentColor" : "none"} />
-        </button>
       </div>
 
       {/* 右侧信息盒：封面叠 7px，深灰渐变半透明遮罩 + 模糊封面透过 */}
@@ -287,40 +254,19 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           </div>
         </div>
 
-        {/* hover 快开按钮 */}
-        <button
-          onClick={handlePlayClick}
-          aria-label="打开"
-          style={{
-            position: "absolute", top: "50%",
-            right: (!isLoadedSet(set) && !isDownloaded) ? 46 : 10,
-            transform: hover ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.6)",
-            width: 30, height: 30, borderRadius: "50%",
-            border: "none",
-            background: "var(--accent)",
-            color: "#fff",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
-            opacity: hover ? 1 : 0,
-            transition: "all 0.25s cubic-bezier(0.22,1,0.36,1)",
-            zIndex: 4,
-          }}
-        >
-          <Play size={13} fill="currentColor" />
-        </button>
-
-        {/* 后台下载按钮（仅未下载的搜索结果卡片显示） */}
+        {/* 后台下载按钮（仅未下载的搜索结果卡片显示），居中 y+1 */}
         {!isLoadedSet(set) && !isDownloaded && (
           <button
             onClick={handleDownloadClick}
             aria-label={isDownloading ? "下载中" : "后台下载"}
             style={{
-              position: "absolute", top: "50%", right: 10,
-              transform: hover ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.6)",
-              width: 30, height: 30, borderRadius: "50%",
+              position: "absolute", top: "calc(50% + 1px)", left: "50%",
+              transform: hover
+                ? "translate(-50%, -50%) scale(1)"
+                : "translate(-50%, -50%) scale(0.6)",
+              width: 34, height: 34, borderRadius: "50%",
               border: "none",
-              background: isDownloading ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.6)",
+              background: isDownloading ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.65)",
               color: isDownloading ? "var(--accent)" : "#fff",
               display: "flex", alignItems: "center", justifyContent: "center",
               cursor: isDownloading ? "default" : "pointer",
@@ -331,9 +277,9 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             }}
           >
             {isDownloading ? (
-              <Loader2 size={13} className="animate-spin" />
+              <Loader2 size={15} className="animate-spin" />
             ) : (
-              <Download size={13} />
+              <Download size={15} />
             )}
           </button>
         )}
@@ -341,10 +287,10 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         {/* 已下载标识 */}
         {isDownloaded && !downloaded && (
           <CheckCircle2
-            size={16}
+            size={18}
             style={{
-              position: "absolute", top: "50%", right: 14,
-              transform: "translateY(-50%)",
+              position: "absolute", top: "calc(50% + 1px)", left: "50%",
+              transform: "translate(-50%, -50%)",
               color: "var(--accent)",
               opacity: hover ? 1 : 0,
               transition: "all 0.25s cubic-bezier(0.22,1,0.36,1)",
