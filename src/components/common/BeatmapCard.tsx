@@ -5,9 +5,10 @@ import { StatusBadge } from "./StatusBadge";
 import { BeatmapCover } from "./BeatmapCover";
 import { StoryboardBadge, VideoBadge } from "./StoryboardBadge";
 import { useNavigate } from "react-router-dom";
-import { Download, Loader2, CheckCircle2 } from "lucide-react";
+import { Download, Loader2, CheckCircle2, Heart, MessageSquare } from "lucide-react";
 import { OsuModeIconById } from "./OsuIcons";
 import { useGameStore } from "@/store/useGameStore";
+import { useFavoritesStore } from "@/store/useFavoritesStore";
 
 interface BeatmapCardProps {
   set: BeatmapSet | LoadedBeatmapSet;
@@ -69,6 +70,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
   const isDownloaded = useGameStore((s) => s.downloaded.has(setId));
   const bgTask = useGameStore((s) => s.bgDownloads.find((t) => t.setId === setId));
   const [hover, setHover] = useState(false);
+  const toggleFavorite = useFavoritesStore((s) => s.toggleFavorite);
+  const isFavorite = useFavoritesStore((s) => s.isFavorite(data.id));
 
   const isDownloading = bgTask && (bgTask.status === "downloading" || bgTask.status === "extracting");
 
@@ -77,6 +80,16 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
     if (!isLoadedSet(set) && !isDownloaded && !isDownloading) {
       bgDownloadSet(set);
     }
+  };
+
+  const handleFavoriteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    toggleFavorite(data.id);
+  };
+
+  const handleDetailClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/set/${data.id}`);
   };
 
   return (
@@ -261,49 +274,84 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             onClick={(e) => e.stopPropagation()}
             style={{
               position: "absolute",
-              top: 0,
-              right: 0,
-              bottom: 0,
-              width: 44,
+              top: "50%",
+              right: 8,
+              transform: hover
+                ? "translateY(-50%) translateX(0)"
+                : "translateY(-50%) translateX(100%)",
+              width: 38,
+              padding: "10px 0",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              justifyContent: "center",
-              background: "rgba(0,0,0,0.4)",
-              borderLeft: "1px solid rgba(255,255,255,0.08)",
-              backdropFilter: "blur(12px) saturate(130%)",
-              WebkitBackdropFilter: "blur(12px) saturate(130%)",
-              borderRadius: "0 14px 14px 0",
+              gap: 10,
+              background: "#D4F792",
+              borderRadius: 14,
+              boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
               opacity: hover ? 1 : 0,
-              transform: hover ? "translateX(0)" : "translateX(100%)",
               transition: "all 0.3s cubic-bezier(0.22,1,0.36,1)",
               zIndex: 4,
             }}
           >
             <button
-              onClick={handleDownloadClick}
-              aria-label={isDownloading ? "下载中" : "后台下载"}
+              onClick={handleFavoriteClick}
+              aria-label={isFavorite ? "取消收藏" : "收藏"}
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
+                background: "transparent",
                 border: "none",
-                background: isDownloading ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.1)",
-                color: isDownloading ? "var(--accent)" : "#fff",
+                padding: 4,
+                color: "#2E3835",
+                cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                cursor: isDownloading ? "default" : "pointer",
-                marginTop: 1,
-                transform: hover ? "scale(1)" : "scale(0.7)",
                 opacity: hover ? 1 : 0,
+                transform: hover ? "scale(1)" : "scale(0.7)",
                 transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.05s",
               }}
             >
+              <Heart size={16} fill={isFavorite ? "#2E3835" : "none"} />
+            </button>
+            <button
+              onClick={handleDetailClick}
+              aria-label="查看详情"
+              style={{
+                background: "transparent",
+                border: "none",
+                padding: 4,
+                color: "#2E3835",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: hover ? 1 : 0,
+                transform: hover ? "scale(1)" : "scale(0.7)",
+                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.1s",
+              }}
+            >
+              <MessageSquare size={16} />
+            </button>
+            <button
+              onClick={handleDownloadClick}
+              aria-label={isDownloading ? "下载中" : "后台下载"}
+              style={{
+                background: "transparent",
+                border: "none",
+                padding: 4,
+                color: "#2E3835",
+                cursor: isDownloading ? "default" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: hover ? 1 : 0,
+                transform: hover ? "scale(1)" : "scale(0.7)",
+                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.15s",
+              }}
+            >
               {isDownloading ? (
-                <Loader2 size={15} className="animate-spin" />
+                <Loader2 size={16} className="animate-spin" />
               ) : (
-                <Download size={15} />
+                <Download size={16} />
               )}
             </button>
           </div>
