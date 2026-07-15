@@ -159,20 +159,34 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           zIndex: 3,
         }}
       >
-        {/* 底层：lime 面板（始终在右侧，无圆角，被上层深色背景遮挡） */}
+        {/* 底层：lime 面板（始终在右侧，被上层深色背景遮挡） */}
         {!isLoadedSet(set) && !isDownloaded && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0, right: 0, bottom: 0,
-              width: 38,
-              background: "#D4F792",
-              zIndex: 1,
-            }}
-          />
+          <>
+            <div
+              style={{
+                position: "absolute",
+                top: 0, right: 0, bottom: 0,
+                width: 38,
+                background: "#D4F792",
+                zIndex: 1,
+              }}
+            />
+            {/* 圆角遮挡：模拟信息区右侧圆角压住 lime 面板，露出边缘呈圆角 */}
+            <div
+              style={{
+                position: "absolute",
+                top: 0, right: 26, bottom: 0,
+                width: 12,
+                background: "#2E3835",
+                borderTopRightRadius: 10,
+                borderBottomRightRadius: 10,
+                zIndex: 1,
+              }}
+            />
+          </>
         )}
 
-        {/* 上层：深色背景（模糊封面+渐变），hover 时向左收缩露出 lime，右边缘圆角即 lime 左边缘形状 */}
+        {/* 上层：深色背景（模糊封面+渐变），hover 时向左收缩露出 lime */}
         <div
           style={{
             position: "absolute",
