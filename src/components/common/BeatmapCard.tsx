@@ -187,7 +187,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           style={{
             position: "relative",
             height: "100%",
-            padding: hover && !isLoadedSet(set) && !isDownloaded ? "7px 48px 7px 10px" : "7px 10px",
+            padding: hover && !isLoadedSet(set) && !downloaded ? "7px 48px 7px 10px" : "7px 10px",
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
@@ -265,7 +265,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         </div>
 
         {/* 右侧 lime 操作面板：hover 时从右侧滑入，被信息区圆角裁切 */}
-        {!isLoadedSet(set) && !isDownloaded && (
+        {!isLoadedSet(set) && !downloaded && (
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
@@ -304,45 +304,47 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             >
               <Heart size={16} fill={isFavorite ? "#2E3835" : "none"} />
             </button>
-            <button
-              onClick={handleDownloadClick}
-              aria-label={isDownloading ? "下载中" : "后台下载"}
-              style={{
-                background: "transparent",
-                border: "none",
-                padding: 4,
-                color: "#2E3835",
-                cursor: isDownloading ? "default" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                opacity: hover ? 1 : 0,
-                transform: hover ? "scale(1)" : "scale(0.7)",
-                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.15s",
-              }}
-            >
-              {isDownloading ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Download size={16} />
-              )}
-            </button>
+            {isDownloaded ? (
+              <span
+                aria-label="已下载"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#2E3835",
+                  opacity: hover ? 1 : 0,
+                  transform: hover ? "scale(1)" : "scale(0.7)",
+                  transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.15s",
+                }}
+              >
+                <CheckCircle2 size={16} />
+              </span>
+            ) : (
+              <button
+                onClick={handleDownloadClick}
+                aria-label={isDownloading ? "下载中" : "后台下载"}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  padding: 4,
+                  color: "#2E3835",
+                  cursor: isDownloading ? "default" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: hover ? 1 : 0,
+                  transform: hover ? "scale(1)" : "scale(0.7)",
+                  transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.15s",
+                }}
+              >
+                {isDownloading ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Download size={16} />
+                )}
+              </button>
+            )}
           </div>
-        )}
-
-        {/* 已下载标识 */}
-        {isDownloaded && !downloaded && (
-          <CheckCircle2
-            size={18}
-            style={{
-              position: "absolute", top: "calc(50% + 1px)", left: "50%",
-              transform: "translate(-50%, -50%)",
-              color: "var(--accent)",
-              opacity: hover ? 1 : 0,
-              transition: "all 0.25s cubic-bezier(0.22,1,0.36,1)",
-              zIndex: 4,
-            }}
-          />
         )}
       </div>
     </div>
