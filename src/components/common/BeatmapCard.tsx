@@ -279,6 +279,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               justifyContent: "center",
               gap: 12,
               background: "#D4F792",
+              maskImage: "radial-gradient(16px at 0 50%, #0000 99%, #000)",
+              WebkitMaskImage: "radial-gradient(16px at 0 50%, #0000 99%, #000)",
               opacity: hover ? 1 : 0,
               transform: hover ? "translateX(0)" : "translateX(100%)",
               transition: "all 0.3s cubic-bezier(0.22,1,0.36,1)",
