@@ -17,7 +17,8 @@ interface OsuDirectBeatmap {
   beatmapset_id: number;
   difficulty_rating: number;
   version: string;
-  mode: number;
+  /** osu.direct 实际返回字符串 "osu"/"taiko"/"catch"/"mania"，声明为联合类型 */
+  mode: number | string;
   total_length: number;
   hit_length: number;
   bpm?: number;
@@ -27,6 +28,13 @@ interface OsuDirectBeatmap {
   od?: number;
   hp?: number;
 }
+
+/** 将 osu.direct 返回的 mode（可能是字符串或数字）统一转为数字 0-3 */
+const normalizeMode = (m: number | string): number => {
+  if (typeof m === "number") return m;
+  const map: Record<string, number> = { osu: 0, standard: 0, taiko: 1, catch: 2, ctb: 2, mania: 3 };
+  return map[m] ?? 0;
+};
 
 interface OsuDirectBeatmapSet {
   id: number;
@@ -87,7 +95,7 @@ const mapBeatmap = (b: OsuDirectBeatmap): Beatmap => ({
   beatmapset_id: b.beatmapset_id,
   difficulty_rating: b.difficulty_rating,
   version: b.version,
-  mode: b.mode,
+  mode: normalizeMode(b.mode),
   total_length: b.total_length,
   hit_length: b.hit_length,
   bpm: b.bpm,

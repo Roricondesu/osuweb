@@ -113,8 +113,6 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         boxShadow: hover
           ? `0 6px 20px rgba(0,0,0,0.35)`
           : "0 2px 6px rgba(0,0,0,0.2)",
-        outline: downloaded ? "2px solid var(--accent)" : "none",
-        outlineOffset: downloaded ? -1 : 0,
       }}
     >
       {/* 左侧方形封面（100×100） */}

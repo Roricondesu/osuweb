@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useGameStore } from "@/store/useGameStore";
-import { BeatmapCard, BeatmapCover, StarRatingBar, ModeBadge, OsuModeIcon } from "@/components/common";
+import { BeatmapCard, BeatmapCover, StarRatingBar, ModeBadge, OsuModeIcon, StoryboardBadge, VideoBadge } from "@/components/common";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Search as SearchIcon, Flame, Heart } from "lucide-react";
 import type { GameMode, BeatmapSet } from "@/types";
@@ -180,18 +180,12 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(30,30,38,0.95) 0%, rgba(30,30,38,0.75) 100%)", pointerEvents: "none" }} />
 
           {/* 顶部：标签 */}
-          <div style={{ position: "relative", display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <div style={{ position: "relative", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             {modes.map((m) => (
               <ModeBadge key={m} mode={modeNames[m]} />
             ))}
-            {set.hasStoryboard && (
-              <span style={{
-                fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-                background: "var(--accent)", color: "#fff",
-              }}>
-                SB
-              </span>
-            )}
+            {set.hasStoryboard && <StoryboardBadge size="sm" />}
+            {set.hasVideo && <VideoBadge size="sm" />}
           </div>
 
           {/* 中部：标题信息 */}
