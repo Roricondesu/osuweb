@@ -1,11 +1,12 @@
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
-import { useEffect, Suspense, lazy } from "react";
+import { useEffect, Suspense, lazy, useState, useCallback, useRef } from "react";
 import { TransitionGroup, CSSTransition } from "react-transition-group";
 import { TopNav } from "@/components/layout/TopNav";
 import { Background } from "@/components/layout/Background";
 import { useGameStore } from "@/store/useGameStore";
 import { useFullscreen } from "@/hooks/useFullscreen";
-import { PageLoader, ErrorBoundary } from "@/components/common";
+import { PageLoader, ErrorBoundary, BgDownloadWidget } from "@/components/common";
+import { SplashScreen } from "@/components/SplashScreen";
 import { loadFonts } from "@/utils/fontLoader";
 
 const Home = lazy(() => import("@/pages/Home"));
@@ -48,10 +49,49 @@ export default function App() {
   const loadDownloads = useGameStore((s) => s.loadDownloads);
   const pageScale = useGameStore((s) => s.settings.pageScale);
 
+  // 启动画面状态
+  const [splashProgress, setSplashProgress] = useState(0);
+  const [splashDone, setSplashDone] = useState(false);
+  const [splashExited, setSplashExited] = useState(false);
+  const fontProgressRef = useRef(0);
+  const downloadsDoneRef = useRef(false);
+
+  // 加载资源：字体 + 下载
   useEffect(() => {
-    loadDownloads();
-    loadFonts();
+    // 字体加载（50% 权重）
+    loadFonts((r) => {
+      fontProgressRef.current = r;
+      updateProgress();
+    });
+
+    // 下载列表加载（50% 权重）
+    loadDownloads().then(() => {
+      downloadsDoneRef.current = true;
+      updateProgress();
+    });
+
+    function updateProgress() {
+      const fp = fontProgressRef.current;
+      const dp = downloadsDoneRef.current ? 1 : 0;
+      const combined = fp * 0.5 + dp * 0.5;
+      setSplashProgress(Math.min(0.95, combined));
+      if (fp >= 1 && downloadsDoneRef.current) {
+        setSplashProgress(1);
+        setTimeout(() => setSplashDone(true), 200);
+      }
+    }
+
+    // 安全超时：最多等 8 秒就进入
+    const timeout = setTimeout(() => {
+      setSplashProgress(1);
+      setSplashDone(true);
+    }, 8000);
+    return () => clearTimeout(timeout);
   }, [loadDownloads]);
+
+  const handleSplashExited = useCallback(() => {
+    setSplashExited(true);
+  }, []);
 
   // 全局页面缩放：实时生效
   useEffect(() => {
@@ -67,8 +107,16 @@ export default function App() {
 
   return (
     <Router>
+      {!splashExited && (
+        <SplashScreen
+          progress={splashProgress}
+          done={splashDone}
+          onExited={handleSplashExited}
+        />
+      )}
       <Background />
       <TopNav />
+      <BgDownloadWidget />
       <AppRoutes />
     </Router>
   );

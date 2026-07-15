@@ -6,8 +6,9 @@ import { BeatmapCover } from "./BeatmapCover";
 import { StoryboardBadge, VideoBadge } from "./StoryboardBadge";
 import { useNavigate } from "react-router-dom";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
-import { Heart, Play } from "lucide-react";
+import { Heart, Play, Download, Loader2, CheckCircle2 } from "lucide-react";
 import { OsuModeIconById } from "./OsuIcons";
+import { useGameStore } from "@/store/useGameStore";
 
 interface BeatmapCardProps {
   set: BeatmapSet | LoadedBeatmapSet;
@@ -65,19 +66,31 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
   const navigate = useNavigate();
   const favorites = useFavoritesStore((s) => s.favorites);
   const toggleFavorite = useFavoritesStore((s) => s.toggleFavorite);
+  const data = getCardData(set);
+  const setId = data.id;
+  const bgDownloadSet = useGameStore((s) => s.bgDownloadSet);
+  const isDownloaded = useGameStore((s) => s.downloaded.has(setId));
+  const bgTask = useGameStore((s) => s.bgDownloads.find((t) => t.setId === setId));
   const [hover, setHover] = useState(false);
 
-  const data = getCardData(set);
-  const isFav = favorites.includes(data.id);
+  const isFav = favorites.includes(setId);
+  const isDownloading = bgTask && (bgTask.status === "downloading" || bgTask.status === "extracting");
 
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(`/set/${data.id}`);
+    navigate(`/set/${setId}`);
   };
 
   const handleFavClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    toggleFavorite(data.id);
+    toggleFavorite(setId);
+  };
+
+  const handleDownloadClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isLoadedSet(set) && !isDownloaded && !isDownloading) {
+      bgDownloadSet(set);
+    }
   };
 
   return (
@@ -281,7 +294,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           onClick={handlePlayClick}
           aria-label="打开"
           style={{
-            position: "absolute", top: "50%", right: 10,
+            position: "absolute", top: "50%",
+            right: (!isLoadedSet(set) && !isDownloaded) ? 46 : 10,
             transform: hover ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.6)",
             width: 30, height: 30, borderRadius: "50%",
             border: "none",
@@ -297,6 +311,49 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         >
           <Play size={13} fill="currentColor" />
         </button>
+
+        {/* 后台下载按钮（仅未下载的搜索结果卡片显示） */}
+        {!isLoadedSet(set) && !isDownloaded && (
+          <button
+            onClick={handleDownloadClick}
+            aria-label={isDownloading ? "下载中" : "后台下载"}
+            style={{
+              position: "absolute", top: "50%", right: 10,
+              transform: hover ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.6)",
+              width: 30, height: 30, borderRadius: "50%",
+              border: "none",
+              background: isDownloading ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.6)",
+              color: isDownloading ? "var(--accent)" : "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: isDownloading ? "default" : "pointer",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+              opacity: hover ? 1 : 0,
+              transition: "all 0.25s cubic-bezier(0.22,1,0.36,1)",
+              zIndex: 4,
+            }}
+          >
+            {isDownloading ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Download size={13} />
+            )}
+          </button>
+        )}
+
+        {/* 已下载标识 */}
+        {isDownloaded && !downloaded && (
+          <CheckCircle2
+            size={16}
+            style={{
+              position: "absolute", top: "50%", right: 14,
+              transform: "translateY(-50%)",
+              color: "var(--accent)",
+              opacity: hover ? 1 : 0,
+              transition: "all 0.25s cubic-bezier(0.22,1,0.36,1)",
+              zIndex: 4,
+            }}
+          />
+        )}
       </div>
     </div>
   );

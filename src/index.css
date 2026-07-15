@@ -166,6 +166,22 @@ body {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* 启动画面字标弹入 */
+@keyframes splash-drop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-80px) scale(0.8);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(4px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 /* 页面切换动画容器 */
 .page-transition-wrap {
   position: absolute;

@@ -8,6 +8,7 @@ export { StoryboardBadge, VideoBadge } from "./StoryboardBadge";
 export { BeatmapCover } from "./BeatmapCover";
 export { PageLoader } from "./PageLoader";
 export { ErrorBoundary } from "./ErrorBoundary";
+export { BgDownloadWidget } from "./BgDownloadWidget";
 export { OsuModeIcon, OsuModeIconById } from "./OsuIcons";
 export { OsuLogoIcon } from "./OsuLogoIcon";
 export { OsuModIcon } from "./OsuModIcons";

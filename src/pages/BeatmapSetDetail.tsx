@@ -147,12 +147,12 @@ export default function BeatmapSetDetail() {
   const detailLoading = useGameStore((s) => s.detailLoading);
   const loadDetail = useGameStore((s) => s.loadDetail);
   const downloaded = useGameStore((s) => s.downloaded);
-  const downloadSet = useGameStore((s) => s.downloadSet);
-  const downloadProgress = useGameStore((s) => s.downloadProgress);
+  const bgDownloads = useGameStore((s) => s.bgDownloads);
+  const bgDownloadSet = useGameStore((s) => s.bgDownloadSet);
+  const cancelBgDownload = useGameStore((s) => s.cancelBgDownload);
   const downloadError = useGameStore((s) => s.downloadError);
   const startGame = useGameStore((s) => s.startGame);
 
-  const [downloading, setDownloading] = useState(false);
   const [filterMode, setFilterMode] = useState<GameMode | null>(null);
   const [fullPackage, setFullPackage] = useState(() => useGameStore.getState().settings.downloadFullPackage);
   const [bestScores, setBestScores] = useState<Record<number, ScoreRecord | undefined>>({});
@@ -189,21 +189,21 @@ export default function BeatmapSetDetail() {
   const loaded = setId ? downloaded.get(Number(setId)) : undefined;
   const isFav = detailSet ? favorites.includes(detailSet.id) : false;
 
-  const handleDownload = async () => {
+  // 当前谱面的后台下载任务
+  const bgTask = setId ? bgDownloads.find((t) => t.setId === Number(setId)) : undefined;
+  const bgDownloading = !!bgTask && (bgTask.status === "downloading" || bgTask.status === "extracting");
+
+  const handleDownload = () => {
     if (!detailSet) return;
-    setDownloading(true);
-    await downloadSet(detailSet, false, fullPackage);
-    setDownloading(false);
+    bgDownloadSet(detailSet, fullPackage);
   };
 
   const loadedHasVideoMissing = !!loaded && !loaded.videoUrl &&
     (loaded.beatmaps || []).some((b) => b.parsed?.videoFilename);
 
-  const handleDownloadFull = async () => {
+  const handleDownloadFull = () => {
     if (!detailSet) return;
-    setDownloading(true);
-    await downloadSet(detailSet, true, true);
-    setDownloading(false);
+    bgDownloadSet(detailSet, true);
   };
 
   const handleStart = (beatmap: Beatmap, mode: GameMode) => {
@@ -318,7 +318,7 @@ export default function BeatmapSetDetail() {
 
           {/* 操作区 */}
           <div style={{ padding: "16px 18px" }}>
-            {loaded ? (
+            {loaded && !bgDownloading ? (
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <CheckCircle2 size={20} style={{ color: "var(--accent)" }} />
                 <span style={{ flex: 1, fontSize: 13, color: "var(--text-primary)" }}>
@@ -327,28 +327,49 @@ export default function BeatmapSetDetail() {
                 {loadedHasVideoMissing && (
                   <button
                     onClick={handleDownloadFull}
-                    disabled={downloading}
                     className="hud-btn"
                     style={{
                       padding: "6px 12px", fontSize: 12, fontWeight: 600,
-                      color: "var(--accent)", opacity: downloading ? 0.5 : 1,
+                      color: "var(--accent)",
                     }}
                   >
                     下载完整包
                   </button>
                 )}
               </div>
-            ) : downloading ? (
+            ) : bgDownloading ? (
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 8 }}>
-                  <span style={{ color: "var(--text-secondary)" }}>下载中…</span>
+                  <span style={{ color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
+                    {bgTask?.status === "extracting" ? (
+                      <><Loader2 size={13} className="animate-spin" /> 解压中…</>
+                    ) : (
+                      <><Download size={13} /> 后台下载中…</>
+                    )}
+                  </span>
                   <span className="hud-num" style={{ color: "var(--accent)", fontWeight: 700 }}>
-                    {Math.round(downloadProgress * 100)}%
+                    {Math.round((bgTask?.progress ?? 0) * 100)}%
                   </span>
                 </div>
                 <div className="hud-bar-track" style={{ height: 6 }}>
-                  <div className="hud-bar-fill" style={{ width: `${downloadProgress * 100}%` }} />
+                  <div className="hud-bar-fill" style={{ width: `${(bgTask?.progress ?? 0) * 100}%` }} />
                 </div>
+                <button
+                  onClick={() => cancelBgDownload(Number(setId))}
+                  className="hud-btn"
+                  style={{ marginTop: 8, padding: "4px 10px", fontSize: 11, fontWeight: 600, color: "var(--error)" }}
+                >
+                  取消下载
+                </button>
+              </div>
+            ) : bgTask?.status === "error" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <p style={{ fontSize: 12, color: "var(--error)" }}>
+                  下载失败：{bgTask.error}
+                </p>
+                <button onClick={handleDownload} className="lazer-cta" style={{ width: "100%", padding: "12px 20px", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <Download size={16} /> 重试下载
+                </button>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -382,7 +403,7 @@ export default function BeatmapSetDetail() {
                 </button>
               </div>
             )}
-            {downloadError && (
+            {downloadError && !bgTask && (
               <p style={{ marginTop: 8, fontSize: 12, color: "var(--error)" }}>
                 下载失败：{downloadError}
               </p>

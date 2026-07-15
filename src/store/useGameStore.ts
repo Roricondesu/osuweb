@@ -37,6 +37,16 @@ const EMPTY_RUNTIME: GameRuntime = {
   judgements: { "300": 0, "100": 0, "50": 0, miss: 0 },
 };
 
+/** 后台下载任务 */
+export interface BgDownloadTask {
+  setId: number;
+  title: string;
+  artist: string;
+  progress: number; // 0-1
+  status: "downloading" | "extracting" | "done" | "error";
+  error?: string;
+}
+
 interface GameState {
   // 设置
   settings: Settings;
@@ -67,6 +77,11 @@ interface GameState {
   clearDownloads: () => Promise<void>;
   loadDownloads: () => Promise<void>;
   importBeatmapFile: (file: File) => Promise<LoadedBeatmapSet | null>;
+
+  // 后台下载队列
+  bgDownloads: BgDownloadTask[];
+  bgDownloadSet: (set: BeatmapSet, fullPackage?: boolean) => void;
+  cancelBgDownload: (setId: number) => void;
 
   // 皮肤
   importSkinFile: (file: File) => Promise<boolean>;
@@ -193,6 +208,7 @@ export const useGameStore = create<GameState>()(
       downloadsReady: false,
       downloadProgress: 0,
       downloadError: null,
+      bgDownloads: [],
       downloadSet: async (set_, force = false, fullPackage?: boolean) => {
         const cached = get().downloaded.get(set_.id);
         const full = fullPackage ?? get().settings.downloadFullPackage;
@@ -294,6 +310,76 @@ export const useGameStore = create<GameState>()(
           console.error("导入谱面失败", e);
           return null;
         }
+      },
+
+      bgDownloadSet: (set_, fullPackage) => {
+        const full = fullPackage ?? get().settings.downloadFullPackage;
+        // 已下载且无需补视频 → 直接跳过
+        const cached = get().downloaded.get(set_.id);
+        if (cached) {
+          const needsVideo = full && !cached.videoUrl &&
+            (cached.beatmaps || []).some((b) => b.parsed?.videoFilename);
+          if (!needsVideo) return;
+        }
+        // 已在队列中 → 跳过
+        if (get().bgDownloads.some((t) => t.setId === set_.id)) return;
+
+        const title = set_.title_unicode || set_.title;
+        const artist = set_.artist_unicode || set_.artist;
+        const task: BgDownloadTask = {
+          setId: set_.id,
+          title,
+          artist,
+          progress: 0,
+          status: "downloading",
+        };
+        set((s) => ({ bgDownloads: [...s.bgDownloads, task] }));
+
+        const patchTask = (patch: Partial<BgDownloadTask>) =>
+          set((s) => ({
+            bgDownloads: s.bgDownloads.map((t) =>
+              t.setId === set_.id ? { ...t, ...patch } : t,
+            ),
+          }));
+
+        // 歌词与下载并行
+        const lyricsPromise = fetchLyrics(title, artist).catch(() => []);
+
+        downloadOszRacing(set_.id, full, (r) => patchTask({ progress: r }))
+          .then(async (buf) => {
+            patchTask({ status: "extracting", progress: 1 });
+            const loaded = await extractOsz(buf, {
+              id: set_.id,
+              title,
+              artist,
+              cover: set_.covers?.["cover@2x"] || set_.covers?.cover || "",
+              beatmaps: set_.beatmaps,
+            });
+            loaded.lyrics = await lyricsPromise;
+            set((s) => ({
+              downloaded: new Map(s.downloaded).set(set_.id, loaded),
+            }));
+            await saveDownload(loaded);
+            patchTask({ status: "done" });
+            // 3 秒后从队列移除已完成的任务
+            setTimeout(() => {
+              set((s) => ({
+                bgDownloads: s.bgDownloads.filter((t) => t.setId !== set_.id),
+              }));
+            }, 3000);
+          })
+          .catch((e) => {
+            patchTask({
+              status: "error",
+              error: e instanceof Error ? e.message : "下载失败",
+            });
+          });
+      },
+
+      cancelBgDownload: (setId) => {
+        set((s) => ({
+          bgDownloads: s.bgDownloads.filter((t) => t.setId !== setId),
+        }));
       },
 
       importSkinFile: async (file) => {

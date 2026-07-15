@@ -109,16 +109,29 @@ async function loadFont(config: FontConfig): Promise<void> {
 
 let loaded = false;
 
-/** 加载所有持久化字体（在应用启动时调用一次） */
-export async function loadFonts(): Promise<void> {
-  if (loaded) return;
+/** 加载所有持久化字体（在应用启动时调用一次），支持进度回调 */
+export async function loadFonts(onProgress?: (ratio: number) => void): Promise<void> {
+  if (loaded) {
+    onProgress?.(1);
+    return;
+  }
   loaded = true;
+
+  let completed = 0;
+  const total = FONTS.length;
 
   await Promise.all(
     FONTS.map((config) =>
-      loadFont(config).catch((e) => {
-        console.warn(`字体加载失败: ${config.family}`, e);
-      }),
+      loadFont(config)
+        .then(() => {
+          completed++;
+          onProgress?.(completed / total);
+        })
+        .catch((e) => {
+          completed++;
+          onProgress?.(completed / total);
+          console.warn(`字体加载失败: ${config.family}`, e);
+        }),
     ),
   );
 }
