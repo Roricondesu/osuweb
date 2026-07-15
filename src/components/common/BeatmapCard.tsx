@@ -90,7 +90,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         display: "flex",
         width: "100%",
         height: 100,
-        borderRadius: 10,
+        borderRadius: 14,
         overflow: "hidden",
         animation: "stagger-fade-up 0.5s cubic-bezier(0.22,1,0.36,1) both",
         animationDelay: `${0.04 + (index % 12) * 0.03}s`,
@@ -146,7 +146,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           flex: 1,
           height: "100%",
           marginLeft: -7,
-          borderRadius: 10,
+          borderRadius: 14,
           overflow: "hidden",
           zIndex: 3,
         }}
@@ -179,11 +179,12 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           style={{
             position: "relative",
             height: "100%",
-            padding: "7px 10px",
+            padding: hover ? "7px 54px 7px 10px" : "7px 10px",
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
             overflow: "hidden",
+            transition: "padding 0.3s cubic-bezier(0.22,1,0.36,1)",
           }}
         >
           {/* 上部：标题 + 艺人 + mapper */}
@@ -254,7 +255,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           </div>
         </div>
 
-        {/* 右侧悬停下载面板 */}
+        {/* 右侧悬停操作面板 */}
         {!isLoadedSet(set) && !isDownloaded && (
           <div
             onClick={(e) => e.stopPropagation()}
@@ -263,14 +264,16 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               top: 0,
               right: 0,
               bottom: 0,
-              width: 40,
+              width: 44,
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              background: "rgba(0,0,0,0.55)",
+              background: "rgba(0,0,0,0.4)",
               borderLeft: "1px solid rgba(255,255,255,0.08)",
-              backdropFilter: "blur(10px) saturate(130%)",
-              WebkitBackdropFilter: "blur(10px) saturate(130%)",
+              backdropFilter: "blur(12px) saturate(130%)",
+              WebkitBackdropFilter: "blur(12px) saturate(130%)",
+              borderRadius: "0 14px 14px 0",
               opacity: hover ? 1 : 0,
               transform: hover ? "translateX(0)" : "translateX(100%)",
               transition: "all 0.3s cubic-bezier(0.22,1,0.36,1)",
@@ -281,32 +284,26 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               onClick={handleDownloadClick}
               aria-label={isDownloading ? "下载中" : "后台下载"}
               style={{
-                position: "absolute",
-                top: "calc(50% + 1px)",
-                left: "50%",
-                transform: hover
-                  ? "translate(-50%, -50%) scale(1)"
-                  : "translate(-50%, -50%) scale(0.6)",
                 width: 32,
                 height: 32,
                 borderRadius: "50%",
                 border: "none",
-                background: isDownloading ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.65)",
+                background: isDownloading ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.1)",
                 color: isDownloading ? "var(--accent)" : "#fff",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: isDownloading ? "default" : "pointer",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+                marginTop: 1,
+                transform: hover ? "scale(1)" : "scale(0.7)",
                 opacity: hover ? 1 : 0,
                 transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.05s",
-                zIndex: 5,
               }}
             >
               {isDownloading ? (
-                <Loader2 size={14} className="animate-spin" />
+                <Loader2 size={15} className="animate-spin" />
               ) : (
-                <Download size={14} />
+                <Download size={15} />
               )}
             </button>
           </div>
