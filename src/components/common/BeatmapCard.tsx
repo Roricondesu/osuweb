@@ -159,66 +159,28 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           zIndex: 3,
         }}
       >
-        {/* 底层：lime 面板（始终在右侧，无圆角，被上层深色背景遮挡） */}
-        {!isLoadedSet(set) && !isDownloaded && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0, right: 0, bottom: 0,
-              width: 38,
-              background: "#D4F792",
-              zIndex: 1,
-            }}
-          />
-        )}
-
-        {/* 上层：深色背景（模糊封面+渐变），hover 时向左收缩露出 lime，右边缘圆角即 lime 左边缘形状 */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0, left: 0, bottom: 0,
-            right: hover && !isLoadedSet(set) && !isDownloaded ? 38 : 0,
-            borderRadius: 10,
-            overflow: "hidden",
-            zIndex: 2,
-            transition: "right 0.3s cubic-bezier(0.22,1,0.36,1)",
-          }}
-        >
-          {/* 模糊封面作为背景（透过渐变可见） */}
-          {data.cover && (
-            <div
-              style={{
-                position: "absolute", inset: 0,
-                backgroundImage: `url(${data.cover})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-                filter: "blur(18px) brightness(0.4) saturate(1.3)",
-                transform: "scale(1.3)",
-                opacity: hover ? 0.6 : 0.45,
-                transition: "opacity 0.3s ease",
-              }}
-            />
-          )}
-          {/* 深灰渐变半透明遮罩：左 #2E3835 → 右 70%透明（封面透过） */}
+        {/* 模糊封面作为背景（透过渐变可见） */}
+        {data.cover && (
           <div
             style={{
               position: "absolute", inset: 0,
-              background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 70%)",
+              backgroundImage: `url(${data.cover})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              filter: "blur(18px) brightness(0.4) saturate(1.3)",
+              transform: "scale(1.3)",
+              opacity: hover ? 0.6 : 0.45,
+              transition: "opacity 0.3s ease",
             }}
           />
-          {/* 右侧不透明遮挡，避免 lime 透过半透明背景显露 */}
-          {!isLoadedSet(set) && !isDownloaded && (
-            <div
-              style={{
-                position: "absolute",
-                top: 0, right: 0, bottom: 0,
-                width: 16,
-                background: "#2E3835",
-                borderRadius: "0 20px 20px 0",
-              }}
-            />
-          )}
-        </div>
+        )}
+        {/* 深灰渐变半透明遮罩：左 #2E3835 → 右 70%透明（封面透过） */}
+        <div
+          style={{
+            position: "absolute", inset: 0,
+            background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 70%)",
+          }}
+        />
 
         {/* 内容层 */}
         <div
@@ -302,7 +264,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           </div>
         </div>
 
-        {/* 右侧操作按钮（叠在底层 lime 面板上，hover 时淡入） */}
+        {/* 右侧 lime 操作面板：hover 时从右侧滑入，被信息区圆角裁切 */}
         {!isLoadedSet(set) && !isDownloaded && (
           <div
             onClick={(e) => e.stopPropagation()}
@@ -317,8 +279,11 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               alignItems: "center",
               justifyContent: "center",
               gap: 12,
-              opacity: hover ? 1 : 0,
-              transition: "opacity 0.25s cubic-bezier(0.22,1,0.36,1) 0.1s",
+              background: "#D4F792",
+              maskImage: "radial-gradient(10px at 0 50%, transparent 99%, black)",
+              WebkitMaskImage: "radial-gradient(10px at 0 50%, transparent 99%, black)",
+              transform: hover ? "translateX(0)" : "translateX(100%)",
+              transition: "transform 0.3s cubic-bezier(0.22,1,0.36,1)",
               zIndex: 4,
             }}
           >
