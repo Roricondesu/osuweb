@@ -89,8 +89,18 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
   const isDownloaded = useGameStore((s) => s.downloaded.has(setId));
   const bgTask = useGameStore((s) => s.bgDownloads.find((t) => t.setId === setId));
   const [hover, setHover] = useState(false);
+  const [isTouch, setIsTouch] = useState(false);
   const toggleFavorite = useFavoritesStore((s) => s.toggleFavorite);
   const isFavorite = useFavoritesStore((s) => s.isFavorite(data.id));
+
+  // 检测触摸设备
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+    const update = () => setIsTouch(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   // 试听音频状态
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -171,11 +181,23 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
     .sort((a, b) => (a.difficulty_rating || 0) - (b.difficulty_rating || 0))
     .slice(0, 8);
 
+  const handleClick = () => {
+    if (isTouch) {
+      if (hover) {
+        navigate(`/set/${data.id}`);
+      } else {
+        setHover(true);
+      }
+    } else {
+      navigate(`/set/${data.id}`);
+    }
+  };
+
   return (
     <div
-      onClick={() => navigate(`/set/${data.id}`)}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => { setHover(false); if (playing) stopPreview(); }}
+      onClick={handleClick}
+      onMouseEnter={() => { if (!isTouch) setHover(true); }}
+      onMouseLeave={() => { if (!isTouch) { setHover(false); if (playing) stopPreview(); } }}
       style={{
         cursor: "pointer",
         position: "relative",
