@@ -1,0 +1,146 @@
+name: 🐛 Bug 报告 / Bug Report
+description: 报告 osu!web 中的问题，帮助我们改进 / Report an issue in osu!web to help us improve
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你抽时间反馈问题！在提交前，请先搜索已有 Issue 以避免重复。
+        Thank you for taking the time to report an issue! Please search existing issues before submitting to avoid duplicates.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述 / Description
+      description: 简要清晰地描述遇到了什么问题。/ A clear and concise description of what the issue is.
+      placeholder: "例如：在 osu!mania 模式下切换全屏后，下落式音符位置错乱。/ e.g., After toggling fullscreen in osu!mania, the falling notes are misaligned."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: 复现步骤 / Steps to Reproduce
+      description: 请给出可以稳定复现问题的步骤。/ Provide steps that reliably reproduce the issue.
+      placeholder: |
+        1. 打开 '...'
+        2. 点击 '....'
+        3. 切换到 '....' 模式
+        4. 出现问题
+        1. Go to '...'
+        2. Click on '....'
+        3. Switch to '....' mode
+        4. See the issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: 期望行为 / Expected Behavior
+      description: 你期望发生什么？/ What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: 实际行为 / Actual Behavior
+      description: 实际上发生了什么？/ What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图 / Screenshots
+      description: 如有截图或录屏请附上，可直接拖拽到此处。/ If applicable, attach screenshots or screen recordings. You can drag and drop them here.
+    validations:
+      required: false
+
+  - type: input
+    id: browser
+    attributes:
+      label: 浏览器 / Browser
+      description: 你使用的浏览器及版本。/ The browser and version you are using.
+      placeholder: "例如：Chrome 126 / Edge 126 / Safari 17"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: 操作系统 / Operating System
+      description: 你使用的操作系统。/ The operating system you are using.
+      placeholder: "例如：Windows 11 / macOS 14 / Android 14 / iOS 17"
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: 设备 / Device
+      description: 若为移动端或特定设备，请注明。/ If on mobile or a specific device, please specify.
+      placeholder: "例如：iPhone 14 / Pixel 8 / 桌面端 Desktop"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: search-source
+    attributes:
+      label: 搜索源 / Search Source
+      description: 若问题与谱面搜索或下载有关，请选择使用的搜索源。/ If the issue is related to beatmap search or download, pick the source you used.
+      options:
+        - osu.direct
+        - Sayobot
+        - Kitsu
+        - Chimu
+        - 本地导入 .osz / Local .osz import
+        - 不适用 / N/A
+    validations:
+      required: false
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: 游戏模式 / Game Mode
+      description: 问题出现在哪种游戏模式？/ Which game mode did the issue occur in?
+      options:
+        - osu!standard
+        - osu!taiko
+        - osu!catch
+        - osu!mania
+        - Storyboard
+        - 多个模式 / Multiple modes
+        - 不在游戏中 / Not in-game
+    validations:
+      required: false
+
+  - type: input
+    id: beatmap-link
+    attributes:
+      label: 谱面链接（可选）/ Beatmap Link (optional)
+      description: 若问题与特定谱面有关，请提供谱面集 ID 或链接。/ If the issue is related to a specific beatmap, provide the beatmap set ID or link.
+      placeholder: "例如：https://osu.direct/s/123456 或 #123456"
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 控制台日志（可选）/ Console Logs (optional)
+      description: 请打开浏览器开发者工具（通常 F12），复制 Console 中的相关报错信息。如有大量日志，可仅保留关键部分。/ Open the browser dev tools (usually F12) and paste relevant errors from the Console. For large logs, keep only the key parts.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: 确认 / Confirmation
+      options:
+        - label: 我已搜索过现有 Issue，确认这不是重复报告。/ I have searched existing issues and confirmed this is not a duplicate.
+          required: true
+        - label: 我未在公开 Issue 中提交任何版权内容（谱面 / 音乐 / 皮肤）。/ I have not attached any copyrighted content (beatmaps / music / skins) in this issue.
+          required: true
