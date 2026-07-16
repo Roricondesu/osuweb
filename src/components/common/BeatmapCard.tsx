@@ -265,7 +265,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           zIndex: 3,
         }}
       >
-        {/* 操作面板：最底层 zIndex:1，hover 时内容区向左缩露出面板 */}
+        {/* 操作面板：最底层 zIndex:1，被覆盖部分用 clip-path 真正裁掉 */}
         {!isLoadedSet(set) && !downloaded && (
           <div
             onClick={(e) => e.stopPropagation()}
@@ -281,7 +281,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               justifyContent: "center",
               gap: 12,
               background: isDownloaded ? "#D4F792" : "#5C6970",
-              transition: "background 0.45s cubic-bezier(0.22,1,0.36,1)",
+              transition: "background 0.45s cubic-bezier(0.22,1,0.36,1), clip-path 0.3s cubic-bezier(0.22,1,0.36,1)",
+              clipPath: hover ? "inset(0 0 0 0)" : "inset(0 0 0 100%)",
               zIndex: 1,
             }}
           >
