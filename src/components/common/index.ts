@@ -12,19 +12,3 @@ export { BgDownloadWidget } from "./BgDownloadWidget";
 export { OsuModeIcon, OsuModeIconById } from "./OsuIcons";
 export { OsuLogoIcon } from "./OsuLogoIcon";
 export { OsuModIcon } from "./OsuModIcons";
-export {
-  AppearanceIcon,
-  AudioIcon,
-  TimingIcon,
-  GameIcon,
-  KeysIcon,
-  ModIcon,
-  SkinIcon,
-  SearchSettingIcon,
-  NetworkIcon,
-  DownloadIcon,
-  DisplayIcon,
-  LyricsIcon,
-  AdvancedIcon,
-  AboutIcon,
-} from "./SettingIcons";
