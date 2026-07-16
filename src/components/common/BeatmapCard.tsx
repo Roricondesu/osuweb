@@ -409,7 +409,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
                 backgroundImage: `url(${data.cover})`,
                 backgroundSize: "cover",
                 backgroundPosition: "center",
-                filter: "blur(18px) brightness(0.4) saturate(1.3)",
+                filter: "blur(0px) brightness(0.4) saturate(1.3)",
                 transform: "scale(1.3)",
                 opacity: hover ? 0.6 : 0.45,
                 transition: "opacity 0.3s ease",
