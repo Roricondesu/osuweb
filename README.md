@@ -1,12 +1,14 @@
 <div align="center">
 
+<img src="https://capsule-render.vercel.app/api?type=waving&color=ff9ecf&height=220&section=header&text=osu!web&fontSize=72&fontColor=ffffff&fontAlignY=38&desc=在浏览器里畅玩%20osu!%20谱面&descSize=18&descAlignY=58&animation=fadeIn" width="100%" alt="osu!web banner" />
+
+<br/>
+
 <p>
   <img src="public/favicon.svg" width="120" height="120" alt="osu!web logo" />
 </p>
 
-# osu!web
-
-**在浏览器里畅玩 osu! 谱面 · 纯前端 osu! 客户端**
+**纯前端 osu! 客户端**
 
 `Standard` · `Taiko` · `Catch` · `Mania` · `Storyboard` · `歌词` · `Auto` · `回放`
 
@@ -198,4 +200,8 @@ osu-web/
 
 <div align="center">
   <sub>Built with <svg width="11" height="11" viewBox="0 0 24 24" fill="#ff66aa" style="vertical-align:middle"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg> by osu!web contributors</sub>
+</div>
+
+<div align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=ff9ecf&height=120&section=footer" width="100%" alt="footer" />
 </div>

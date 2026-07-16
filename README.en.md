@@ -1,12 +1,14 @@
 <div align="center">
 
+<img src="https://capsule-render.vercel.app/api?type=waving&color=ff9ecf&height=220&section=header&text=osu!web&fontSize=72&fontColor=ffffff&fontAlignY=38&desc=Play%20osu!%20beatmaps%20in%20your%20browser&descSize=18&descAlignY=58&animation=fadeIn" width="100%" alt="osu!web banner" />
+
+<br/>
+
 <p>
   <img src="public/favicon.svg" width="120" height="120" alt="osu!web logo" />
 </p>
 
-# osu!web
-
-**Play osu! beatmaps right in your browser · A pure frontend osu! client**
+**A pure frontend osu! client**
 
 `Standard` · `Taiko` · `Catch` · `Mania` · `Storyboard` · `Lyrics` · `Auto` · `Replay`
 
@@ -198,4 +200,8 @@ This project is licensed under the [MIT License](./LICENSE).
 
 <div align="center">
   <sub>Built with <svg width="11" height="11" viewBox="0 0 24 24" fill="#ff66aa" style="vertical-align:middle"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg> by osu!web contributors</sub>
+</div>
+
+<div align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=ff9ecf&height=120&section=footer" width="100%" alt="footer" />
 </div>
