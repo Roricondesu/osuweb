@@ -59,6 +59,7 @@ const SectionHeader: React.FC<{
 const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
+  const [direction, setDirection] = useState<1 | -1>(1);
   const timerRef = useRef<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -72,19 +73,22 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
 
   useEffect(() => {
     setIndex(0);
+    setDirection(1);
   }, [sets]);
 
-  const goTo = useCallback((i: number) => {
+  const goTo = useCallback((i: number, dir: 1 | -1 = 1) => {
+    setDirection(dir);
     setIndex(((i % sets.length) + sets.length) % sets.length);
   }, [sets.length]);
 
-  const next = useCallback(() => goTo(index + 1), [index, goTo]);
-  const prev = useCallback(() => goTo(index - 1), [index, goTo]);
+  const next = useCallback(() => goTo(index + 1, 1), [index, goTo]);
+  const prev = useCallback(() => goTo(index - 1, -1), [index, goTo]);
 
   useEffect(() => {
     if (sets.length <= 1) return;
     if (timerRef.current) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
+      setDirection(1);
       setIndex((i) => (i + 1) % sets.length);
     }, HERO_ROTATE_MS);
     return () => {
@@ -122,12 +126,14 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
       onClick={() => navigate(`/set/${set.id}`)}
     >
       <div
+        key={index}
         style={{
           display: "flex",
           flexDirection: isMobile ? "column" : "row",
           alignItems: "stretch",
           minHeight: isMobile ? 0 : 200,
           maxHeight: isMobile ? "none" : 240,
+          animation: `${direction === 1 ? "hero-slide-next" : "hero-slide-prev"} 0.5s cubic-bezier(0.22,1,0.36,1) both`,
         }}
       >
         {/* 左侧/顶部封面 */}
