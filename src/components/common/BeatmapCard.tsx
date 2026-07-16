@@ -187,7 +187,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           style={{
             position: "relative",
             height: "100%",
-            padding: hover && !isLoadedSet(set) && !downloaded ? "7px 48px 7px 10px" : "7px 10px",
+            padding: hover && !isLoadedSet(set) && !downloaded ? "7px 40px 7px 10px" : "7px 10px",
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
@@ -264,7 +264,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           </div>
         </div>
 
-        {/* 右侧 lime 操作面板：hover 时从右侧滑入，被信息区圆角裁切 */}
+        {/* 右侧操作面板：hover 时从右侧滑入；未下载灰、下载完成后丝滑切 lime */}
         {!isLoadedSet(set) && !downloaded && (
           <div
             onClick={(e) => e.stopPropagation()}
@@ -273,15 +273,15 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               top: 0,
               right: 0,
               bottom: 0,
-              width: 38,
+              width: 32,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
               gap: 12,
-              background: "#D4F792",
+              background: isDownloaded ? "#D4F792" : "#5C6970",
+              transition: "background 0.45s cubic-bezier(0.22,1,0.36,1), transform 0.3s cubic-bezier(0.22,1,0.36,1)",
               transform: hover ? "translateX(0)" : "translateX(100%)",
-              transition: "transform 0.3s cubic-bezier(0.22,1,0.36,1)",
               zIndex: 4,
             }}
           >
@@ -292,17 +292,17 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
                 background: "transparent",
                 border: "none",
                 padding: 4,
-                color: "#2E3835",
+                color: isDownloaded ? "#2E3835" : "#fff",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 opacity: hover ? 1 : 0,
                 transform: hover ? "scale(1)" : "scale(0.7)",
-                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.1s",
+                transition: "color 0.45s cubic-bezier(0.22,1,0.36,1), all 0.25s cubic-bezier(0.22,1,0.36,1) 0.1s",
               }}
             >
-              <Heart size={16} fill={isFavorite ? "#2E3835" : "none"} />
+              <Heart size={16} fill={isFavorite ? (isDownloaded ? "#2E3835" : "#fff") : "none"} />
             </button>
             {isDownloaded ? (
               <span
@@ -327,7 +327,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
                   background: "transparent",
                   border: "none",
                   padding: 4,
-                  color: "#2E3835",
+                  color: "#fff",
                   cursor: isDownloading ? "default" : "pointer",
                   display: "flex",
                   alignItems: "center",
