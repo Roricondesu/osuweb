@@ -1,14 +1,12 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=ff9ecf&height=220&section=header&text=osu!web&fontSize=72&fontColor=ffffff&fontAlignY=38&desc=Play%20osu!%20beatmaps%20in%20your%20browser&descSize=18&descAlignY=58&animation=fadeIn" width="100%" alt="osu!web banner" />
-
-<br/>
-
 <p>
   <img src="public/favicon.svg" width="120" height="120" alt="osu!web logo" />
 </p>
 
-**A pure frontend osu! client**
+# osu!web
+
+**Play osu! beatmaps right in your browser**
 
 `Standard` · `Taiko` · `Catch` · `Mania` · `Storyboard` · `Lyrics` · `Auto` · `Replay`
 
@@ -17,7 +15,7 @@
 </p>
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-osu.yuiro.top-ff9ecf?style=for-the-badge)](https://osu.yuiro.top)
-[![License](https://img.shields.io/badge/License-MIT-22b14c?style=for-the-badge)](./LICENSE)
+[![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-EF9421?style=for-the-badge)](./LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-ff9ecf?style=for-the-badge)](./CONTRIBUTING.md)
 
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white&style=for-the-badge)](https://react.dev)
@@ -32,7 +30,7 @@
 
 ## Introduction
 
-osu!web is a **purely frontend** osu! client — no installation, no backend. Open the browser and start playing osu! beatmaps. The project implements a complete game engine with native Canvas 2D, supports all four osu! game modes, and integrates beatmap search, download, Storyboard, lyrics, and replay features.
+osu!web is a browser-based osu! client — no installation, no backend. Open the browser and start playing osu! beatmaps. The project implements a complete game engine with native Canvas 2D, supports all four osu! game modes, and integrates beatmap search, download, Storyboard, lyrics, and replay features.
 
 > This is a non-commercial open-source project for learning and communication only. It is not affiliated with osu! official. All beatmaps are copyrighted by their respective authors.
 
@@ -172,7 +170,7 @@ osu-web/
 
 ## Deployment
 
-Pure static frontend — deploy `dist/` to any static hosting service:
+Deploy the `dist/` build to any static hosting service:
 
 [![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-222?logo=github&logoColor=white&style=for-the-badge)](https://pages.github.com)
 [![Vercel](https://img.shields.io/badge/Vercel-000?logo=vercel&logoColor=white&style=for-the-badge)](https://vercel.com)
@@ -194,7 +192,7 @@ Issues and Pull Requests are welcome! Please read the [Contributing Guidelines](
 
 ## License
 
-This project is licensed under the [MIT License](./LICENSE).
+This project is licensed under [CC BY-NC 4.0](./LICENSE). Non-commercial use, modification, and distribution are allowed with attribution.
 
 > Note: osu! beatmaps, music, skins and other content are copyrighted by their respective authors. This project does not store any such content — it only provides client-side playback.
 

@@ -1,14 +1,12 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=ff9ecf&height=220&section=header&text=osu!web&fontSize=72&fontColor=ffffff&fontAlignY=38&desc=在浏览器里畅玩%20osu!%20谱面&descSize=18&descAlignY=58&animation=fadeIn" width="100%" alt="osu!web banner" />
-
-<br/>
-
 <p>
   <img src="public/favicon.svg" width="120" height="120" alt="osu!web logo" />
 </p>
 
-**纯前端 osu! 客户端**
+# osu!web
+
+**在浏览器里畅玩 osu! 谱面**
 
 `Standard` · `Taiko` · `Catch` · `Mania` · `Storyboard` · `歌词` · `Auto` · `回放`
 
@@ -17,7 +15,7 @@
 </p>
 
 [![在线体验](https://img.shields.io/badge/在线体验-osu.yuiro.top-ff9ecf?style=for-the-badge)](https://osu.yuiro.top)
-[![License](https://img.shields.io/badge/License-MIT-22b14c?style=for-the-badge)](./LICENSE)
+[![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-EF9421?style=for-the-badge)](./LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-ff9ecf?style=for-the-badge)](./CONTRIBUTING.md)
 
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white&style=for-the-badge)](https://react.dev)
@@ -32,7 +30,7 @@
 
 ## 项目简介
 
-osu!web 是一个**纯前端**的 osu! 客户端，无需安装、无需后端，打开浏览器即可游玩 osu! 谱面。项目使用原生 Canvas 2D 实现完整的游戏引擎，支持 osu! 全部四种游戏模式，并集成谱面搜索、下载、Storyboard、歌词、回放等功能。
+osu!web 是一个 osu! 浏览器客户端，无需安装、无需后端，打开浏览器即可游玩 osu! 谱面。项目使用原生 Canvas 2D 实现完整的游戏引擎，支持 osu! 全部四种游戏模式，并集成谱面搜索、下载、Storyboard、歌词、回放等功能。
 
 > 本项目为非盈利性开源项目，仅供学习与交流使用，与 osu! 官方无任何关联。所有谱面版权归原作者所有。
 
@@ -172,7 +170,7 @@ osu-web/
 
 ## 部署
 
-纯静态前端，构建后部署 `dist/` 到任意静态托管服务：
+构建后部署 `dist/` 到任意静态托管服务：
 
 [![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-222?logo=github&logoColor=white&style=for-the-badge)](https://pages.github.com)
 [![Vercel](https://img.shields.io/badge/Vercel-000?logo=vercel&logoColor=white&style=for-the-badge)](https://vercel.com)
@@ -194,7 +192,7 @@ osu-web/
 
 ## 许可证
 
-本项目基于 [MIT License](./LICENSE) 开源。
+本项目基于 [CC BY-NC 4.0](./LICENSE) 协议开源，允许任何非商业性使用、修改与分发，使用时须署名。
 
 > 注意：osu! 谱面、音乐、皮肤等内容版权归原作者所有，本项目不存储任何此类内容，仅提供客户端播放能力。
 
