@@ -265,15 +265,6 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           zIndex: 3,
         }}
       >
-        {/* 不透明衬托底层 */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "#5C6970",
-            zIndex: 0,
-          }}
-        />
         {/* 操作面板：zIndex:1，宽度含圆角溢出区，被覆盖部分用 clip-path 裁掉 */}
         {!isLoadedSet(set) && !downloaded && (
           <div
@@ -357,6 +348,16 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             )}
           </div>
         )}
+
+        {/* 不透明衬托层：在面板上方、内容层下方，填满信息区圆角空隙 */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "#5C6970",
+            zIndex: 2,
+          }}
+        />
 
         {/* 内容层：覆盖面板，hover 时 right 缩进露出面板 */}
         <div
