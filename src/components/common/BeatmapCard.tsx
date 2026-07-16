@@ -278,7 +278,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               padding: "0 5px",
               display: "flex",
               flexDirection: "column",
-              alignItems: "center",
+              alignItems: "flex-end",
               justifyContent: "center",
               gap: 12,
               background: isDownloaded ? "#D4F792" : "#5C6970",
