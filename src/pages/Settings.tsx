@@ -36,7 +36,7 @@ const ACCENTS = [
 
 interface SectionItem {
   id: string;
-  icon: React.ComponentType<{ size?: number; color?: string; className?: string; strokeWidth?: number }>;
+  icon: React.ComponentType<{ size?: string | number; color?: string; className?: string; strokeWidth?: number }>;
   title: string;
 }
 
