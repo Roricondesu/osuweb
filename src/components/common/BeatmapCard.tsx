@@ -265,7 +265,16 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           zIndex: 3,
         }}
       >
-        {/* 操作面板：最底层 zIndex:1，宽度含圆角溢出区，被覆盖部分用 clip-path 裁掉 */}
+        {/* 不透明衬托底层 */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "#5C6970",
+            zIndex: 0,
+          }}
+        />
+        {/* 操作面板：zIndex:1，宽度含圆角溢出区，被覆盖部分用 clip-path 裁掉 */}
         {!isLoadedSet(set) && !downloaded && (
           <div
             onClick={(e) => e.stopPropagation()}
