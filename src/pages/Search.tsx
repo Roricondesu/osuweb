@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGameStore } from "@/store/useGameStore";
-import { BeatmapCard } from "@/components/common";
+import { BeatmapCard, OsuLogoIcon } from "@/components/common";
 import { Search as SearchIcon, X, SlidersHorizontal, ArrowDownUp, Film, Image } from "lucide-react";
 import { OsuModeIcon } from "@/components/common";
 import type { GameMode, BeatmapSet } from "@/types";
@@ -487,14 +487,7 @@ export default function Search() {
       {/* 加载中 */}
       {loading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: "64px 0" }}>
-          <div
-            style={{
-              width: 32, height: 32, borderRadius: "50%",
-              border: "3px solid var(--glass-border)",
-              borderTopColor: "var(--accent)",
-              animation: "spin-slow 0.8s linear infinite",
-            }}
-          />
+          <OsuLogoIcon size={48} color="var(--accent)" className="loading-entrance" />
         </div>
       ) : filteredResults.length === 0 ? (
         <div
@@ -520,14 +513,7 @@ export default function Search() {
               ref={sentinelRef}
               style={{ display: "flex", justifyContent: "center", padding: "32px 0" }}
             >
-              <div
-                style={{
-                  width: 24, height: 24, borderRadius: "50%",
-                  border: "2px solid var(--glass-border)",
-                  borderTopColor: "var(--accent)",
-                  animation: "spin-slow 0.8s linear infinite",
-                }}
-              />
+              <OsuLogoIcon size={32} color="var(--accent)" className="loading-entrance" />
             </div>
           )}
         </>

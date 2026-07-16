@@ -5,6 +5,7 @@ import { createEngine, type GameEngine, type ScoreState } from "@/engine";
 import { GlassButton } from "@/components/glass/GlassButton";
 import { ModSelectOverlay } from "@/components/game/ModSelectOverlay";
 import { RotateCcw, ArrowLeft, Pause, Play, Menu, X, Maximize, Minimize, Eye, Home, Zap } from "lucide-react";
+import { OsuLogoIcon } from "@/components/common";
 import type { GameMode, Replay, ScoreRecord } from "@/types";
 import { MODE_LABEL } from "@/types";
 import { useOrientation } from "@/hooks/useOrientation";
@@ -454,14 +455,7 @@ export default function Game() {
             WebkitBackdropFilter: "blur(20px)",
           }}
         >
-          <div
-            style={{
-              width: 36, height: 36, borderRadius: "50%",
-              border: "3px solid var(--glass-border)",
-              borderTopColor: "var(--lazer-accent)",
-              animation: "spin-slow 0.8s linear infinite",
-            }}
-          />
+          <OsuLogoIcon size={56} color="var(--lazer-accent)" className="loading-entrance" />
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600, margin: 0 }}>
             加载谱面中…
           </p>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "@/store/useGameStore";
-import { BeatmapCover, StoryboardBadge, VideoBadge, StarRatingBar, OsuModeIcon } from "@/components/common";
+import { BeatmapCover, StoryboardBadge, VideoBadge, StarRatingBar, OsuModeIcon, OsuLogoIcon } from "@/components/common";
 import { ModSelectOverlay } from "@/components/game/ModSelectOverlay";
 import { ArrowLeft, Download, Play, Loader2, CheckCircle2, Trophy, Heart } from "lucide-react";
 import type { GameMode, Beatmap, ScoreRecord } from "@/types";
@@ -252,7 +252,7 @@ export default function BeatmapSetDetail() {
               alt={detailSet?.title}
               placeholderSize={72}
               loading={isLoading}
-              loadingIndicator={<Loader2 size={40} className="animate-spin" style={{ color: "var(--text-secondary)" }} />}
+              loadingIndicator={<OsuLogoIcon size={56} color="var(--accent)" className="loading-entrance" />}
               style={{ position: "absolute", inset: 0 }}
               imgStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
@@ -342,7 +342,7 @@ export default function BeatmapSetDetail() {
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 8 }}>
                   <span style={{ color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
                     {bgTask?.status === "extracting" ? (
-                      <><Loader2 size={13} className="animate-spin" /> 解压中…</>
+                      <><Loader2 size={13} className="animate-spin" style={{ animationDuration: "1.5s" }} /> 解压中…</>
                     ) : (
                       <><Download size={13} /> 后台下载中…</>
                     )}

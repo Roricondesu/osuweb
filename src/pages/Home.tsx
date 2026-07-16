@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useGameStore } from "@/store/useGameStore";
-import { BeatmapCard, BeatmapCover, StarRatingBar, ModeBadge, OsuModeIcon, StoryboardBadge, VideoBadge } from "@/components/common";
+import { BeatmapCard, BeatmapCover, StarRatingBar, ModeBadge, OsuModeIcon, StoryboardBadge, VideoBadge, OsuLogoIcon } from "@/components/common";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Search as SearchIcon, Flame, Heart } from "lucide-react";
 import type { GameMode, BeatmapSet } from "@/types";
@@ -417,14 +417,7 @@ export default function Home() {
       {/* 加载中 */}
       {loading && searchResults.length === 0 ? (
         <div style={{ display: "flex", justifyContent: "center", padding: "64px 0" }}>
-          <div
-            style={{
-              width: 32, height: 32, borderRadius: "50%",
-              border: "3px solid var(--glass-border)",
-              borderTopColor: "var(--accent)",
-              animation: "spin-slow 0.8s linear infinite",
-            }}
-          />
+          <OsuLogoIcon size={48} color="var(--accent)" className="loading-entrance" />
         </div>
       ) : (
         <>

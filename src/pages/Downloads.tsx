@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useGameStore } from "@/store/useGameStore";
-import { BeatmapCard } from "@/components/common";
+import { BeatmapCard, OsuLogoIcon } from "@/components/common";
 import {
   HardDrive,
   Upload,
@@ -253,8 +253,15 @@ export default function Downloads() {
       </div>
 
       {!downloadsReady ? (
-        <div className="py-12 text-center sm:py-16" style={{ color: "var(--text-secondary)" }}>
-          加载中…
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "48px 0",
+          }}
+        >
+          <OsuLogoIcon size={48} color="var(--accent)" className="loading-entrance" />
         </div>
       ) : items.length === 0 ? (
         <div
