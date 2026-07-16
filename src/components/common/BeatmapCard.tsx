@@ -354,7 +354,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             position: "absolute",
             top: 0, bottom: 0, left: 0,
             right: hover && !isLoadedSet(set) && !downloaded ? 32 : 0,
-            borderRadius: 10,
+            borderRadius: "10px 0 0 10px",
             overflow: "hidden",
             transition: "right 0.3s cubic-bezier(0.22,1,0.36,1)",
             zIndex: 3,
