@@ -15,6 +15,7 @@ import {
   Wifi,
   Trash2,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { Settings, ModType, KeyBindings } from "@/types";
 import { DEFAULT_SETTINGS, DEFAULT_KEY_BINDINGS, MOD_LABEL, MOD_COLOR, defaultManiaKeys } from "@/types";
 import { checkApiHealth, type ApiHealthResult } from "@/utils/apiHealth";
@@ -36,7 +37,7 @@ const ACCENTS = [
 
 interface SectionItem {
   id: string;
-  icon: React.ComponentType<{ size?: string | number; color?: string; className?: string; strokeWidth?: number }>;
+  icon: LucideIcon;
   title: string;
 }
 
