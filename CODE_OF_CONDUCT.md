@@ -42,7 +42,7 @@
 
 ### 执行
 
-辱骂、骚扰或其他不可接受的行为可通过 **osuweb@example.com** 联系项目团队进行举报。所有投诉都将得到及时且公正的审查和调查。
+辱骂、骚扰或其他不可接受的行为可通过 **i@yuiro.top** 联系项目团队进行举报。所有投诉都将得到及时且公正的审查和调查。
 
 所有社区维护者都有义务尊重举报者的隐私与安全。
 
@@ -111,7 +111,7 @@ This Code of Conduct applies within all community spaces, and also applies when 
 
 ### Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement at **osuweb@example.com**.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement at **i@yuiro.top**.
 
 All complaints will be reviewed and investigated promptly and fairly.
 

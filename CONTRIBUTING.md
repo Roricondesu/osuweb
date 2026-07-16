@@ -133,7 +133,7 @@ chore(deps): 升级 zustand 到 5.0.3
 - 仓库仅包含项目源代码与必要的开发资源（字体、图标、favicon 等）。如需添加静态资源，请确认其许可证允许再分发。
 - 代码中如需引用第三方资源，请使用运行时按需加载（如通过第三方公开 API 获取），而非硬编码进仓库。
 
-如发现误提交了版权内容，请尽快在 PR 中移除，或通过 [osuweb@example.com](mailto:osuweb@example.com) 联系维护者处理。
+如发现误提交了版权内容，请尽快在 PR 中移除，或通过 [i@yuiro.top](mailto:i@yuiro.top) 联系维护者处理。
 
 ### 致谢
 
@@ -276,7 +276,7 @@ Please follow these principles when contributing:
 - The repository contains only project source code and necessary development assets (fonts, icons, favicon, etc.). If you need to add static assets, verify that their license permits redistribution first.
 - When third-party resources are needed in code, load them at runtime (e.g., via public third-party APIs) rather than hardcoding them into the repo.
 
-If you find copyrighted content was committed by mistake, remove it in a PR as soon as possible, or contact maintainers via [osuweb@example.com](mailto:osuweb@example.com).
+If you find copyrighted content was committed by mistake, remove it in a PR as soon as possible, or contact maintainers via [i@yuiro.top](mailto:i@yuiro.top).
 
 ### Acknowledgements
 
