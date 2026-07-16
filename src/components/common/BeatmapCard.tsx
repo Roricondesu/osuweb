@@ -313,6 +313,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  padding: 4,
                   color: "#2E3835",
                   opacity: hover ? 1 : 0,
                   transform: hover ? "scale(1)" : "scale(0.7)",
