@@ -28,13 +28,13 @@
 
 ---
 
-## 项目简介
+## <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg> 项目简介
 
 osu!web 是一个 osu! 浏览器客户端，无需安装、无需后端，打开浏览器即可游玩 osu! 谱面。项目使用原生 Canvas 2D 实现完整的游戏引擎，支持 osu! 全部四种游戏模式，并集成谱面搜索、下载、Storyboard、歌词、回放等功能。
 
 > 本项目为非盈利性开源项目，仅供学习与交流使用，与 osu! 官方无任何关联。所有谱面版权归原作者所有。
 
-## 功能特性
+## <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg> 功能特性
 
 | 模块 | 说明 |
 | --- | --- |
@@ -53,7 +53,7 @@ osu!web 是一个 osu! 浏览器客户端，无需安装、无需后端，打开
 | <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16V11M12 16V7M17 16v-3"/></svg> **FPS 显示** | 游戏内右下角实时显示帧率 |
 | <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg> **主题切换** | 明 / 暗主题 + 6 种主题色 |
 
-## 技术栈
+## <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg> 技术栈
 
 | 类别 | 选型 |
 | --- | --- |
@@ -69,7 +69,7 @@ osu!web 是一个 osu! 浏览器客户端，无需安装、无需后端，打开
 | 图标 | Lucide React |
 | 字体 | Code Pro / AlimamaFangYuanTi |
 
-## 快速开始
+## <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg> 快速开始
 
 ### 环境要求
 
@@ -98,7 +98,7 @@ pnpm check
 pnpm lint
 ```
 
-## 项目结构
+## <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M20 10a4 4 0 0 0-4-4 4 4 0 0 0-8 0 4 4 0 0 0-4 4v2a2 2 0 0 0 2 2h2"/><path d="M6 18h4"/><path d="M14 10h4"/><path d="M12 14h.01"/><path d="M17 16h-.01"/><path d="M14 21h-4"/><path d="M10 21v-6h6"/><path d="M16 21v-6"/></svg> 项目结构
 
 ```text
 osu-web/
@@ -129,7 +129,7 @@ osu-web/
 └── README.md
 ```
 
-## 支持的文件格式
+## <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 13h6"/><path d="M9 17h3"/></svg> 支持的文件格式
 
 | 格式 | 说明 |
 | --- | --- |
@@ -141,7 +141,7 @@ osu-web/
 | `.mp4` | 视频背景 |
 | `.png` / `.jpg` / `.jpeg` / `.webp` | 图片资源 |
 
-## 设置项一览
+## <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/></svg> 设置项一览
 
 | 分类 | 设置项 |
 | --- | --- |
@@ -157,7 +157,7 @@ osu-web/
 | **高级** | 观赏模式、自动圆圈模式、光标拖尾、光标按压、光标大小、Auto 速度 |
 | **关于** | 项目信息、API 健康检查、清理缓存 |
 
-## 路由
+## <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg> 路由
 
 | 路径 | 页面 |
 | --- | --- |
@@ -168,7 +168,7 @@ osu-web/
 | `/downloads` | 下载管理 |
 | `/settings` | 设置 |
 
-## 部署
+## <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg> 部署
 
 构建后部署 `dist/` 到任意静态托管服务：
 
@@ -177,11 +177,11 @@ osu-web/
 [![Netlify](https://img.shields.io/badge/Netlify-00C7B7?logo=netlify&logoColor=white&style=for-the-badge)](https://netlify.com)
 [![Cloudflare Pages](https://img.shields.io/badge/Cloudflare%20Pages-F38020?logo=cloudflarepages&logoColor=white&style=for-the-badge)](https://pages.cloudflare.com)
 
-## 参与贡献
+## <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> 参与贡献
 
 欢迎提交 Issue 与 Pull Request！请先阅读 [贡献指南](./CONTRIBUTING.md) 与 [行为准则](./CODE_OF_CONDUCT.md)。
 
-## 致谢
+## <svg width="18" height="18" viewBox="0 0 24 24" fill="#ff66aa" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg> 致谢
 
 - [osu!](https://osu.ppy.sh/) 社区与谱面作者
 - [Sayobot](https://osu.sayobot.cn/) 搜索服务
@@ -190,7 +190,7 @@ osu-web/
 - [Chimu](https://chimu.moe/) 谱面镜像
 - [LRCLIB](https://lrclib.net/) 开源歌词
 
-## 许可证
+## <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff66aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg> 许可证
 
 本项目基于 [CC BY-NC 4.0](./LICENSE) 协议开源，允许任何非商业性使用、修改与分发，使用时须署名。
 
