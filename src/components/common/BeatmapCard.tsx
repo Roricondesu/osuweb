@@ -102,6 +102,19 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
     return () => mq.removeEventListener("change", update);
   }, []);
 
+  // 试听音频状态
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const previewUrl = getPreviewUrl(set);
+
+  const stopPreview = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setPlaying(false);
+  }, []);
+
   // 点击/触摸卡片外部取消悬停
   const cardRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -117,19 +130,6 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
       document.removeEventListener("pointerdown", handleOutside);
     };
   }, [hover, playing, stopPreview]);
-
-  // 试听音频状态
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const previewUrl = getPreviewUrl(set);
-
-  const stopPreview = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-    setPlaying(false);
-  }, []);
 
   // 组件卸载时清理音频
   useEffect(() => {
