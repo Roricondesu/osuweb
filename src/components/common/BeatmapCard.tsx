@@ -265,125 +265,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           zIndex: 3,
         }}
       >
-        {/* 模糊封面作为背景（透过渐变可见） */}
-        {data.cover && (
-          <div
-            style={{
-              position: "absolute", inset: 0,
-              backgroundImage: `url(${data.cover})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              filter: "blur(18px) brightness(0.4) saturate(1.3)",
-              transform: "scale(1.3)",
-              opacity: hover ? 0.6 : 0.45,
-              transition: "opacity 0.3s ease",
-            }}
-          />
-        )}
-        {/* 深灰渐变半透明遮罩：左 #2E3835 → 右 70%透明（封面透过） */}
-        <div
-          style={{
-            position: "absolute", inset: 0,
-            background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 70%)",
-          }}
-        />
-
-        {/* 内容层 */}
-        <div
-          style={{
-            position: "relative",
-            height: "100%",
-            padding: hover && !isLoadedSet(set) && !downloaded ? "7px 40px 7px 10px" : "7px 10px",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            overflow: "hidden",
-            transition: "padding 0.3s cubic-bezier(0.22,1,0.36,1)",
-            zIndex: 3,
-          }}
-        >
-          {/* 上部：标题 + 艺人 + mapper */}
-          <div style={{ minHeight: 0, overflow: "hidden" }}>
-            <div
-              className="font-torus"
-              style={{
-                fontSize: 15, fontWeight: 600,
-                color: "#fff",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                letterSpacing: "-0.01em",
-                lineHeight: 1.2,
-              }}
-            >
-              {data.title}
-            </div>
-            <div
-              style={{
-                fontSize: 12, fontWeight: 500,
-                color: "rgba(255,255,255,0.7)",
-                marginTop: 1,
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                lineHeight: 1.3,
-              }}
-            >
-              {data.artist}
-            </div>
-            {data.creator && (
-              <div
-                style={{
-                  fontSize: 11, fontWeight: 500,
-                  color: "#dbefe8",
-                  marginTop: 1,
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  lineHeight: 1.3,
-                }}
-              >
-                by {data.creator}
-              </div>
-            )}
-          </div>
-
-          {/* 下部：状态徽章 + 模式图标 + 难度色块 */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-              flexWrap: "nowrap",
-              overflow: "hidden",
-            }}
-          >
-            <StatusBadge status={data.status} />
-            {data.modes.map((m) => (
-              <OsuModeIconById key={m} mode={m} size={14} color="#fff" />
-            ))}
-            {data.hasStoryboard && <StoryboardBadge />}
-            {data.hasVideo && <VideoBadge />}
-            {/* 难度色块：每个难度一个竖条，颜色按星级 */}
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-              {sortedDiffs.map((b) => (
-                <div
-                  key={b.id}
-                  title={`${b.version} ★${(b.difficulty_rating || 0).toFixed(2)}`}
-                  style={{
-                    width: 5,
-                    height: 11,
-                    borderRadius: 2,
-                    background: starColor(b.difficulty_rating || 0),
-                    opacity: 0.9,
-                  }}
-                />
-              ))}
-              <span
-                className="hud-num font-torus"
-                style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.75)", marginLeft: 4 }}
-              >
-                {data.maxStars.toFixed(2)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* 右侧操作面板：hover 时从右侧滑入；未下载灰、下载完成后丝滑切 lime */}
+        {/* 操作面板：最底层 zIndex:1，hover 时内容区向左缩露出面板 */}
         {!isLoadedSet(set) && !downloaded && (
           <div
             onClick={(e) => e.stopPropagation()}
@@ -399,9 +281,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               justifyContent: "center",
               gap: 12,
               background: isDownloaded ? "#D4F792" : "#5C6970",
-              transition: "background 0.45s cubic-bezier(0.22,1,0.36,1), transform 0.3s cubic-bezier(0.22,1,0.36,1)",
-              transform: hover ? "translateX(0)" : "translateX(100%)",
-              zIndex: 4,
+              transition: "background 0.45s cubic-bezier(0.22,1,0.36,1)",
+              zIndex: 1,
             }}
           >
             <button
@@ -465,6 +346,136 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             )}
           </div>
         )}
+
+        {/* 内容层：覆盖面板，hover 时 right 缩进露出面板 */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0, bottom: 0, left: 0,
+            right: hover && !isLoadedSet(set) && !downloaded ? 32 : 0,
+            borderRadius: 10,
+            overflow: "hidden",
+            transition: "right 0.3s cubic-bezier(0.22,1,0.36,1)",
+            zIndex: 3,
+          }}
+        >
+          {/* 模糊封面作为背景（透过渐变可见） */}
+          {data.cover && (
+            <div
+              style={{
+                position: "absolute", inset: 0,
+                backgroundImage: `url(${data.cover})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                filter: "blur(18px) brightness(0.4) saturate(1.3)",
+                transform: "scale(1.3)",
+                opacity: hover ? 0.6 : 0.45,
+                transition: "opacity 0.3s ease",
+              }}
+            />
+          )}
+          {/* 深灰渐变半透明遮罩：左 #2E3835 → 右 70%透明（封面透过） */}
+          <div
+            style={{
+              position: "absolute", inset: 0,
+              background: "linear-gradient(90deg, #2E3835 0%, rgba(46,56,53,0.1) 70%)",
+            }}
+          />
+
+          {/* 内容 */}
+          <div
+            style={{
+              position: "relative",
+              height: "100%",
+              padding: "7px 10px",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              overflow: "hidden",
+              zIndex: 3,
+            }}
+          >
+            {/* 上部：标题 + 艺人 + mapper */}
+            <div style={{ minHeight: 0, overflow: "hidden" }}>
+              <div
+                className="font-torus"
+                style={{
+                  fontSize: 15, fontWeight: 600,
+                  color: "#fff",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  letterSpacing: "-0.01em",
+                  lineHeight: 1.2,
+                }}
+              >
+                {data.title}
+              </div>
+              <div
+                style={{
+                  fontSize: 12, fontWeight: 500,
+                  color: "rgba(255,255,255,0.7)",
+                  marginTop: 1,
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  lineHeight: 1.3,
+                }}
+              >
+                {data.artist}
+              </div>
+              {data.creator && (
+                <div
+                  style={{
+                    fontSize: 11, fontWeight: 500,
+                    color: "#dbefe8",
+                    marginTop: 1,
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                    lineHeight: 1.3,
+                  }}
+                >
+                  by {data.creator}
+                </div>
+              )}
+            </div>
+
+            {/* 下部：状态徽章 + 模式图标 + 难度色块 */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                flexWrap: "nowrap",
+                overflow: "hidden",
+              }}
+            >
+              <StatusBadge status={data.status} />
+              {data.modes.map((m) => (
+                <OsuModeIconById key={m} mode={m} size={14} color="#fff" />
+              ))}
+              {data.hasStoryboard && <StoryboardBadge />}
+              {data.hasVideo && <VideoBadge />}
+              {/* 难度色块：每个难度一个竖条，颜色按星级 */}
+              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+                {sortedDiffs.map((b) => (
+                  <div
+                    key={b.id}
+                    title={`${b.version} ★${(b.difficulty_rating || 0).toFixed(2)}`}
+                    style={{
+                      width: 5,
+                      height: 11,
+                      borderRadius: 2,
+                      background: starColor(b.difficulty_rating || 0),
+                      opacity: 0.9,
+                    }}
+                  />
+                ))}
+                <span
+                  className="hud-num font-torus"
+                  style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.75)", marginLeft: 4 }}
+                >
+                  {data.maxStars.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
