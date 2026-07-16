@@ -349,11 +349,15 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           </div>
         )}
 
-        {/* 不透明衬托层：在面板上方、内容层下方，填满信息区圆角空隙 */}
+        {/* 不透明衬托层：在面板上方、内容层下方，随内容层一起缩进 */}
         <div
           style={{
             position: "absolute",
-            inset: 0,
+            top: 0, bottom: 0, left: 0,
+            right: hover && !isLoadedSet(set) && !downloaded ? 32 : 0,
+            borderRadius: 10,
+            overflow: "hidden",
+            transition: "right 0.3s cubic-bezier(0.22,1,0.36,1)",
             background: "#5C6970",
             zIndex: 2,
           }}
