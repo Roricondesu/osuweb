@@ -4,7 +4,7 @@ import { StatusBadge } from "./StatusBadge";
 import { BeatmapCover } from "./BeatmapCover";
 import { StoryboardBadge, VideoBadge } from "./StoryboardBadge";
 import { useNavigate } from "react-router-dom";
-import { Download, Loader2, CheckCircle2, Heart } from "lucide-react";
+import { Download, Loader2, CheckCircle2, Heart, Trash2 } from "lucide-react";
 import { OsuModeIconById } from "./OsuIcons";
 import { useGameStore } from "@/store/useGameStore";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
@@ -14,6 +14,8 @@ interface BeatmapCardProps {
   index?: number;
   /** 是否作为已下载卡片展示（带下载完成标识） */
   downloaded?: boolean;
+  /** 删除回调（下载页使用，显示删除按钮） */
+  onDelete?: () => void;
 }
 
 const isLoadedSet = (s: BeatmapSet | LoadedBeatmapSet): s is LoadedBeatmapSet =>
@@ -79,7 +81,7 @@ const getCardData = (s: BeatmapSet | LoadedBeatmapSet) => {
   };
 };
 
-export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index = 0, downloaded = false }) => {
+export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index = 0, downloaded = false, onDelete }) => {
   const navigate = useNavigate();
   const data = getCardData(set);
   const setId = data.id;
@@ -157,6 +159,11 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     toggleFavorite(data.id);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete?.();
   };
 
   // 难度按星级排序，最多显示 8 个
@@ -266,96 +273,114 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
         }}
       >
         {/* 操作面板：zIndex:1，宽度含圆角溢出区，被覆盖部分用 clip-path 裁掉 */}
-        {!isLoadedSet(set) && !downloaded && (
-          <div
-            onClick={(e) => e.stopPropagation()}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: 42,
+            padding: "0 4px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            justifyContent: "center",
+            gap: 12,
+            background: isDownloaded || downloaded || isLoadedSet(set) ? "#D4F792" : "#5C6970",
+            transition: "background 0.45s cubic-bezier(0.22,1,0.36,1), clip-path 0.3s cubic-bezier(0.22,1,0.36,1)",
+            clipPath: hover ? "inset(0 0 0 0)" : "inset(0 0 0 100%)",
+            zIndex: 1,
+          }}
+        >
+          <button
+            onClick={handleFavoriteClick}
+            aria-label={isFavorite ? "取消收藏" : "收藏"}
             style={{
-              position: "absolute",
-              top: 0,
-              right: 0,
-              bottom: 0,
-              width: 42,
-              padding: "0 4px",
+              background: "transparent",
+              border: "none",
+              padding: 4,
+              color: isDownloaded || downloaded || isLoadedSet(set) ? "#2E3835" : "#fff",
+              cursor: "pointer",
               display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
+              alignItems: "center",
               justifyContent: "center",
-              gap: 12,
-              background: isDownloaded ? "#D4F792" : "#5C6970",
-              transition: "background 0.45s cubic-bezier(0.22,1,0.36,1), clip-path 0.3s cubic-bezier(0.22,1,0.36,1)",
-              clipPath: hover ? "inset(0 0 0 0)" : "inset(0 0 0 100%)",
-              zIndex: 1,
+              opacity: hover ? 1 : 0,
+              transform: hover ? "scale(1)" : "scale(0.7)",
+              transition: "color 0.45s cubic-bezier(0.22,1,0.36,1), all 0.25s cubic-bezier(0.22,1,0.36,1) 0.1s",
             }}
           >
+            <Heart size={16} fill={isFavorite ? (isDownloaded || downloaded || isLoadedSet(set) ? "#2E3835" : "#fff") : "none"} />
+          </button>
+          {downloaded || isLoadedSet(set) ? (
             <button
-              onClick={handleFavoriteClick}
-              aria-label={isFavorite ? "取消收藏" : "收藏"}
+              onClick={handleDeleteClick}
+              aria-label="删除"
               style={{
                 background: "transparent",
                 border: "none",
                 padding: 4,
-                color: isDownloaded ? "#2E3835" : "#fff",
+                color: "#2E3835",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 opacity: hover ? 1 : 0,
                 transform: hover ? "scale(1)" : "scale(0.7)",
-                transition: "color 0.45s cubic-bezier(0.22,1,0.36,1), all 0.25s cubic-bezier(0.22,1,0.36,1) 0.1s",
+                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.15s",
               }}
             >
-              <Heart size={16} fill={isFavorite ? (isDownloaded ? "#2E3835" : "#fff") : "none"} />
+              <Trash2 size={16} />
             </button>
-            {isDownloaded ? (
-              <span
-                aria-label="已下载"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: 4,
-                  color: "#2E3835",
-                  opacity: hover ? 1 : 0,
-                  transform: hover ? "scale(1)" : "scale(0.7)",
-                  transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.15s",
-                }}
-              >
-                <CheckCircle2 size={16} />
-              </span>
-            ) : (
-              <button
-                onClick={handleDownloadClick}
-                aria-label={isDownloading ? "下载中" : "后台下载"}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  padding: 4,
-                  color: "#fff",
-                  cursor: isDownloading ? "default" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: hover ? 1 : 0,
-                  transform: hover ? "scale(1)" : "scale(0.7)",
-                  transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.15s",
-                }}
-              >
-                {isDownloading ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Download size={16} />
-                )}
-              </button>
-            )}
-          </div>
-        )}
+          ) : isDownloaded ? (
+            <span
+              aria-label="已下载"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 4,
+                color: "#2E3835",
+                opacity: hover ? 1 : 0,
+                transform: hover ? "scale(1)" : "scale(0.7)",
+                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.15s",
+              }}
+            >
+              <CheckCircle2 size={16} />
+            </span>
+          ) : (
+            <button
+              onClick={handleDownloadClick}
+              aria-label={isDownloading ? "下载中" : "后台下载"}
+              style={{
+                background: "transparent",
+                border: "none",
+                padding: 4,
+                color: "#fff",
+                cursor: isDownloading ? "default" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: hover ? 1 : 0,
+                transform: hover ? "scale(1)" : "scale(0.7)",
+                transition: "all 0.25s cubic-bezier(0.22,1,0.36,1) 0.15s",
+              }}
+            >
+              {isDownloading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Download size={16} />
+              )}
+            </button>
+          )}
+        </div>
 
         {/* 不透明衬托层：在面板上方、内容层下方，随内容层一起缩进 */}
         <div
           style={{
             position: "absolute",
             top: 0, bottom: 0, left: 0,
-            right: hover && !isLoadedSet(set) && !downloaded ? 32 : 0,
+            right: hover ? 32 : 0,
             borderRadius: 10,
             overflow: "hidden",
             transition: "right 0.3s cubic-bezier(0.22,1,0.36,1)",
@@ -369,7 +394,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           style={{
             position: "absolute",
             top: 0, bottom: 0, left: 0,
-            right: hover && !isLoadedSet(set) && !downloaded ? 32 : 0,
+            right: hover ? 32 : 0,
             borderRadius: 10,
             overflow: "hidden",
             transition: "right 0.3s cubic-bezier(0.22,1,0.36,1)",

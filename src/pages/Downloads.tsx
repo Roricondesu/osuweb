@@ -11,7 +11,6 @@ import {
   Calendar,
   Type,
   Star,
-  X,
 } from "lucide-react";
 import type { LoadedBeatmapSet } from "@/types";
 
@@ -121,44 +120,8 @@ const DownloadCard: React.FC<{
   index: number;
   onDelete: () => void;
 }> = React.memo(({ set, index, onDelete }) => {
-  const [hover, setHover] = useState(false);
-
   return (
-    <div
-      style={{ position: "relative" }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      <BeatmapCard set={set} index={index} downloaded />
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        aria-label="删除"
-        style={{
-          position: "absolute",
-          top: 8,
-          right: 8,
-          width: 26,
-          height: 26,
-          borderRadius: "50%",
-          border: "none",
-          background: "rgba(0,0,0,0.55)",
-          color: "var(--error)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          transition: "all 0.2s ease",
-          opacity: hover ? 1 : 0,
-          transform: hover ? "scale(1)" : "scale(0.8)",
-          zIndex: 10,
-        }}
-      >
-        <X size={12} />
-      </button>
-    </div>
+    <BeatmapCard set={set} index={index} downloaded onDelete={onDelete} />
   );
 });
 DownloadCard.displayName = "DownloadCard";
