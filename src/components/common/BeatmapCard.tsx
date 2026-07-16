@@ -1,11 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import type { BeatmapSet, LoadedBeatmapSet, Beatmap } from "@/types";
-import { StarRatingBar } from "./StarRatingBar";
 import { StatusBadge } from "./StatusBadge";
 import { BeatmapCover } from "./BeatmapCover";
 import { StoryboardBadge, VideoBadge } from "./StoryboardBadge";
 import { useNavigate } from "react-router-dom";
-import { Download, Loader2, CheckCircle2, Heart } from "lucide-react";
+import { Download, Loader2, CheckCircle2, Heart, Play, Pause } from "lucide-react";
 import { OsuModeIconById } from "./OsuIcons";
 import { useGameStore } from "@/store/useGameStore";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
@@ -19,6 +18,24 @@ interface BeatmapCardProps {
 
 const isLoadedSet = (s: BeatmapSet | LoadedBeatmapSet): s is LoadedBeatmapSet =>
   "setId" in s && typeof s.setId === "number";
+
+/** 星级渐变色（osu! 官方：绿→黄→红→紫） */
+const starColor = (s: number): string => {
+  if (s >= 9) return "#9966ff";
+  if (s >= 7) return "#ff375f";
+  if (s >= 5.5) return "#ff9100";
+  if (s >= 4) return "#ffb800";
+  if (s >= 2.5) return "#66cc44";
+  return "#0a84ff";
+};
+
+/** 获取试听音频 URL */
+const getPreviewUrl = (set: BeatmapSet | LoadedBeatmapSet): string | null => {
+  if (isLoadedSet(set)) {
+    return set.audioUrl || null;
+  }
+  return `https://b.ppy.sh/preview/${set.id}.mp3`;
+};
 
 const getCardData = (s: BeatmapSet | LoadedBeatmapSet) => {
   if (isLoadedSet(s)) {
@@ -73,6 +90,61 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
   const toggleFavorite = useFavoritesStore((s) => s.toggleFavorite);
   const isFavorite = useFavoritesStore((s) => s.isFavorite(data.id));
 
+  // 试听音频状态
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const previewUrl = getPreviewUrl(set);
+
+  const stopPreview = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setPlaying(false);
+  }, []);
+
+  // 组件卸载时清理音频
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  const handlePlayClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!previewUrl) return;
+
+    if (playing) {
+      stopPreview();
+      return;
+    }
+
+    // 停止其他可能正在播放的音频
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+
+    const audio = new Audio(previewUrl);
+    audio.volume = 0.7;
+    audioRef.current = audio;
+
+    audio.addEventListener("ended", () => setPlaying(false));
+    audio.addEventListener("error", () => setPlaying(false));
+
+    audio.play().then(() => {
+      setPlaying(true);
+      // 10 秒后自动停止
+      setTimeout(() => {
+        if (audioRef.current === audio) {
+          stopPreview();
+        }
+      }, 10000);
+    }).catch(() => setPlaying(false));
+  };
+
   const isDownloading = bgTask && (bgTask.status === "downloading" || bgTask.status === "extracting");
 
   const handleDownloadClick = (e: React.MouseEvent) => {
@@ -87,11 +159,16 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
     toggleFavorite(data.id);
   };
 
+  // 难度按星级排序，最多显示 8 个
+  const sortedDiffs = [...data.beatmaps]
+    .sort((a, b) => (a.difficulty_rating || 0) - (b.difficulty_rating || 0))
+    .slice(0, 8);
+
   return (
     <div
       onClick={() => navigate(`/set/${data.id}`)}
       onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onMouseLeave={() => { setHover(false); if (playing) stopPreview(); }}
       style={{
         cursor: "pointer",
         position: "relative",
@@ -131,20 +208,45 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             transition: "transform 0.4s cubic-bezier(0.22,1,0.36,1)",
           }}
         />
-        {/* 难度计数徽章（左下角黑色圆） */}
+        {/* hover 变暗遮罩 */}
         <div
           style={{
-            position: "absolute", bottom: 5, left: 5,
-            minWidth: 20, height: 20, borderRadius: 10,
-            padding: "0 5px",
-            background: "rgba(0,0,0,0.75)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 10, fontWeight: 700, color: "#fff",
-            lineHeight: 1,
+            position: "absolute", inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            opacity: hover ? 1 : 0,
+            transition: "opacity 0.25s ease",
+            zIndex: 3,
           }}
-        >
-          {data.beatmaps.length}
-        </div>
+        />
+        {/* 播放按钮 */}
+        {previewUrl && (
+          <button
+            onClick={handlePlayClick}
+            aria-label={playing ? "停止试听" : "试听 10 秒"}
+            style={{
+              position: "absolute",
+              top: "50%", left: "50%",
+              transform: hover
+                ? "translate(-50%, -50%) scale(1)"
+                : "translate(-50%, -50%) scale(0.5)",
+              width: 38, height: 38, borderRadius: "50%",
+              border: "none",
+              background: playing ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.9)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer",
+              opacity: hover ? 1 : 0,
+              transition: "all 0.25s cubic-bezier(0.22,1,0.36,1)",
+              zIndex: 4,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+            }}
+          >
+            {playing ? (
+              <Pause size={18} fill="#2E3835" color="#2E3835" />
+            ) : (
+              <Play size={18} fill="#2E3835" color="#2E3835" style={{ marginLeft: 2 }} />
+            )}
+          </button>
+        )}
       </div>
 
       {/* 右侧信息盒：封面叠 7px，深灰渐变半透明遮罩 + 模糊封面透过 */}
@@ -236,7 +338,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             )}
           </div>
 
-          {/* 下部：状态徽章 + 模式图标 + 星级色点 */}
+          {/* 下部：状态徽章 + 模式图标 + 难度色块 */}
           <div
             style={{
               display: "flex",
@@ -252,11 +354,24 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             ))}
             {data.hasStoryboard && <StoryboardBadge />}
             {data.hasVideo && <VideoBadge />}
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-              <StarRatingBar stars={data.maxStars} variant="dots" />
+            {/* 难度色块：每个难度一个竖条，颜色按星级 */}
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+              {sortedDiffs.map((b) => (
+                <div
+                  key={b.id}
+                  title={`${b.version} ★${(b.difficulty_rating || 0).toFixed(2)}`}
+                  style={{
+                    width: 4,
+                    height: 14,
+                    borderRadius: 2,
+                    background: starColor(b.difficulty_rating || 0),
+                    opacity: 0.9,
+                  }}
+                />
+              ))}
               <span
                 className="hud-num font-torus"
-                style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}
+                style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.75)", marginLeft: 4 }}
               >
                 {data.maxStars.toFixed(2)}
               </span>
