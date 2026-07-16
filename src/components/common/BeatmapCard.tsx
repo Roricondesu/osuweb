@@ -4,7 +4,7 @@ import { StatusBadge } from "./StatusBadge";
 import { BeatmapCover } from "./BeatmapCover";
 import { StoryboardBadge, VideoBadge } from "./StoryboardBadge";
 import { useNavigate } from "react-router-dom";
-import { Download, Loader2, CheckCircle2, Heart, Play, Pause } from "lucide-react";
+import { Download, Loader2, CheckCircle2, Heart } from "lucide-react";
 import { OsuModeIconById } from "./OsuIcons";
 import { useGameStore } from "@/store/useGameStore";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
@@ -229,21 +229,25 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               transform: hover
                 ? "translate(-50%, -50%) scale(1)"
                 : "translate(-50%, -50%) scale(0.5)",
-              width: 38, height: 38, borderRadius: "50%",
               border: "none",
-              background: playing ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.9)",
+              padding: 0,
+              background: "transparent",
               display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer",
               opacity: hover ? 1 : 0,
               transition: "all 0.25s cubic-bezier(0.22,1,0.36,1)",
               zIndex: 4,
-              boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
             }}
           >
             {playing ? (
-              <Pause size={18} fill="#2E3835" color="#2E3835" />
+              <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+                <rect x="6" y="4" width="4" height="18" rx="2" fill="#fff" />
+                <rect x="16" y="4" width="4" height="18" rx="2" fill="#fff" />
+              </svg>
             ) : (
-              <Play size={18} fill="#2E3835" color="#2E3835" style={{ marginLeft: 2 }} />
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <path d="M7 4.5 L23 14 L7 23.5 Z" fill="#fff" rx="3" />
+              </svg>
             )}
           </button>
         )}
@@ -361,8 +365,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
                   key={b.id}
                   title={`${b.version} ★${(b.difficulty_rating || 0).toFixed(2)}`}
                   style={{
-                    width: 4,
-                    height: 14,
+                    width: 5,
+                    height: 11,
                     borderRadius: 2,
                     background: starColor(b.difficulty_rating || 0),
                     opacity: 0.9,
