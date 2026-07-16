@@ -102,23 +102,21 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
     return () => mq.removeEventListener("change", update);
   }, []);
 
-  // 触摸设备点击外部取消悬停
+  // 点击/触摸卡片外部取消悬停
   const cardRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!isTouch || !hover) return;
-    const handleOutside = (e: TouchEvent | MouseEvent) => {
+    if (!hover) return;
+    const handleOutside = (e: PointerEvent) => {
       if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
         setHover(false);
         if (playing) stopPreview();
       }
     };
-    document.addEventListener("touchstart", handleOutside, { passive: true });
-    document.addEventListener("click", handleOutside);
+    document.addEventListener("pointerdown", handleOutside);
     return () => {
-      document.removeEventListener("touchstart", handleOutside);
-      document.removeEventListener("click", handleOutside);
+      document.removeEventListener("pointerdown", handleOutside);
     };
-  }, [isTouch, hover, playing, stopPreview]);
+  }, [hover, playing, stopPreview]);
 
   // 试听音频状态
   const audioRef = useRef<HTMLAudioElement | null>(null);
