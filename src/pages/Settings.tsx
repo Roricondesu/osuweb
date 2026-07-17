@@ -364,12 +364,12 @@ const OffsetWizard: React.FC<{
   const [taps, setTaps] = useState<number[]>([]);
   const [suggested, setSuggested] = useState<number | null>(null);
   const [beatPulseKey, setBeatPulseKey] = useState(0);
-  const [beatIsAccent, setBeatIsAccent] = useState(false);
+  const [beatPosition, setBeatPosition] = useState(0);
   const [tapRecords, setTapRecords] = useState<{ index: number; delta: number }[]>([]);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const accentBeatTimesRef = useRef<number[]>([]);
-  const scheduledBeatsRef = useRef<{ time: number; accent: boolean; fired: boolean }[]>([]);
+  const scheduledBeatsRef = useRef<{ time: number; accent: boolean; pos: number; fired: boolean }[]>([]);
   const tapsRef = useRef<number[]>([]);
   const nextBeatTimeRef = useRef<number>(0);
   const beatIndexRef = useRef<number>(0);
@@ -416,6 +416,7 @@ const OffsetWizard: React.FC<{
     setSuggested(null);
     setTapRecords([]);
     setBeatPulseKey(0);
+    setBeatPosition(0);
 
     const startAt = ctx.currentTime + 0.3;
     nextBeatTimeRef.current = startAt;
@@ -427,8 +428,9 @@ const OffsetWizard: React.FC<{
       while (nextBeatTimeRef.current < c.currentTime + 0.2) {
         const idx = beatIndexRef.current;
         const accent = idx % ACCENT_EVERY === 0;
+        const pos = idx % ACCENT_EVERY;
         playClick(c, nextBeatTimeRef.current, accent);
-        scheduledBeatsRef.current.push({ time: nextBeatTimeRef.current, accent, fired: false });
+        scheduledBeatsRef.current.push({ time: nextBeatTimeRef.current, accent, pos, fired: false });
         if (accent) accentBeatTimesRef.current.push(nextBeatTimeRef.current);
         beatIndexRef.current = idx + 1;
         nextBeatTimeRef.current += BEAT_INTERVAL;
@@ -496,7 +498,7 @@ const OffsetWizard: React.FC<{
           if (!b.fired && now >= b.time) {
             b.fired = true;
             setBeatPulseKey((k) => k + 1);
-            setBeatIsAccent(b.accent);
+            setBeatPosition(b.pos);
           }
         }
         // 清理过期记录
@@ -558,11 +560,6 @@ const OffsetWizard: React.FC<{
           0% { transform: scale(0.5); opacity: 0.9; }
           100% { transform: scale(1.8); opacity: 0; }
         }
-        @keyframes wiz-core {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.25); }
-          100% { transform: scale(1); }
-        }
       `}</style>
       <div className="text-sm font-semibold" style={{ color: "var(--text-primary)", marginBottom: 4 }}>
         {t("audio.offsetWizard")}
@@ -580,7 +577,7 @@ const OffsetWizard: React.FC<{
 
       {running && (
         <div className="flex flex-col gap-3">
-          {/* 节拍脉冲可视化 */}
+          {/* 4 圆节拍可视化 */}
           <div
             className="wiz-pulse-area"
             onClick={handleTap}
@@ -588,61 +585,63 @@ const OffsetWizard: React.FC<{
             tabIndex={0}
             style={{
               position: "relative",
-              height: 88,
+              height: 110,
               borderRadius: 12,
               background: "rgba(0,0,0,0.18)",
               border: "1px solid var(--glass-border)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              gap: 18,
               cursor: "pointer",
               overflow: "hidden",
               userSelect: "none",
             }}
           >
-            {/* 拍号指示：4 格 */}
-            <div style={{ position: "absolute", top: 6, left: 0, right: 0, display: "flex", justifyContent: "space-around", pointerEvents: "none" }}>
-              {[0, 1, 2, 3].map((i) => (
-                <span
+            {[0, 1, 2, 3].map((i) => {
+              const isActive = i === beatPosition;
+              const isAccent = i === 0;
+              const baseColor = isAccent ? "var(--accent)" : "var(--text-secondary)";
+              return (
+                <div
                   key={i}
                   style={{
-                    fontSize: 9,
-                    fontWeight: 700,
-                    color: i === 0 ? "var(--accent)" : "var(--text-secondary)",
-                    opacity: i === 0 ? 0.9 : 0.4,
+                    position: "relative",
+                    width: isActive ? 56 : 36,
+                    height: isActive ? 56 : 36,
+                    borderRadius: "50%",
+                    background: isActive ? baseColor : "transparent",
+                    border: `2px solid ${isActive ? baseColor : "var(--glass-border)"}`,
+                    boxShadow: isActive
+                      ? isAccent
+                        ? "0 0 24px var(--accent), 0 0 8px var(--accent)"
+                        : "0 0 12px var(--text-secondary)"
+                      : "none",
+                    opacity: isActive ? 1 : isAccent ? 0.5 : 0.3,
+                    transition: "all 0.12s cubic-bezier(0.22, 1, 0.36, 1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
-                  {i === 0 ? "♪" : "·"}
-                </span>
-              ))}
-            </div>
-            {/* 脉冲环 */}
-            <div
-              key={`pulse-${beatPulseKey}`}
-              style={{
-                position: "absolute",
-                width: beatIsAccent ? 64 : 44,
-                height: beatIsAccent ? 64 : 44,
-                borderRadius: "50%",
-                border: `2px solid ${beatIsAccent ? "var(--accent)" : "var(--text-secondary)"}`,
-                opacity: 0,
-                animation: "wiz-pulse 0.6s ease-out",
-                pointerEvents: "none",
-              }}
-            />
-            {/* 中心核 */}
-            <div
-              key={`core-${beatPulseKey}`}
-              style={{
-                width: beatIsAccent ? 22 : 14,
-                height: beatIsAccent ? 22 : 14,
-                borderRadius: "50%",
-                background: beatIsAccent ? "var(--accent)" : "var(--text-secondary)",
-                boxShadow: beatIsAccent ? "0 0 16px var(--accent)" : "none",
-                animation: "wiz-core 0.25s ease-out",
-                pointerEvents: "none",
-              }}
-            />
+                  {/* 当前拍脉冲扩散环 */}
+                  {isActive && (
+                    <div
+                      key={`ring-${beatPulseKey}`}
+                      style={{
+                        position: "absolute",
+                        inset: -4,
+                        borderRadius: "50%",
+                        border: `2px solid ${baseColor}`,
+                        opacity: 0,
+                        animation: "wiz-pulse 0.6s ease-out",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
             {/* 提示文字（首次点击前） */}
             {tapRecords.length === 0 && (
               <div
