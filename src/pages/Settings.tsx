@@ -427,8 +427,8 @@ const OffsetWizard: React.FC<{
       if (!c) return;
       while (nextBeatTimeRef.current < c.currentTime + 0.2) {
         const idx = beatIndexRef.current;
-        const accent = idx % ACCENT_EVERY === 0;
         const pos = idx % ACCENT_EVERY;
+        const accent = pos === ACCENT_EVERY - 1;
         playClick(c, nextBeatTimeRef.current, accent);
         scheduledBeatsRef.current.push({ time: nextBeatTimeRef.current, accent, pos, fired: false });
         if (accent) accentBeatTimesRef.current.push(nextBeatTimeRef.current);
@@ -600,7 +600,7 @@ const OffsetWizard: React.FC<{
           >
             {[0, 1, 2, 3].map((i) => {
               const isActive = i === beatPosition;
-              const isAccent = i === 0;
+              const isAccent = i === 3;
               const baseColor = isAccent ? "var(--accent)" : "var(--text-secondary)";
               return (
                 <div
