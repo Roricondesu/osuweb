@@ -435,26 +435,19 @@ export default function Settings() {
 
   return (
     <div className="page-shell">
-      <div
+      {/* 左侧分类栏 - 桌面端悬浮固定在屏幕上 */}
+      <aside
         style={{
-          display: "flex",
-          gap: 20,
-          minHeight: "calc(100vh - var(--nav-height) - 60px)",
+          position: "fixed",
+          left: "max(24px, calc(50vw - 576px))",
+          top: 28,
+          width: 200,
+          maxHeight: "calc(100vh - 56px)",
+          overflowY: "auto",
+          zIndex: 10,
         }}
+        className="hidden md:block"
       >
-        {/* 左侧分类栏 */}
-        <aside
-          style={{
-            width: 200,
-            flexShrink: 0,
-            position: "sticky",
-            top: 12,
-            alignSelf: "flex-start",
-            maxHeight: "calc(100vh - 24px)",
-            overflowY: "auto",
-          }}
-          className="hidden md:block"
-        >
           <div
             style={{
               padding: 6,
@@ -499,8 +492,11 @@ export default function Settings() {
           </div>
         </aside>
 
-        {/* 右侧内容 */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        {/* 右侧内容（桌面端预留左侧悬浮栏空间） */}
+        <div
+          className="md:pl-[220px]"
+          style={{ minHeight: "calc(100vh - var(--nav-height) - 60px)" }}
+        >
           {/* 移动端：icon-only 横向滚动标签栏 */}
           <div
             className="md:hidden no-scrollbar"
@@ -1324,7 +1320,6 @@ export default function Settings() {
             </div>
           </SectionPanel>
         </div>
-      </div>
     </div>
   );
 }
