@@ -3,7 +3,6 @@ import { useGameStore } from "@/store/useGameStore";
 import { X, Zap } from "lucide-react";
 import type { ModType } from "@/types";
 import { MOD_LABEL, MOD_COLOR } from "@/types";
-import { OsuModIcon } from "@/components/common/OsuModIcons";
 
 interface ModSelectOverlayProps {
   open: boolean;
@@ -132,19 +131,12 @@ export const ModSelectOverlay: React.FC<ModSelectOverlayProps> = ({ open, onClos
                       }}
                     >
                       <div style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: 4,
+                        fontSize: 13, fontWeight: 700,
+                        color: active ? "#fff" : "var(--text-primary)",
+                        textShadow: active ? `0 0 8px ${color}88` : "none",
+                        textAlign: "center",
                       }}>
-                        <OsuModIcon mod={mod} size={36} style={{ filter: active ? "none" : "grayscale(0.3) opacity(0.7)" }} />
-                        <div style={{
-                          fontSize: 11, fontWeight: 700,
-                          color: active ? "#fff" : "var(--text-primary)",
-                          textShadow: active ? `0 0 8px ${color}88` : "none",
-                        }}>
-                          {MOD_LABEL[mod]}
-                        </div>
+                        {MOD_LABEL[mod]}
                       </div>
                       {active && (
                         <div style={{
