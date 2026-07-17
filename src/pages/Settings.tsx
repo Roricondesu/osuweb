@@ -15,16 +15,8 @@ import {
   Wifi,
   Trash2,
   Languages,
-  Globe,
   Sparkles,
   Database,
-  ExternalLink,
-  Gamepad,
-  Film,
-  Eye,
-  Music2,
-  Wand2,
-  Palette as PaletteIcon,
   Search,
   Download,
   Mic2,
@@ -36,7 +28,6 @@ import { checkApiHealth, type ApiHealthResult } from "@/utils/apiHealth";
 import { deleteReplay, loadReplays } from "@/utils/replayStorage";
 import { useTranslation, SUPPORTED_LANGUAGES } from "@/i18n";
 import type { TranslationKey, Language } from "@/i18n";
-import { OsuLogoIcon } from "@/components/common";
 
 const ALL_MODS: ModType[] = [
   "easy", "notail", "halfTime", "hardRock", "suddenDeath",
@@ -1313,13 +1304,13 @@ export default function Settings() {
 
             {/* 关于 */}
             {activeSection === "about" && (() => {
-              const features: { icon: LucideIcon; key: TranslationKey; color: string }[] = [
-                { icon: Gamepad, key: "about.feature.modes", color: "#ff66aa" },
-                { icon: Film, key: "about.feature.storyboard", color: "#38bdf8" },
-                { icon: Eye, key: "about.feature.replay", color: "#4ade80" },
-                { icon: Music2, key: "about.feature.hitSounds", color: "#facc15" },
-                { icon: Wand2, key: "about.feature.mods", color: "#a78bfa" },
-                { icon: PaletteIcon, key: "about.feature.skins", color: "#fb923c" },
+              const techs: { key: TranslationKey; color: string }[] = [
+                { key: "about.tech.react", color: "#61dafb" },
+                { key: "about.tech.ts", color: "#3178c6" },
+                { key: "about.tech.vite", color: "#a855f7" },
+                { key: "about.tech.canvas", color: "#facc15" },
+                { key: "about.tech.zustand", color: "#ff66aa" },
+                { key: "about.tech.tailwind", color: "#38bdf8" },
               ];
               const sources: { icon: LucideIcon; key: TranslationKey; color: string }[] = [
                 { icon: Search, key: "about.source.search", color: "#38bdf8" },
@@ -1328,129 +1319,88 @@ export default function Settings() {
               ];
               return (
                 <div className="flex flex-col gap-5">
-                  {/* Hero 卡片 */}
-                  <div
-                    style={{
-                      position: "relative",
-                      overflow: "hidden",
-                      borderRadius: "var(--radius-lg)",
-                      padding: "28px 24px",
-                      background: "linear-gradient(135deg, rgba(255,102,170,0.12), rgba(56,189,248,0.10))",
-                      border: "1px solid var(--glass-border)",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-                      <div
-                        style={{
-                          width: 64, height: 64, borderRadius: "50%",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          background: "rgba(255,255,255,0.06)",
-                          border: "1px solid var(--glass-border)",
-                          flexShrink: 0,
-                        }}
-                      >
-                        <OsuLogoIcon size={40} color="var(--accent)" />
-                      </div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <h3 className="font-torus" style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.02em" }}>
-                          osu!web
-                        </h3>
-                        <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "4px 0 0", lineHeight: 1.5 }}>
-                          {t("about.tagline")}
-                        </p>
-                      </div>
-                      <a
-                        href="https://osu.yuiro.top"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-torus"
-                        style={{
-                          display: "inline-flex", alignItems: "center", gap: 6,
-                          padding: "8px 14px", borderRadius: "var(--radius-pill)",
-                          background: "var(--accent)", color: "#fff",
-                          fontSize: 12, fontWeight: 700, textDecoration: "none",
-                          flexShrink: 0, transition: "transform 0.15s ease",
-                        }}
-                      >
-                        <Globe size={14} />
-                        {t("about.onlineExperience")}
-                        <ExternalLink size={12} style={{ opacity: 0.8 }} />
-                      </a>
+                  {/* Hero（无边框，favicon logo + 应用名 + tagline） */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                    <img
+                      src="/favicon.svg"
+                      alt="osu!web"
+                      style={{ width: 56, height: 56, flexShrink: 0 }}
+                    />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <h3 className="font-torus" style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.02em" }}>
+                        osu!web
+                      </h3>
+                      <p style={{ fontSize: 12.5, color: "var(--text-secondary)", margin: "3px 0 0", lineHeight: 1.5 }}>
+                        {t("about.tagline")}
+                      </p>
                     </div>
                   </div>
 
-                  {/* 功能 & 数据来源 双栏 */}
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {/* 功能 */}
-                    <div
-                      style={{
-                        padding: 18,
-                        borderRadius: "var(--radius-md)",
-                        background: "rgba(255,255,255,0.03)",
-                        border: "1px solid var(--glass-border)",
-                      }}
-                    >
-                      <div className="flex items-center gap-2" style={{ marginBottom: 14 }}>
-                        <Sparkles size={15} color="var(--accent)" />
-                        <span className="font-torus" style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>
-                          {t("about.features")}
-                        </span>
-                      </div>
-                      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
-                        {features.map(({ icon: Icon, key, color }) => (
-                          <li key={key} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                            <div style={{ width: 26, height: 26, borderRadius: 7, background: `${color}1a`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
-                              <Icon size={13} color={color} />
-                            </div>
-                            <span style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.5, paddingTop: 4 }}>
-                              {t(key)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                  {/* 项目简介 */}
+                  <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0, lineHeight: 1.7 }}>
+                    {t("about.intro")}
+                  </p>
 
-                    {/* 数据来源 */}
-                    <div
-                      style={{
-                        padding: 18,
-                        borderRadius: "var(--radius-md)",
-                        background: "rgba(255,255,255,0.03)",
-                        border: "1px solid var(--glass-border)",
-                      }}
-                    >
-                      <div className="flex items-center gap-2" style={{ marginBottom: 14 }}>
-                        <Database size={15} color="var(--accent)" />
-                        <span className="font-torus" style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>
-                          {t("about.dataSources")}
-                        </span>
-                      </div>
-                      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
-                        {sources.map(({ icon: Icon, key, color }) => (
-                          <li key={key} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                            <div style={{ width: 26, height: 26, borderRadius: 7, background: `${color}1a`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
-                              <Icon size={13} color={color} />
-                            </div>
-                            <span style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.5, paddingTop: 4 }}>
-                              {t(key)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
+                  {/* 技术栈 */}
+                  <div>
+                    <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
+                      <Sparkles size={14} color="var(--accent)" />
+                      <span className="font-torus" style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 13 }}>
+                        {t("about.techStack")}
+                      </span>
                     </div>
+                    <div className="flex flex-wrap gap-2">
+                      {techs.map(({ key, color }) => (
+                        <span
+                          key={key}
+                          className="font-torus"
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 6,
+                            padding: "5px 11px", borderRadius: "var(--radius-pill)",
+                            fontSize: 12, fontWeight: 600,
+                            color, background: `${color}14`,
+                          }}
+                        >
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: color }} />
+                          {t(key)}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs" style={{ color: "var(--text-tertiary)", lineHeight: 1.5 }}>
+                      {t("about.techDesc")}
+                    </p>
+                  </div>
+
+                  {/* 数据来源 */}
+                  <div>
+                    <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
+                      <Database size={14} color="var(--accent)" />
+                      <span className="font-torus" style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 13 }}>
+                        {t("about.dataSources")}
+                      </span>
+                    </div>
+                    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 9 }}>
+                      {sources.map(({ icon: Icon, key, color }) => (
+                        <li key={key} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                          <div style={{ width: 24, height: 24, borderRadius: 6, background: `${color}1a`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                            <Icon size={12} color={color} />
+                          </div>
+                          <span style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.5, paddingTop: 3 }}>
+                            {t(key)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
 
                   {/* 免责声明 */}
                   <div
                     style={{
-                      padding: "12px 14px",
-                      borderRadius: "var(--radius-md)",
-                      background: "var(--error-soft)",
-                      border: "1px solid var(--glass-border)",
-                      display: "flex", alignItems: "center", gap: 10,
+                      display: "flex", alignItems: "flex-start", gap: 9,
+                      paddingTop: 12, borderTop: "1px solid var(--glass-border)",
                     }}
                   >
-                    <Info size={14} color="var(--error)" style={{ flexShrink: 0 }} />
+                    <Info size={13} color="var(--text-tertiary)" style={{ flexShrink: 0, marginTop: 2 }} />
                     <p style={{ fontSize: 11.5, color: "var(--text-tertiary)", margin: 0, lineHeight: 1.5 }}>
                       {t("about.disclaimer")}
                     </p>
