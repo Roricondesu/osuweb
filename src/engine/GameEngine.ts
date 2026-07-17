@@ -1737,7 +1737,7 @@ export abstract class GameEngine {
     this.judgePopups.length = w2;
   }
 
-  /** 绘制命中爆点 - 扩散环 + 中心闪光（两层，无渐变，性能优） */
+  /** 绘制命中爆点 - 空心渐变圆环 */
   protected drawHitEffects(time: number): void {
     if (!this.showHitEffects) return;
     const { ctx } = this.ctx;
@@ -1748,36 +1748,36 @@ export abstract class GameEngine {
       "50": "#4ade80",
       miss: "#ff375f",
     };
-    const DURATION = 300;
     for (const e of this.hitEffects) {
       const age = time - e.time;
-      if (age > DURATION) continue;
-      const t = age / DURATION;
+      if (age > 420) continue;
+      const t = age / 420;
       const alpha = 1 - t;
+      const r = 16 + t * 60;
       const color = colorMap[e.judgement];
-
       ctx.save();
+      ctx.globalAlpha = alpha;
 
-      // 1. 扩散环（亮线，快速扩张并变细）
-      const ringR = 8 + t * 56;
-      ctx.globalAlpha = alpha * 0.9;
+      // 外环 - 空心
       ctx.strokeStyle = color;
-      ctx.lineWidth = Math.max(0.5, 4 * (1 - t * 0.7));
+      ctx.lineWidth = Math.max(2, 10 * (1 - t));
       ctx.beginPath();
-      ctx.arc(e.x, e.y, ringR, 0, Math.PI * 2);
+      ctx.arc(e.x, e.y, r, 0, Math.PI * 2);
       ctx.stroke();
 
-      // 2. 中心闪光（实心圆，快速衰减）
-      if (age < 120) {
-        const flashT = age / 120;
-        const flashAlpha = (1 - flashT) * 0.9;
-        const flashR = 6 + flashT * 8;
-        ctx.globalAlpha = flashAlpha;
-        ctx.fillStyle = e.judgement === "miss" ? color : "#ffffff";
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, flashR, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      // 内环残影
+      ctx.globalAlpha = alpha * 0.45;
+      ctx.lineWidth = Math.max(1, 4 * (1 - t));
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, r * 0.55, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 中心微光点
+      ctx.globalAlpha = alpha * 0.35;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 4 * (1 - t), 0, Math.PI * 2);
+      ctx.fill();
 
       ctx.restore();
     }
