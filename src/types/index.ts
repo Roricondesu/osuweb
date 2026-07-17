@@ -443,6 +443,7 @@ export const DEFAULT_KEY_BINDINGS: KeyBindings = {
 
 export interface Settings {
   theme: "light" | "dark";
+  language: "zh" | "en" | "ja" | "ko";
   accent: string;
   volume: number; // 0-1
   offset: number; // ms，判定时间偏移
@@ -514,6 +515,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
+  language: "zh",
   accent: "#8866ff",
   volume: 0.7,
   offset: 0,

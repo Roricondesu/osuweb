@@ -48,6 +48,7 @@ function AppRoutes() {
 export default function App() {
   const loadDownloads = useGameStore((s) => s.loadDownloads);
   const pageScale = useGameStore((s) => s.settings.pageScale);
+  const language = useGameStore((s) => s.settings.language);
 
   // 启动画面状态
   const [splashProgress, setSplashProgress] = useState(0);
@@ -111,6 +112,11 @@ export default function App() {
       html.style.zoom = "";
     };
   }, [pageScale]);
+
+  // 同步 <html lang>，便于无障碍与浏览器翻译识别
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
 
   useFullscreen();
 

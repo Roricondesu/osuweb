@@ -14,44 +14,49 @@ import {
   Info,
   Wifi,
   Trash2,
+  Languages,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Settings, ModType, KeyBindings } from "@/types";
 import { DEFAULT_SETTINGS, DEFAULT_KEY_BINDINGS, MOD_LABEL, MOD_COLOR, defaultManiaKeys } from "@/types";
 import { checkApiHealth, type ApiHealthResult } from "@/utils/apiHealth";
 import { deleteReplay, loadReplays } from "@/utils/replayStorage";
+import { useTranslation, SUPPORTED_LANGUAGES } from "@/i18n";
+import type { TranslationKey, Language } from "@/i18n";
 
 const ALL_MODS: ModType[] = [
   "easy", "notail", "halfTime", "hardRock", "suddenDeath",
   "doubleTime", "hidden", "flashlight", "relax", "autopilot",
 ];
 
-const ACCENTS = [
-  { key: "#0a84ff", label: "蓝" },
-  { key: "#ff375f", label: "红" },
-  { key: "#ff9100", label: "橙" },
-  { key: "#66cc44", label: "绿" },
-  { key: "#8866ff", label: "紫" },
-  { key: "#ff66aa", label: "粉" },
-];
+const ACCENT_KEYS = ["#0a84ff", "#ff375f", "#ff9100", "#66cc44", "#8866ff", "#ff66aa"] as const;
+const ACCENT_LABEL_KEYS: Record<string, TranslationKey> = {
+  "#0a84ff": "appearance.color.blue",
+  "#ff375f": "appearance.color.red",
+  "#ff9100": "appearance.color.orange",
+  "#66cc44": "appearance.color.green",
+  "#8866ff": "appearance.color.purple",
+  "#ff66aa": "appearance.color.pink",
+};
 
 interface SectionItem {
   id: string;
   icon: LucideIcon;
-  title: string;
+  titleKey: TranslationKey;
 }
 
 const SECTIONS: SectionItem[] = [
-  { id: "appearance", icon: Palette, title: "外观" },
-  { id: "audio", icon: Volume2, title: "音频" },
-  { id: "game", icon: Gamepad2, title: "游戏" },
-  { id: "keys", icon: Keyboard, title: "键位" },
-  { id: "mod", icon: Zap, title: "Mod" },
-  { id: "skin", icon: Brush, title: "皮肤" },
-  { id: "display", icon: Monitor, title: "画面" },
-  { id: "search", icon: SearchIcon, title: "搜索" },
-  { id: "advanced", icon: Settings2, title: "高级" },
-  { id: "about", icon: Info, title: "关于" },
+  { id: "language", icon: Languages, titleKey: "section.language" },
+  { id: "appearance", icon: Palette, titleKey: "section.appearance" },
+  { id: "audio", icon: Volume2, titleKey: "section.audio" },
+  { id: "game", icon: Gamepad2, titleKey: "section.game" },
+  { id: "keys", icon: Keyboard, titleKey: "section.keys" },
+  { id: "mod", icon: Zap, titleKey: "section.mod" },
+  { id: "skin", icon: Brush, titleKey: "section.skin" },
+  { id: "display", icon: Monitor, titleKey: "section.display" },
+  { id: "search", icon: SearchIcon, titleKey: "section.search" },
+  { id: "advanced", icon: Settings2, titleKey: "section.advanced" },
+  { id: "about", icon: Info, titleKey: "section.about" },
 ];
 
 /** osu! lazer 风格右侧内容面板 */
@@ -166,8 +171,9 @@ const keyToLabel = (key: string): string => {
 const KeyBindingButton: React.FC<{
   label: string;
   keyVal: string;
+  pressingLabel: string;
   onChange: (key: string) => void;
-}> = ({ label, keyVal, onChange }) => {
+}> = ({ label, keyVal, pressingLabel, onChange }) => {
   const [listening, setListening] = useState(false);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -206,7 +212,7 @@ const KeyBindingButton: React.FC<{
           fontVariantNumeric: "tabular-nums",
         }}
       >
-        {listening ? "按下…" : keyToLabel(keyVal)}
+        {listening ? pressingLabel : keyToLabel(keyVal)}
       </button>
     </div>
   );
@@ -217,9 +223,12 @@ const KeyBindingGroup: React.FC<{
   label: string;
   keys: string[];
   labels: string[];
+  pressingLabel: string;
+  resetLabel: string;
+  defaultColumnLabel: (i: number) => string;
   onChange: (index: number, key: string) => void;
   onReset: () => void;
-}> = ({ label, keys, labels, onChange, onReset }) => (
+}> = ({ label, keys, labels, pressingLabel, resetLabel, defaultColumnLabel, onChange, onReset }) => (
   <div
     style={{
       padding: 16,
@@ -235,15 +244,16 @@ const KeyBindingGroup: React.FC<{
         className="text-xs"
         style={{ color: "var(--accent)", background: "transparent", border: "none", cursor: "pointer", fontWeight: 600 }}
       >
-        重置
+        {resetLabel}
       </button>
     </div>
     <div className="grid grid-cols-2 gap-x-4">
       {keys.map((k, i) => (
         <KeyBindingButton
           key={i}
-          label={labels[i] || `按键 ${i + 1}`}
+          label={labels[i] || defaultColumnLabel(i + 1)}
           keyVal={k}
+          pressingLabel={pressingLabel}
           onChange={(key) => onChange(i, key)}
         />
       ))}
@@ -296,6 +306,7 @@ const ChipGroup = <T extends string>({
 );
 
 export default function Settings() {
+  const { t } = useTranslation();
   const settings = useGameStore((s) => s.settings);
   const updateSetting = useGameStore((s) => s.updateSetting);
   const importSkinFile = useGameStore((s) => s.importSkinFile);
@@ -312,7 +323,7 @@ export default function Settings() {
   const [hitSoundImportMsg, setHitSoundImportMsg] = useState<string>("");
   const hitSoundInputRef = useRef<HTMLInputElement>(null);
 
-  const [activeSection, setActiveSection] = useState<string>("appearance");
+  const [activeSection, setActiveSection] = useState<string>("language");
 
   const toggleMod = useCallback((mod: ModType) => {
     const current = settings.mods;
@@ -331,17 +342,17 @@ export default function Settings() {
       const ok = await importSkinFile(file);
       if (ok) {
         updateSetting("useCustomSkin", true);
-        setSkinImportMsg(`已导入皮肤：${file.name}`);
+        setSkinImportMsg(t("skin.importSuccess", { name: file.name }));
       } else {
-        setSkinImportMsg("导入失败：无法解析该皮肤文件");
+        setSkinImportMsg(t("skin.importFail"));
       }
     } catch {
-      setSkinImportMsg("导入失败：文件损坏或格式不支持");
+      setSkinImportMsg(t("skin.importFailFormat"));
     } finally {
       setSkinImporting(false);
       if (skinInputRef.current) skinInputRef.current.value = "";
     }
-  }, [importSkinFile, updateSetting]);
+  }, [importSkinFile, updateSetting, t]);
 
   const handleHitSoundImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -351,22 +362,22 @@ export default function Settings() {
     try {
       const ok = await importHitSoundsFromFile(file);
       if (ok) {
-        setHitSoundImportMsg(`已导入音效采样：${file.name}`);
+        setHitSoundImportMsg(t("audio.importSuccess", { name: file.name }));
       } else {
-        setHitSoundImportMsg("导入失败：未找到可用的音效采样文件");
+        setHitSoundImportMsg(t("audio.importFail"));
       }
     } catch {
-      setHitSoundImportMsg("导入失败：文件损坏或格式不支持");
+      setHitSoundImportMsg(t("audio.importFailFormat"));
     } finally {
       setHitSoundImporting(false);
       if (hitSoundInputRef.current) hitSoundInputRef.current.value = "";
     }
-  }, [importHitSoundsFromFile]);
+  }, [importHitSoundsFromFile, t]);
 
   const handleClearHitSounds = useCallback(async () => {
     await clearCustomHitSounds();
-    setHitSoundImportMsg("已清除自定义音效采样");
-  }, [clearCustomHitSounds]);
+    setHitSoundImportMsg(t("audio.clearedSamples"));
+  }, [clearCustomHitSounds, t]);
 
   const resetSettings = useCallback(() => {
     (Object.keys(DEFAULT_SETTINGS) as Array<keyof Settings>).forEach((key) => {
@@ -481,7 +492,7 @@ export default function Settings() {
                   className="font-torus"
                 >
                   <Icon size={17} color={active ? "var(--accent)" : "currentColor"} />
-                  {s.title}
+                  {t(s.titleKey)}
                 </button>
               );
             })}
@@ -511,8 +522,8 @@ export default function Settings() {
                 <button
                   key={s.id}
                   onClick={() => setActiveSection(s.id)}
-                  aria-label={s.title}
-                  title={s.title}
+                  aria-label={t(s.titleKey)}
+                  title={t(s.titleKey)}
                   style={{
                     flexShrink: 0,
                     width: 42,
@@ -547,12 +558,42 @@ export default function Settings() {
                 margin: 0,
               }}
             >
-              {SECTIONS.find((s) => s.id === activeSection)?.title}
+              {t(SECTIONS.find((s) => s.id === activeSection)?.titleKey!)}
             </h2>
           </div>
 
           <SectionPanel key={activeSection}>
             <div className="section-enter">
+            {/* 语言 */}
+            {activeSection === "language" && (
+              <div className="flex flex-col gap-4">
+                <SubHeader>{t("language.title")}</SubHeader>
+                <SettingRow>
+                  <SettingLabel title={t("language.title")} desc={t("language.desc")} />
+                  <div className="flex flex-wrap gap-2">
+                    {SUPPORTED_LANGUAGES.map((lang) => {
+                      const selected = settings.language === lang.code;
+                      return (
+                        <button
+                          key={lang.code}
+                          onClick={() => updateSetting("language", lang.code as Language)}
+                          className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all active:scale-95"
+                          style={{
+                            border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
+                            color: selected ? "#fff" : "var(--text-primary)",
+                            background: selected ? "var(--accent)" : "rgba(255,255,255,0.04)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {lang.native}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </SettingRow>
+              </div>
+            )}
+
             {/* 外观 */}
             {activeSection === "appearance" && (
               <div className="flex flex-col gap-4">
@@ -560,24 +601,24 @@ export default function Settings() {
                   <SubHeader>
                     <span className="inline-flex items-center gap-2">
                       <Palette size={14} style={{ color: "var(--text-secondary)" }} />
-                      主题色
+                      {t("appearance.themeColor")}
                     </span>
                   </SubHeader>
                   <div className="flex flex-wrap gap-3">
-                    {ACCENTS.map((a) => {
-                      const selected = settings.accent === a.key;
+                    {ACCENT_KEYS.map((c) => {
+                      const selected = settings.accent === c;
                       return (
                         <button
-                          key={a.key}
-                          onClick={() => updateSetting("accent", a.key)}
-                          aria-label={a.label}
+                          key={c}
+                          onClick={() => updateSetting("accent", c)}
+                          aria-label={t(ACCENT_LABEL_KEYS[c])}
                           style={{
                             width: 38,
                             height: 38,
                             borderRadius: "50%",
-                            background: a.key,
+                            background: c,
                             border: selected ? "3px solid var(--text-primary)" : "3px solid transparent",
-                            boxShadow: selected ? `0 0 0 2px ${a.key}44, 0 4px 12px ${a.key}33` : "none",
+                            boxShadow: selected ? `0 0 0 2px ${c}44, 0 4px 12px ${c}33` : "none",
                             cursor: "pointer",
                             transition: "transform 0.15s ease",
                           }}
@@ -594,9 +635,9 @@ export default function Settings() {
             {/* 音频 */}
             {activeSection === "audio" && (
               <div className="flex flex-col gap-5">
-                <SubHeader>音量与速度</SubHeader>
+                <SubHeader>{t("audio.volumeAndSpeed")}</SubHeader>
                 <SliderSetting
-                  label="音乐音量"
+                  label={t("audio.musicVolume")}
                   value={settings.volume}
                   min={0}
                   max={1}
@@ -604,10 +645,10 @@ export default function Settings() {
                   format={(v) => `${Math.round(v * 100)}%`}
                   onChange={(v) => updateSetting("volume", v)}
                   scheme={scheme}
-                  ariaLabel="音量"
+                  ariaLabel={t("audio.musicVolume")}
                 />
                 <SliderSetting
-                  label="播放速度"
+                  label={t("audio.playbackRate")}
                   value={settings.playbackRate}
                   min={0.5}
                   max={1.5}
@@ -615,10 +656,10 @@ export default function Settings() {
                   format={(v) => `×${v.toFixed(2)}`}
                   onChange={(v) => updateSetting("playbackRate", v)}
                   scheme={scheme}
-                  ariaLabel="播放速度"
+                  ariaLabel={t("audio.playbackRate")}
                 />
                 <SliderSetting
-                  label="按键音音量"
+                  label={t("audio.hitSoundVolume")}
                   value={settings.hitSoundVolume}
                   min={0}
                   max={1}
@@ -626,10 +667,10 @@ export default function Settings() {
                   format={(v) => `${Math.round(v * 100)}%`}
                   onChange={(v) => updateSetting("hitSoundVolume", v)}
                   scheme={scheme}
-                  ariaLabel="按键音音量"
+                  ariaLabel={t("audio.hitSoundVolume")}
                 />
                 <SliderSetting
-                  label="音频偏移"
+                  label={t("audio.offset")}
                   value={settings.offset}
                   min={-200}
                   max={200}
@@ -637,27 +678,27 @@ export default function Settings() {
                   format={(v) => `${v > 0 ? "+" : ""}${v} ms`}
                   onChange={(v) => updateSetting("offset", v)}
                   scheme={scheme}
-                  ariaLabel="判定偏移"
+                  ariaLabel={t("audio.offset")}
                 />
                 <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                  正值 = 提前判定（适合音频延迟大的设备），负值 = 推后判定
+                  {t("audio.offsetHint")}
                 </p>
 
-                <SubHeader>音效采样</SubHeader>
+                <SubHeader>{t("audio.hitSamples")}</SubHeader>
                 <SettingRow>
                   <SettingLabel
-                    title="使用采样音效"
-                    desc="优先使用谱面 / 皮肤 / 自定义采样，关闭后使用合成音效"
+                    title={t("audio.useHitSamples")}
+                    desc={t("audio.useHitSamplesDesc")}
                   />
                   <GlassSwitch
                     checked={settings.useHitSamples}
                     onCheckedChange={(c) => updateSetting("useHitSamples", c)}
                     scheme={scheme}
-                    ariaLabel="使用采样音效"
+                    ariaLabel={t("audio.useHitSamples")}
                   />
                 </SettingRow>
                 <div>
-                  <SubHeader>默认采样集</SubHeader>
+                  <SubHeader>{t("audio.defaultSampleSet")}</SubHeader>
                   <ChipGroup
                     options={["normal", "soft", "drum"] as const}
                     value={settings.defaultSampleSet}
@@ -665,13 +706,13 @@ export default function Settings() {
                     renderLabel={(v) => (v === "normal" ? "Normal" : v === "soft" ? "Soft" : "Drum")}
                   />
                   <p className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                    谱面未指定采样集时使用的默认音色
+                    {t("audio.defaultSampleSetHint")}
                   </p>
                 </div>
                 <div>
-                  <SubHeader>导入音效采样包</SubHeader>
+                  <SubHeader>{t("audio.importSamples")}</SubHeader>
                   <SettingRow>
-                    <SettingLabel title="选择音效文件" desc="从 .osz / .osk / .zip 中提取 .wav / .mp3 / .ogg" />
+                    <SettingLabel title={t("audio.selectSampleFile")} desc={t("audio.selectSampleFileDesc")} />
                     <div className="flex items-center gap-2">
                       {settings.customHitSoundUrls && Object.keys(settings.customHitSoundUrls).length > 0 && (
                         <button
@@ -684,7 +725,7 @@ export default function Settings() {
                             cursor: "pointer",
                           }}
                         >
-                          清除
+                          {t("common.clear")}
                         </button>
                       )}
                       <button
@@ -698,7 +739,7 @@ export default function Settings() {
                           cursor: hitSoundImporting ? "not-allowed" : "pointer",
                         }}
                       >
-                        {hitSoundImporting ? "导入中..." : "选择文件"}
+                        {hitSoundImporting ? t("common.importing") : t("common.selectFile")}
                       </button>
                       <input
                         ref={hitSoundInputRef}
@@ -714,7 +755,7 @@ export default function Settings() {
                   )}
                   {settings.customHitSoundUrls && Object.keys(settings.customHitSoundUrls).length > 0 && (
                     <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-                      当前已加载 {Object.keys(settings.customHitSoundUrls).length} 个音效采样文件
+                      {t("audio.loadedSamples", { count: Object.keys(settings.customHitSoundUrls).length })}
                     </p>
                   )}
                 </div>
@@ -725,23 +766,23 @@ export default function Settings() {
             {activeSection === "game" && (
               <div className="flex flex-col gap-4">
                 <SettingRow>
-                  <SettingLabel title="自动模式" desc="自动击打音符，适合练习观赏" />
-                  <GlassSwitch checked={settings.auto} onCheckedChange={(c) => updateSetting("auto", c)} scheme={scheme} ariaLabel="自动模式" />
+                  <SettingLabel title={t("game.auto")} desc={t("game.autoDesc")} />
+                  <GlassSwitch checked={settings.auto} onCheckedChange={(c) => updateSetting("auto", c)} scheme={scheme} ariaLabel={t("game.auto")} />
                 </SettingRow>
                 <SettingRow>
-                  <SettingLabel title="显示光标" desc="在游戏画面中显示指针位置" />
-                  <GlassSwitch checked={settings.showCursor} onCheckedChange={(c) => updateSetting("showCursor", c)} scheme={scheme} ariaLabel="显示光标" />
+                  <SettingLabel title={t("game.showCursor")} desc={t("game.showCursorDesc")} />
+                  <GlassSwitch checked={settings.showCursor} onCheckedChange={(c) => updateSetting("showCursor", c)} scheme={scheme} ariaLabel={t("game.showCursor")} />
                 </SettingRow>
                 <SettingRow>
-                  <SettingLabel title="光标拖尾" desc="Auto / 显示光标时绘制移动轨迹" />
-                  <GlassSwitch checked={settings.showCursorTrail} onCheckedChange={(c) => updateSetting("showCursorTrail", c)} scheme={scheme} ariaLabel="光标拖尾" />
+                  <SettingLabel title={t("game.cursorTrail")} desc={t("game.cursorTrailDesc")} />
+                  <GlassSwitch checked={settings.showCursorTrail} onCheckedChange={(c) => updateSetting("showCursorTrail", c)} scheme={scheme} ariaLabel={t("game.cursorTrail")} />
                 </SettingRow>
                 <SettingRow>
-                  <SettingLabel title="光标按下反馈" desc="点击 / Auto 击打时放大光圈" />
-                  <GlassSwitch checked={settings.showCursorPress} onCheckedChange={(c) => updateSetting("showCursorPress", c)} scheme={scheme} ariaLabel="光标按下反馈" />
+                  <SettingLabel title={t("game.cursorPress")} desc={t("game.cursorPressDesc")} />
+                  <GlassSwitch checked={settings.showCursorPress} onCheckedChange={(c) => updateSetting("showCursorPress", c)} scheme={scheme} ariaLabel={t("game.cursorPress")} />
                 </SettingRow>
                 <SliderSetting
-                  label="光标大小"
+                  label={t("game.cursorSize")}
                   value={settings.cursorSize}
                   min={0.5}
                   max={2}
@@ -749,10 +790,10 @@ export default function Settings() {
                   format={(v) => `×${v.toFixed(1)}`}
                   onChange={(v) => updateSetting("cursorSize", v)}
                   scheme={scheme}
-                  ariaLabel="光标大小"
+                  ariaLabel={t("game.cursorSize")}
                 />
                 <SliderSetting
-                  label="Auto 光标速度"
+                  label={t("game.autoCursorSpeed")}
                   value={settings.autoCursorSpeed}
                   min={0.5}
                   max={2}
@@ -760,11 +801,11 @@ export default function Settings() {
                   format={(v) => `${v.toFixed(1)}x`}
                   onChange={(v) => updateSetting("autoCursorSpeed", v)}
                   scheme={scheme}
-                  ariaLabel="Auto 光标速度"
+                  ariaLabel={t("game.autoCursorSpeed")}
                 />
                 <SettingRow>
-                  <SettingLabel title="Auto 圆周模式" desc="光标沿圆弧匀速移动，流畅衔接每个音符" />
-                  <GlassSwitch checked={settings.autoCircleMode} onCheckedChange={(c) => updateSetting("autoCircleMode", c)} scheme={scheme} ariaLabel="Auto 圆周模式" />
+                  <SettingLabel title={t("game.autoCircleMode")} desc={t("game.autoCircleModeDesc")} />
+                  <GlassSwitch checked={settings.autoCircleMode} onCheckedChange={(c) => updateSetting("autoCircleMode", c)} scheme={scheme} ariaLabel={t("game.autoCircleMode")} />
                 </SettingRow>
               </div>
             )}
@@ -773,26 +814,35 @@ export default function Settings() {
             {activeSection === "keys" && (
               <div className="flex flex-col gap-4">
                 <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                  点击按键后按下新键即可修改。空格键显示为 Space，方向键显示为 Arrow。
+                  {t("keys.hint")}
                 </p>
                 <KeyBindingGroup
-                  label="osu! (Standard)"
+                  label={t("keys.standard")}
                   keys={settings.keyBindings.standard}
-                  labels={["按键 1", "按键 2"]}
+                  labels={[t("keys.key1"), t("keys.key2")]}
+                  pressingLabel={t("keys.pressing")}
+                  resetLabel={t("common.reset")}
+                  defaultColumnLabel={(i) => t("keys.column", { n: i })}
                   onChange={(idx, key) => updateKeyBinding("standard", idx, key)}
                   onReset={() => resetKeyBinding("standard")}
                 />
                 <KeyBindingGroup
-                  label="osu!taiko"
+                  label={t("keys.taiko")}
                   keys={settings.keyBindings.taiko}
-                  labels={["KAT 左", "KAT 右", "DON 左", "DON 右"]}
+                  labels={[t("keys.katLeft"), t("keys.katRight"), t("keys.donLeft"), t("keys.donRight")]}
+                  pressingLabel={t("keys.pressing")}
+                  resetLabel={t("common.reset")}
+                  defaultColumnLabel={(i) => t("keys.column", { n: i })}
                   onChange={(idx, key) => updateKeyBinding("taiko", idx, key)}
                   onReset={() => resetKeyBinding("taiko")}
                 />
                 <KeyBindingGroup
-                  label="osu!catch"
+                  label={t("keys.catch")}
                   keys={settings.keyBindings.catch}
-                  labels={["左移", "右移"]}
+                  labels={[t("keys.moveLeft"), t("keys.moveRight")]}
+                  pressingLabel={t("keys.pressing")}
+                  resetLabel={t("common.reset")}
+                  defaultColumnLabel={(i) => t("keys.column", { n: i })}
                   onChange={(idx, key) => updateKeyBinding("catch", idx, key)}
                   onReset={() => resetKeyBinding("catch")}
                 />
@@ -801,9 +851,12 @@ export default function Settings() {
                   return (
                     <KeyBindingGroup
                       key={cols}
-                      label={`osu!mania ${cols}K`}
+                      label={t("keys.mania", { cols })}
                       keys={keys}
-                      labels={Array.from({ length: keys.length }, (_, i) => `列 ${i + 1}`)}
+                      labels={Array.from({ length: keys.length }, (_, i) => t("keys.column", { n: i + 1 }))}
+                      pressingLabel={t("keys.pressing")}
+                      resetLabel={t("common.reset")}
+                      defaultColumnLabel={(i) => t("keys.column", { n: i })}
                       onChange={(idx, key) => updateManiaKeyBinding(cols, idx, key)}
                       onReset={() => resetManiaKeyBinding(cols)}
                     />
@@ -814,7 +867,7 @@ export default function Settings() {
                   className="rounded-full px-4 py-2 text-xs font-semibold transition-transform active:scale-95"
                   style={{ border: "1px solid var(--border)", color: "var(--text-primary)", background: "transparent", cursor: "pointer" }}
                 >
-                  恢复全部默认键位
+                  {t("keys.resetAll")}
                 </button>
               </div>
             )}
@@ -823,7 +876,7 @@ export default function Settings() {
             {activeSection === "mod" && (
               <div className="flex flex-col gap-5">
                 <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                  点击切换 Mod，可多选。难度调整类（DT/HT/HR/Easy）会实际影响游戏速度与判定。也可以在谱面详情页或游戏准备页用浮动按钮快速切换。
+                  {t("mod.hint")}
                 </p>
                 <div className="flex flex-wrap gap-3">
                   {ALL_MODS.map((mod) => {
@@ -850,13 +903,13 @@ export default function Settings() {
                 </div>
                 {settings.mods.length > 0 && (
                   <SettingRow>
-                    <SettingLabel title={`已启用 ${settings.mods.length} 个 Mod`} />
+                    <SettingLabel title={t("mod.enabledCount", { count: settings.mods.length })} />
                     <button
                       onClick={() => updateSetting("mods", [])}
                       className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform active:scale-95"
                       style={{ border: "1px solid var(--border)", color: "var(--text-primary)", background: "transparent", cursor: "pointer" }}
                     >
-                      清除全部
+                      {t("mod.clearAll")}
                     </button>
                   </SettingRow>
                 )}
@@ -867,37 +920,37 @@ export default function Settings() {
             {activeSection === "skin" && (
               <div className="flex flex-col gap-4">
                 <SettingRow>
-                  <SettingLabel title="使用谱面自带皮肤" desc="加载谱面包内的 hitcircle / cursor / slider 等纹理" />
-                  <GlassSwitch checked={settings.useBeatmapSkin} onCheckedChange={(c) => updateSetting("useBeatmapSkin", c)} scheme={scheme} ariaLabel="使用谱面自带皮肤" />
+                  <SettingLabel title={t("skin.useBeatmapSkin")} desc={t("skin.useBeatmapSkinDesc")} />
+                  <GlassSwitch checked={settings.useBeatmapSkin} onCheckedChange={(c) => updateSetting("useBeatmapSkin", c)} scheme={scheme} ariaLabel={t("skin.useBeatmapSkin")} />
                 </SettingRow>
                 <SettingRow>
-                  <SettingLabel title="使用自定义皮肤" desc="应用导入的 .osk 皮肤，优先级高于谱面皮肤" />
-                  <GlassSwitch checked={settings.useCustomSkin} onCheckedChange={(c) => updateSetting("useCustomSkin", c)} scheme={scheme} ariaLabel="使用自定义皮肤" />
+                  <SettingLabel title={t("skin.useCustomSkin")} desc={t("skin.useCustomSkinDesc")} />
+                  <GlassSwitch checked={settings.useCustomSkin} onCheckedChange={(c) => updateSetting("useCustomSkin", c)} scheme={scheme} ariaLabel={t("skin.useCustomSkin")} />
                 </SettingRow>
                 <SettingRow>
-                  <SettingLabel title="导入 .osk 皮肤" desc="从本地选择 osu! 皮肤压缩包" />
+                  <SettingLabel title={t("skin.importOsk")} desc={t("skin.importOskDesc")} />
                   <button
                     onClick={() => skinInputRef.current?.click()}
                     disabled={skinImporting}
                     className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform active:scale-95 disabled:opacity-50"
                     style={{ border: "1px solid var(--accent)", color: "var(--accent)", background: "var(--accent-soft)", cursor: skinImporting ? "not-allowed" : "pointer" }}
                   >
-                    {skinImporting ? "导入中..." : "选择文件"}
+                    {skinImporting ? t("common.importing") : t("common.selectFile")}
                   </button>
                   <input ref={skinInputRef} type="file" accept=".osk,.zip" onChange={handleSkinImport} style={{ display: "none" }} />
                 </SettingRow>
                 {skinImportMsg && <p className="text-xs" style={{ color: "var(--accent)" }}>{skinImportMsg}</p>}
                 {settings.useCustomSkin && settings.customSkinAssetUrls && (
                   <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                    当前皮肤已加载 {Object.keys(settings.customSkinAssetUrls).length} 个资源文件
+                    {t("skin.loadedAssets", { count: Object.keys(settings.customSkinAssetUrls).length })}
                   </p>
                 )}
 
                 <div className="mt-2 border-t pt-5" style={{ borderColor: "var(--glass-border)" }}>
-                  <SubHeader>默认皮肤自定义</SubHeader>
+                  <SubHeader>{t("skin.defaultCustomization")}</SubHeader>
                   <SettingRow>
-                    <SettingLabel title="自定义 Combo 颜色" desc="覆盖默认 8 色 combo 配色" />
-                    <GlassSwitch checked={settings.useCustomComboColors} onCheckedChange={(c) => updateSetting("useCustomComboColors", c)} scheme={scheme} ariaLabel="自定义 Combo 颜色" />
+                    <SettingLabel title={t("skin.customComboColors")} desc={t("skin.customComboColorsDesc")} />
+                    <GlassSwitch checked={settings.useCustomComboColors} onCheckedChange={(c) => updateSetting("useCustomComboColors", c)} scheme={scheme} ariaLabel={t("skin.customComboColors")} />
                   </SettingRow>
                   {settings.useCustomComboColors && (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -916,20 +969,20 @@ export default function Settings() {
                         className="rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-transform active:scale-95 disabled:opacity-40"
                         style={{ border: "1px solid var(--border)", color: "var(--text-primary)", cursor: "pointer" }}
                       >
-                        + 添加
+                        {t("common.add")}
                       </button>
                       <button
                         onClick={() => updateSetting("customComboColors", ["#f472b6", "#38bdf8", "#4ade80", "#fbbf24", "#a78bfa", "#fb7185", "#22d3ee", "#facc15"])}
                         className="rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-transform active:scale-95"
                         style={{ border: "1px solid var(--border)", color: "var(--text-primary)", cursor: "pointer" }}
                       >
-                        重置
+                        {t("common.reset")}
                       </button>
                     </div>
                   )}
                   <div className="mt-4">
                     <SliderSetting
-                      label="圆圈缩放"
+                      label={t("skin.hitCircleScale")}
                       value={settings.hitCircleScale}
                       min={0.5}
                       max={2}
@@ -937,12 +990,12 @@ export default function Settings() {
                       format={(v) => `${v.toFixed(2)}x`}
                       onChange={(v) => updateSetting("hitCircleScale", v)}
                       scheme={scheme}
-                      ariaLabel="圆圈缩放"
+                      ariaLabel={t("skin.hitCircleScale")}
                     />
                   </div>
                   <div className="mt-4">
                     <SliderSetting
-                      label="圆圈边框宽度"
+                      label={t("skin.circleBorderWidth")}
                       value={settings.circleBorderWidth}
                       min={0.5}
                       max={3}
@@ -950,12 +1003,12 @@ export default function Settings() {
                       format={(v) => `${v.toFixed(2)}x`}
                       onChange={(v) => updateSetting("circleBorderWidth", v)}
                       scheme={scheme}
-                      ariaLabel="圆圈边框宽度"
+                      ariaLabel={t("skin.circleBorderWidth")}
                     />
                   </div>
                   <div className="mt-4">
                     <SliderSetting
-                      label="滑条边框宽度"
+                      label={t("skin.sliderBorderWidth")}
                       value={settings.sliderBorderWidth}
                       min={0.5}
                       max={3}
@@ -963,12 +1016,12 @@ export default function Settings() {
                       format={(v) => `${v.toFixed(2)}x`}
                       onChange={(v) => updateSetting("sliderBorderWidth", v)}
                       scheme={scheme}
-                      ariaLabel="滑条边框宽度"
+                      ariaLabel={t("skin.sliderBorderWidth")}
                     />
                   </div>
                   <div className="mt-4">
                     <SliderSetting
-                      label="滑条球缩放"
+                      label={t("skin.sliderBallScale")}
                       value={settings.sliderBallScale}
                       min={0.5}
                       max={2}
@@ -976,7 +1029,7 @@ export default function Settings() {
                       format={(v) => `${v.toFixed(2)}x`}
                       onChange={(v) => updateSetting("sliderBallScale", v)}
                       scheme={scheme}
-                      ariaLabel="滑条球缩放"
+                      ariaLabel={t("skin.sliderBallScale")}
                     />
                   </div>
                 </div>
@@ -987,32 +1040,32 @@ export default function Settings() {
             {activeSection === "search" && (
               <div className="flex flex-col gap-5">
                 <div>
-                  <SubHeader>搜索源</SubHeader>
+                  <SubHeader>{t("search.source")}</SubHeader>
                   <ChipGroup
                     options={["all", "osu", "sayobot", "kitsu", "chimu"] as const}
                     value={settings.searchSource}
                     onChange={(v) => updateSetting("searchSource", v)}
                     renderLabel={(v) =>
-                      v === "all" ? "全部竞速" : v === "osu" ? "osu.direct" : v === "sayobot" ? "Sayobot" : v === "kitsu" ? "Kitsu" : "Chimu"
+                      v === "all" ? t("search.allRace") : v === "osu" ? "osu.direct" : v === "sayobot" ? "Sayobot" : v === "kitsu" ? "Kitsu" : "Chimu"
                     }
                   />
                   <p className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                    "全部竞速" 同时请求所有源，取最快返回的结果
+                    {t("search.allRaceHint")}
                   </p>
                 </div>
                 <SettingRow>
-                  <SettingLabel title="仅显示有 Storyboard" desc="过滤搜索结果" />
-                  <GlassSwitch checked={settings.storyboardOnly} onCheckedChange={(c) => updateSetting("storyboardOnly", c)} scheme={scheme} ariaLabel="仅显示有 Storyboard" />
+                  <SettingLabel title={t("search.storyboardOnly")} desc={t("search.storyboardOnlyDesc")} />
+                  <GlassSwitch checked={settings.storyboardOnly} onCheckedChange={(c) => updateSetting("storyboardOnly", c)} scheme={scheme} ariaLabel={t("search.storyboardOnly")} />
                 </SettingRow>
                 <SettingRow>
-                  <SettingLabel title="仅显示有视频" desc="过滤搜索结果" />
-                  <GlassSwitch checked={settings.videoOnly} onCheckedChange={(c) => updateSetting("videoOnly", c)} scheme={scheme} ariaLabel="仅显示有视频" />
+                  <SettingLabel title={t("search.videoOnly")} desc={t("search.videoOnlyDesc")} />
+                  <GlassSwitch checked={settings.videoOnly} onCheckedChange={(c) => updateSetting("videoOnly", c)} scheme={scheme} ariaLabel={t("search.videoOnly")} />
                 </SettingRow>
 
-                <SubHeader>下载</SubHeader>
+                <SubHeader>{t("search.download")}</SubHeader>
                 <SettingRow>
-                  <SettingLabel title="下载完整谱面包" desc="含 Storyboard / 视频资源，体积更大" />
-                  <GlassSwitch checked={settings.downloadFullPackage} onCheckedChange={(c) => updateSetting("downloadFullPackage", c)} scheme={scheme} ariaLabel="下载完整谱面包" />
+                  <SettingLabel title={t("search.downloadFullPackage")} desc={t("search.downloadFullPackageDesc")} />
+                  <GlassSwitch checked={settings.downloadFullPackage} onCheckedChange={(c) => updateSetting("downloadFullPackage", c)} scheme={scheme} ariaLabel={t("search.downloadFullPackage")} />
                 </SettingRow>
               </div>
             )}
@@ -1020,13 +1073,13 @@ export default function Settings() {
             {/* 画面 */}
             {activeSection === "display" && (
               <div className="flex flex-col gap-4">
-                <SubHeader>显示与布局</SubHeader>
+                <SubHeader>{t("display.layout")}</SubHeader>
                 <SettingRow>
-                  <SettingLabel title="全屏模式" desc="切换浏览器全屏，等同 F11" />
-                  <GlassSwitch checked={settings.fullscreen} onCheckedChange={(c) => updateSetting("fullscreen", c)} scheme={scheme} ariaLabel="全屏模式" />
+                  <SettingLabel title={t("display.fullscreen")} desc={t("display.fullscreenDesc")} />
+                  <GlassSwitch checked={settings.fullscreen} onCheckedChange={(c) => updateSetting("fullscreen", c)} scheme={scheme} ariaLabel={t("display.fullscreen")} />
                 </SettingRow>
                 <SliderSetting
-                  label="页面缩放"
+                  label={t("display.pageScale")}
                   value={settings.pageScale}
                   min={0.5}
                   max={1.5}
@@ -1034,14 +1087,14 @@ export default function Settings() {
                   format={(v) => `×${v.toFixed(2)}`}
                   onChange={(v) => updateSetting("pageScale", v)}
                   scheme={scheme}
-                  ariaLabel="页面缩放"
+                  ariaLabel={t("display.pageScale")}
                 />
                 <SettingRow>
-                  <SettingLabel title="强制横屏" desc="游戏内强制使用横屏布局" />
-                  <GlassSwitch checked={settings.forceLandscape} onCheckedChange={(c) => updateSetting("forceLandscape", c)} scheme={scheme} ariaLabel="强制横屏" />
+                  <SettingLabel title={t("display.forceLandscape")} desc={t("display.forceLandscapeDesc")} />
+                  <GlassSwitch checked={settings.forceLandscape} onCheckedChange={(c) => updateSetting("forceLandscape", c)} scheme={scheme} ariaLabel={t("display.forceLandscape")} />
                 </SettingRow>
                 <SliderSetting
-                  label="HUD 缩放"
+                  label={t("display.hudScale")}
                   value={settings.hudScale}
                   min={0.8}
                   max={1.5}
@@ -1049,24 +1102,24 @@ export default function Settings() {
                   format={(v) => `×${v.toFixed(1)}`}
                   onChange={(v) => updateSetting("hudScale", v)}
                   scheme={scheme}
-                  ariaLabel="HUD 缩放"
+                  ariaLabel={t("display.hudScale")}
                 />
 
-                <SubHeader>背景</SubHeader>
+                <SubHeader>{t("display.background")}</SubHeader>
                 <SettingRow>
-                  <SettingLabel title="显示 Storyboard" desc="游戏内渲染完整 Storyboard" />
-                  <GlassSwitch checked={settings.showStoryboard} onCheckedChange={(c) => updateSetting("showStoryboard", c)} scheme={scheme} ariaLabel="显示 Storyboard" />
+                  <SettingLabel title={t("display.showStoryboard")} desc={t("display.showStoryboardDesc")} />
+                  <GlassSwitch checked={settings.showStoryboard} onCheckedChange={(c) => updateSetting("showStoryboard", c)} scheme={scheme} ariaLabel={t("display.showStoryboard")} />
                 </SettingRow>
                 <SettingRow>
-                  <SettingLabel title="视频背景" desc="播放谱面自带的视频背景（若有）" />
-                  <GlassSwitch checked={settings.showVideo} onCheckedChange={(c) => updateSetting("showVideo", c)} scheme={scheme} ariaLabel="视频背景" />
+                  <SettingLabel title={t("display.videoBackground")} desc={t("display.videoBackgroundDesc")} />
+                  <GlassSwitch checked={settings.showVideo} onCheckedChange={(c) => updateSetting("showVideo", c)} scheme={scheme} ariaLabel={t("display.videoBackground")} />
                 </SettingRow>
                 <SettingRow>
-                  <SettingLabel title="观赏模式" desc="只播放 Storyboard、背景与音频，隐藏音符与判定" />
-                  <GlassSwitch checked={settings.spectatorMode} onCheckedChange={(c) => updateSetting("spectatorMode", c)} scheme={scheme} ariaLabel="观赏模式" />
+                  <SettingLabel title={t("display.spectatorMode")} desc={t("display.spectatorModeDesc")} />
+                  <GlassSwitch checked={settings.spectatorMode} onCheckedChange={(c) => updateSetting("spectatorMode", c)} scheme={scheme} ariaLabel={t("display.spectatorMode")} />
                 </SettingRow>
                 <SliderSetting
-                  label="背景变暗"
+                  label={t("display.backgroundDim")}
                   value={settings.backgroundDim}
                   min={0}
                   max={1}
@@ -1074,10 +1127,10 @@ export default function Settings() {
                   format={(v) => `${Math.round(v * 100)}%`}
                   onChange={(v) => updateSetting("backgroundDim", v)}
                   scheme={scheme}
-                  ariaLabel="背景变暗"
+                  ariaLabel={t("display.backgroundDim")}
                 />
                 <SliderSetting
-                  label="背景模糊"
+                  label={t("display.backgroundBlur")}
                   value={settings.backgroundBlur}
                   min={0}
                   max={20}
@@ -1085,12 +1138,12 @@ export default function Settings() {
                   format={(v) => `${Math.round(v)}px`}
                   onChange={(v) => updateSetting("backgroundBlur", v)}
                   scheme={scheme}
-                  ariaLabel="背景模糊"
+                  ariaLabel={t("display.backgroundBlur")}
                 />
 
-                <SubHeader>游戏元素</SubHeader>
+                <SubHeader>{t("display.gameElements")}</SubHeader>
                 <SliderSetting
-                  label="引导线提前"
+                  label={t("display.approachMultiplier")}
                   value={settings.approachMultiplier}
                   min={1}
                   max={2.5}
@@ -1098,45 +1151,45 @@ export default function Settings() {
                   format={(v) => `×${v.toFixed(1)}`}
                   onChange={(v) => updateSetting("approachMultiplier", v)}
                   scheme={scheme}
-                  ariaLabel="引导线提前"
+                  ariaLabel={t("display.approachMultiplier")}
                 />
                 <SettingRow>
-                  <SettingLabel title="显示引导线" />
-                  <GlassSwitch checked={settings.showFollowPoints} onCheckedChange={(c) => updateSetting("showFollowPoints", c)} scheme={scheme} ariaLabel="显示引导线" />
+                  <SettingLabel title={t("display.showFollowPoints")} />
+                  <GlassSwitch checked={settings.showFollowPoints} onCheckedChange={(c) => updateSetting("showFollowPoints", c)} scheme={scheme} ariaLabel={t("display.showFollowPoints")} />
                 </SettingRow>
                 <SettingRow>
-                  <SettingLabel title="显示引导圈" />
-                  <GlassSwitch checked={settings.showApproachCircles} onCheckedChange={(c) => updateSetting("showApproachCircles", c)} scheme={scheme} ariaLabel="显示引导圈" />
+                  <SettingLabel title={t("display.showApproachCircles")} />
+                  <GlassSwitch checked={settings.showApproachCircles} onCheckedChange={(c) => updateSetting("showApproachCircles", c)} scheme={scheme} ariaLabel={t("display.showApproachCircles")} />
                 </SettingRow>
                 <SettingRow>
-                  <SettingLabel title="显示连击数字" />
-                  <GlassSwitch checked={settings.showComboNumbers} onCheckedChange={(c) => updateSetting("showComboNumbers", c)} scheme={scheme} ariaLabel="显示连击数字" />
+                  <SettingLabel title={t("display.showComboNumbers")} />
+                  <GlassSwitch checked={settings.showComboNumbers} onCheckedChange={(c) => updateSetting("showComboNumbers", c)} scheme={scheme} ariaLabel={t("display.showComboNumbers")} />
                 </SettingRow>
                 <SettingRow>
-                  <SettingLabel title="显示击中特效" />
-                  <GlassSwitch checked={settings.showHitEffects} onCheckedChange={(c) => updateSetting("showHitEffects", c)} scheme={scheme} ariaLabel="显示击中特效" />
+                  <SettingLabel title={t("display.showHitEffects")} />
+                  <GlassSwitch checked={settings.showHitEffects} onCheckedChange={(c) => updateSetting("showHitEffects", c)} scheme={scheme} ariaLabel={t("display.showHitEffects")} />
                 </SettingRow>
                 <SettingRow>
-                  <SettingLabel title="显示 FPS" />
-                  <GlassSwitch checked={settings.showFPS} onCheckedChange={(c) => updateSetting("showFPS", c)} scheme={scheme} ariaLabel="显示 FPS" />
+                  <SettingLabel title={t("display.showFPS")} />
+                  <GlassSwitch checked={settings.showFPS} onCheckedChange={(c) => updateSetting("showFPS", c)} scheme={scheme} ariaLabel={t("display.showFPS")} />
                 </SettingRow>
 
-                <SubHeader>歌词</SubHeader>
+                <SubHeader>{t("display.lyrics")}</SubHeader>
                 <SettingRow>
-                  <SettingLabel title="显示歌词" desc="游戏内底部显示匹配歌词" />
-                  <GlassSwitch checked={settings.showLyrics} onCheckedChange={(c) => updateSetting("showLyrics", c)} scheme={scheme} ariaLabel="显示歌词" />
+                  <SettingLabel title={t("display.showLyrics")} desc={t("display.showLyricsDesc")} />
+                  <GlassSwitch checked={settings.showLyrics} onCheckedChange={(c) => updateSetting("showLyrics", c)} scheme={scheme} ariaLabel={t("display.showLyrics")} />
                 </SettingRow>
                 <div>
-                  <SubHeader>歌词效果</SubHeader>
+                  <SubHeader>{t("display.lyricsEffect")}</SubHeader>
                   <ChipGroup
                     options={["none", "fade", "slide"] as const}
                     value={settings.lyricsEffect}
                     onChange={(v) => updateSetting("lyricsEffect", v)}
-                    renderLabel={(v) => (v === "none" ? "无" : v === "fade" ? "淡入" : "滑动")}
+                    renderLabel={(v) => (v === "none" ? t("display.lyricsEffectNone") : v === "fade" ? t("display.lyricsEffectFade") : t("display.lyricsEffectSlide"))}
                   />
                 </div>
                 <SliderSetting
-                  label="歌词大小"
+                  label={t("display.lyricsSize")}
                   value={settings.lyricsSize}
                   min={12}
                   max={24}
@@ -1144,7 +1197,7 @@ export default function Settings() {
                   format={(v) => `${Math.round(v)}px`}
                   onChange={(v) => updateSetting("lyricsSize", v)}
                   scheme={scheme}
-                  ariaLabel="歌词大小"
+                  ariaLabel={t("display.lyricsSize")}
                 />
               </div>
             )}
@@ -1152,60 +1205,60 @@ export default function Settings() {
             {/* 高级 */}
             {activeSection === "advanced" && (
               <div className="flex flex-col gap-4">
-                <SubHeader>数据管理</SubHeader>
+                <SubHeader>{t("advanced.dataManagement")}</SubHeader>
                 <SettingRow>
-                  <SettingLabel title="恢复默认设置" desc="将所有选项重置为初始值" />
+                  <SettingLabel title={t("advanced.resetSettings")} desc={t("advanced.resetSettingsDesc")} />
                   <button
                     onClick={resetSettings}
                     className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform active:scale-95"
                     style={{ border: "1px solid var(--accent)", color: "var(--accent)", background: "var(--accent-soft)", cursor: "pointer" }}
                   >
-                    重置
+                    {t("common.reset")}
                   </button>
                 </SettingRow>
                 <SettingRow>
-                  <SettingLabel title="清除本地回放" desc="删除所有已保存的游戏回放" />
+                  <SettingLabel title={t("advanced.clearReplays")} desc={t("advanced.clearReplaysDesc")} />
                   <button
                     onClick={clearReplays}
                     className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform active:scale-95"
                     style={{ border: "1px solid var(--error)", color: "var(--error)", background: "var(--error-soft)", cursor: "pointer" }}
                   >
                     <Trash2 size={12} style={{ display: "inline-block", verticalAlign: "middle", marginRight: 4 }} />
-                    清除
+                    {t("common.clear")}
                   </button>
                 </SettingRow>
 
                 <SubHeader>
                   <span className="inline-flex items-center gap-2">
                     <Wifi size={14} style={{ color: "var(--text-secondary)" }} />
-                    连接检测
+                    {t("advanced.connectionCheck")}
                   </span>
                 </SubHeader>
                 <SettingRow>
-                  <SettingLabel title="检测 API 连接" desc="osu.direct / Sayobot / LRCLIB" />
+                  <SettingLabel title={t("advanced.checkApi")} desc={t("advanced.checkApiDesc")} />
                   <button
                     onClick={runCheck}
                     disabled={checking}
                     className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform active:scale-95 disabled:opacity-50"
                     style={{ border: "1px solid var(--accent)", color: "var(--accent)", background: "var(--accent-soft)", cursor: checking ? "not-allowed" : "pointer" }}
                   >
-                    {checking ? "检测中..." : "开始检测"}
+                    {checking ? t("advanced.checking") : t("advanced.checkApi")}
                   </button>
                 </SettingRow>
                 {health && (
                   <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                     {[
-                      { key: "osuDirect", label: "osu.direct 搜索" },
-                      { key: "sayobotSearch", label: "Sayobot 搜索" },
-                      { key: "sayobotDownload", label: "Sayobot 详情" },
-                      { key: "lrclibLyrics", label: "LRCLIB 歌词" },
+                      { key: "osuDirect", label: t("advanced.osuDirectSearch") },
+                      { key: "sayobotSearch", label: t("advanced.sayobotSearch") },
+                      { key: "sayobotDownload", label: t("advanced.sayobotDetail") },
+                      { key: "lrclibLyrics", label: t("advanced.lrclibLyrics") },
                     ].map(({ key, label }) => {
                       const ok = health[key as keyof ApiHealthResult];
                       return (
                         <div key={key} className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "var(--accent-soft)", border: "1px solid var(--glass-border)" }}>
                           <span style={{ width: 8, height: 8, borderRadius: "50%", background: ok ? "var(--success)" : "var(--error)" }} />
                           <span style={{ color: "var(--text-primary)" }}>{label}</span>
-                          <span style={{ color: ok ? "var(--success)" : "var(--error)", marginLeft: "auto", fontWeight: 700 }}>{ok ? "正常" : "不可用"}</span>
+                          <span style={{ color: ok ? "var(--success)" : "var(--error)", marginLeft: "auto", fontWeight: 700 }}>{ok ? t("common.normal") : t("common.unavailable")}</span>
                         </div>
                       );
                     })}
@@ -1219,9 +1272,9 @@ export default function Settings() {
               <div className="space-y-4 text-sm" style={{ color: "var(--text-secondary)" }}>
                 <div>
                   <strong style={{ color: "var(--text-primary)", fontSize: 18 }}>osu!web</strong>
-                  <p className="mt-1">纯前端 osu! 客户端，在浏览器里畅玩谱面。</p>
+                  <p className="mt-1">{t("about.tagline")}</p>
                 </div>
-                <p>在线体验：<a href="https://osu.yuiro.top" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>osu.yuiro.top</a></p>
+                <p>{t("about.onlineExperience")}：<a href="https://osu.yuiro.top" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>osu.yuiro.top</a></p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div
                     style={{
@@ -1231,14 +1284,14 @@ export default function Settings() {
                       border: "1px solid var(--glass-border)",
                     }}
                   >
-                    <div style={{ fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>功能</div>
+                    <div style={{ fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>{t("about.features")}</div>
                     <ul style={{ margin: 0, paddingLeft: 16, lineHeight: 1.9 }}>
-                      <li>osu!standard / Taiko / Catch / Mania 四种模式</li>
-                      <li>Storyboard 渲染与歌词同步</li>
-                      <li>回放系统、Auto 演示、全屏模式</li>
-                      <li>内置默认打击音效，零延迟反馈</li>
-                      <li>Mod 系统（DT/HT/HR/Easy/Hidden 等）</li>
-                      <li>谱面自带皮肤与 .osk 自定义皮肤导入</li>
+                      <li>{t("about.feature.modes")}</li>
+                      <li>{t("about.feature.storyboard")}</li>
+                      <li>{t("about.feature.replay")}</li>
+                      <li>{t("about.feature.hitSounds")}</li>
+                      <li>{t("about.feature.mods")}</li>
+                      <li>{t("about.feature.skins")}</li>
                     </ul>
                   </div>
                   <div
@@ -1249,15 +1302,15 @@ export default function Settings() {
                       border: "1px solid var(--glass-border)",
                     }}
                   >
-                    <div style={{ fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>数据来源</div>
+                    <div style={{ fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>{t("about.dataSources")}</div>
                     <ul style={{ margin: 0, paddingLeft: 16, lineHeight: 1.9 }}>
-                      <li>谱面搜索：osu.direct / Sayobot</li>
-                      <li>谱面下载：Sayobot 镜像</li>
-                      <li>歌词：LRCLIB 开源歌词库</li>
+                      <li>{t("about.source.search")}</li>
+                      <li>{t("about.source.download")}</li>
+                      <li>{t("about.source.lyrics")}</li>
                     </ul>
                   </div>
                 </div>
-                <p className="pt-2 text-xs" style={{ color: "var(--text-tertiary)" }}>仅供学习交流，请勿用于商业用途</p>
+                <p className="pt-2 text-xs" style={{ color: "var(--text-tertiary)" }}>{t("about.disclaimer")}</p>
               </div>
             )}
             </div>

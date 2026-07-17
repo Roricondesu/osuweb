@@ -3,16 +3,19 @@ import { useTheme } from "@/hooks/useTheme";
 import { useLocation, Link } from "react-router-dom";
 import { Maximize, Minimize, Home, Search, Download, Settings as SettingsIcon } from "lucide-react";
 import { useFullscreen } from "@/hooks/useFullscreen";
+import { useTranslation } from "@/i18n";
+import type { TranslationKey } from "@/i18n";
 
 const NAV_ITEMS = [
-  { to: "/", label: "首页", icon: Home },
-  { to: "/search", label: "搜索", icon: Search },
-  { to: "/downloads", label: "下载", icon: Download },
-  { to: "/settings", label: "设置", icon: SettingsIcon },
+  { to: "/", labelKey: "nav.home" as TranslationKey, icon: Home },
+  { to: "/search", labelKey: "nav.search" as TranslationKey, icon: Search },
+  { to: "/downloads", labelKey: "nav.downloads" as TranslationKey, icon: Download },
+  { to: "/settings", labelKey: "nav.settings" as TranslationKey, icon: SettingsIcon },
 ];
 
 export const TopNav: React.FC = () => {
   useTheme();
+  const { t } = useTranslation();
   const location = useLocation();
   const { toggle, active } = useFullscreen();
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -69,8 +72,8 @@ export const TopNav: React.FC = () => {
             <Link
               key={item.to}
               to={item.to}
-              aria-label={item.label}
-              title={item.label}
+              aria-label={t(item.labelKey)}
+              title={t(item.labelKey)}
               onMouseEnter={() => setHoveredIdx(idx)}
               onMouseLeave={() => setHoveredIdx(null)}
               className="no-underline"
@@ -98,7 +101,7 @@ export const TopNav: React.FC = () => {
       {/* 全屏按钮 */}
       <button
         onClick={toggle}
-        aria-label={active ? "退出全屏" : "进入全屏"}
+        aria-label={active ? t("nav.exitFullscreen") : t("nav.enterFullscreen")}
         style={{
           width: 32, height: 32, borderRadius: "var(--radius-pill)",
           display: "flex", alignItems: "center", justifyContent: "center",
