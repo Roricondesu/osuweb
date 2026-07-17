@@ -7,7 +7,22 @@ function readScores(): ScoreRecord[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as ScoreRecord[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // 兼容旧记录：补齐缺失的 pp/grade 等字段
+    return parsed.map((s) => ({
+      ...s,
+      pp: typeof s.pp === "number" ? s.pp : 0,
+      grade: s.grade ?? "D",
+      passed: s.passed ?? true,
+      stars: s.stars ?? 0,
+      maxAchievableCombo: s.maxAchievableCombo ?? s.maxCombo ?? 0,
+      ar: s.ar ?? 9,
+      od: s.od ?? 8,
+      cs: s.cs ?? 4,
+      hp: s.hp ?? 5,
+      title: s.title ?? "",
+      artist: s.artist ?? "",
+    }));
   } catch {
     return [];
   }

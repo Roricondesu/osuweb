@@ -349,6 +349,25 @@ export interface ScoreRecord {
   maxCombo: number;
   counts: Record<Judgement, number>;
   mods: ModType[];
+  // === 成绩扩展（osu! 官方规则） ===
+  /** 本局计算所得 pp（失败或无法计算为 0） */
+  pp: number;
+  /** osu! 评级 */
+  grade: "SS" | "SSH" | "S" | "SH" | "A" | "B" | "C" | "D" | "F";
+  /** 是否通过（health > 0） */
+  passed: boolean;
+  /** 谱面星级（用于 profile 展示，无需联表） */
+  stars: number;
+  /** 谱面最大可达 combo */
+  maxAchievableCombo: number;
+  /** 谱面属性（用于 pp 重算/展示） */
+  ar: number;
+  od: number;
+  cs: number;
+  hp: number;
+  /** 冗余标题/艺人，避免谱面被删除后无法展示 */
+  title: string;
+  artist: string;
 }
 
 /** 已下载并解压的谱面包 */
@@ -511,6 +530,10 @@ export interface Settings {
 
   // 键位
   keyBindings: KeyBindings;
+
+  // osu! 官方账号（用于 Profile 页导入展示）
+  osuApiKey?: string;
+  osuUsername?: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

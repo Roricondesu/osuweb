@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useLocation, Link } from "react-router-dom";
-import { Maximize, Minimize, Home, Search, Download, Settings as SettingsIcon } from "lucide-react";
+import { Maximize, Minimize, Home, Search, Download, Settings as SettingsIcon, User } from "lucide-react";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import { useTranslation } from "@/i18n";
 import type { TranslationKey } from "@/i18n";
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: "/", labelKey: "nav.home" as TranslationKey, icon: Home },
   { to: "/search", labelKey: "nav.search" as TranslationKey, icon: Search },
   { to: "/downloads", labelKey: "nav.downloads" as TranslationKey, icon: Download },
+  { to: "/profile", labelKey: "nav.profile" as TranslationKey, icon: User },
   { to: "/settings", labelKey: "nav.settings" as TranslationKey, icon: SettingsIcon },
 ];
 

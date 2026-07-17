@@ -14,6 +14,8 @@ import type { LyricLine } from "@/utils/lyricsProvider";
 import { fetchLyrics } from "@/utils/lyricsProvider";
 import { getReplaysForBeatmap, saveReplay } from "@/utils/replayStorage";
 import { saveScore } from "@/utils/scoreStorage";
+import { calculatePP, calculateGrade, GRADE_COLOR, type Grade } from "@/utils/ppCalculator";
+import { useTranslation } from "@/i18n";
 
 type Phase = "loading" | "ready" | "playing" | "paused" | "finished";
 
@@ -87,6 +89,8 @@ export default function Game() {
   const [selectedReplay, setSelectedReplay] = useState<Replay | null>(null);
   const [justSavedReplay, setJustSavedReplay] = useState(false);
   const lastReplayRef = useRef<Replay | null>(null);
+  const lastPpRef = useRef<number>(0);
+  const lastGradeRef = useRef<Grade>("D");
   const autoStartRef = useRef(false);
 
   // 加载歌词（优先使用下载时预加载的，没有则实时拉取并回写缓存）
@@ -230,6 +234,20 @@ export default function Game() {
                 setJustSavedReplay(true);
                 setAvailableReplays(getReplaysForBeatmap(set.setId, beatmap.id));
                 // 独立保存分数记录，用于历史成绩展示
+                const parsed = beatmap.parsed;
+                const beatmapMaxCombo = parsed?.hitObjects.length ?? replayScore.maxCombo;
+                const passed = replayScore.health > 0;
+                const ppInput = {
+                  mode: gameMode,
+                  stars: beatmap.difficulty_rating,
+                  beatmapMaxCombo,
+                  ar: parsed?.ar ?? beatmap.ar ?? 9,
+                  od: parsed?.od ?? beatmap.od ?? 8,
+                  counts: { ...replayScore.counts },
+                  maxCombo: replayScore.maxCombo,
+                  mods: [...mods],
+                  passed,
+                };
                 const record: ScoreRecord = {
                   id: replay.id,
                   setId: set.setId,
@@ -242,8 +260,21 @@ export default function Game() {
                   maxCombo: replayScore.maxCombo,
                   counts: { ...replayScore.counts },
                   mods: [...mods],
+                  pp: calculatePP(ppInput),
+                  grade: calculateGrade(replayScore.counts, [...mods], passed),
+                  passed,
+                  stars: beatmap.difficulty_rating,
+                  maxAchievableCombo: beatmapMaxCombo,
+                  ar: ppInput.ar,
+                  od: ppInput.od,
+                  cs: parsed?.cs ?? beatmap.cs ?? 4,
+                  hp: parsed?.hp ?? beatmap.hp ?? 5,
+                  title: set.title,
+                  artist: set.artist,
                 };
                 saveScore(record);
+                lastPpRef.current = record.pp;
+                lastGradeRef.current = record.grade;
               }
             },
           },
@@ -423,12 +454,14 @@ export default function Game() {
     return (
       <ResultScreen
         score={score}
+        mode={gameMode}
         onRetry={handleRestart}
         onBack={() => navigate(-1)}
-        mode={gameMode}
         justSaved={justSavedReplay}
         canWatchReplay={justSavedReplay && !!lastReplayRef.current}
         onWatchReplay={handleWatchReplay}
+        pp={lastPpRef.current}
+        grade={lastGradeRef.current}
       />
     );
   }
@@ -723,20 +756,18 @@ const ResultScreen: React.FC<{
   justSaved?: boolean;
   canWatchReplay?: boolean;
   onWatchReplay?: () => void;
-}> = ({ score, mode, onRetry, onBack, justSaved, canWatchReplay, onWatchReplay }) => {
+  pp?: number;
+  grade?: Grade;
+}> = ({ score, mode, onRetry, onBack, justSaved, canWatchReplay, onWatchReplay, pp = 0, grade }) => {
+  const { t } = useTranslation();
   const total =
     score.judgements["300"] +
     score.judgements["100"] +
     score.judgements["50"] +
     score.judgements.miss;
 
-  let rank = "D";
-  let rankColor = "#ff375f";
-  if (score.accuracy >= 100) { rank = "SS"; rankColor = "#ffd60a"; }
-  else if (score.accuracy >= 95) { rank = "S"; rankColor = "#ff9100"; }
-  else if (score.accuracy >= 90) { rank = "A"; rankColor = "#66cc44"; }
-  else if (score.accuracy >= 80) { rank = "B"; rankColor = "#0a84ff"; }
-  else if (score.accuracy >= 70) { rank = "C"; rankColor = "#9966ff"; }
+  const rank = grade ?? "D";
+  const rankColor = GRADE_COLOR[rank];
 
   const failed = score.health <= 0;
   const acc100 = Math.min(100, Math.max(0, score.accuracy));
@@ -759,7 +790,7 @@ const ResultScreen: React.FC<{
         {/* 顶部 */}
         <div style={{ textAlign: "center" }}>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-secondary)", margin: 0 }}>
-            {MODE_LABEL[mode]} · 结算
+            {MODE_LABEL[mode]} · {t("result.title")}
           </p>
           <h1
             style={{
@@ -767,11 +798,16 @@ const ResultScreen: React.FC<{
               color: failed ? "#ff375f" : "var(--text-primary)", margin: "4px 0 0",
             }}
           >
-            {failed ? "失败" : "完成！"}
+            {failed ? t("result.failed") : t("result.clear")}
           </h1>
           {justSaved && (
             <p style={{ marginTop: 6, fontSize: 12, color: "var(--lazer-accent)" }}>
-              回放已自动保存
+              {t("result.replaySaved")}
+            </p>
+          )}
+          {pp > 0 && (
+            <p className="hud-num" style={{ marginTop: 8, fontSize: 20, fontWeight: 800, color: "var(--accent)", letterSpacing: "-0.01em" }}>
+              {pp.toFixed(0)}<span style={{ fontSize: 12, fontWeight: 600, marginLeft: 3 }}>pp</span>
             </p>
           )}
         </div>
@@ -836,9 +872,9 @@ const ResultScreen: React.FC<{
             marginBottom: 14,
           }}
         >
-          <Stat label="分数" value={Math.round(score.score).toLocaleString()} />
-          <Stat label="最大连击" value={`${score.maxCombo}x`} />
-          <Stat label="总命中" value={String(total)} />
+          <Stat label={t("result.score")} value={Math.round(score.score).toLocaleString()} />
+          <Stat label={t("result.maxCombo")} value={`${score.maxCombo}x`} />
+          <Stat label={t("result.accuracy")} value={`${acc100.toFixed(2)}%`} />
         </div>
 
         {/* 判定明细 */}
@@ -852,11 +888,11 @@ const ResultScreen: React.FC<{
         {/* 操作 */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <GlassButton onClick={onBack} style={{ flex: 1, minWidth: 120 }}>
-            <ArrowLeft size={14} /> 返回
+            <ArrowLeft size={14} /> {t("result.back")}
           </GlassButton>
           {canWatchReplay && onWatchReplay && (
             <GlassButton onClick={onWatchReplay} style={{ flex: 1, minWidth: 120 }}>
-              <Eye size={14} /> 查看回放
+              <Eye size={14} /> {t("result.watchReplay")}
             </GlassButton>
           )}
           <button
@@ -864,7 +900,7 @@ const ResultScreen: React.FC<{
             className="lazer-cta"
             style={{ flex: 1, minWidth: 120, padding: "12px 0", fontSize: 14, fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
           >
-            <RotateCcw size={14} /> 再来一次
+            <RotateCcw size={14} /> {t("result.retry")}
           </button>
         </div>
       </div>

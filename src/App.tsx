@@ -15,6 +15,7 @@ const BeatmapSetDetail = lazy(() => import("@/pages/BeatmapSetDetail"));
 const Game = lazy(() => import("@/pages/Game"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Downloads = lazy(() => import("@/pages/Downloads"));
+const Profile = lazy(() => import("@/pages/Profile"));
 
 function AppRoutes() {
   const location = useLocation();
@@ -35,6 +36,7 @@ function AppRoutes() {
                 <Route path="/set/:setId" element={<BeatmapSetDetail />} />
                 <Route path="/game/:setId/:mode/:diff" element={<Game />} />
                 <Route path="/downloads" element={<Downloads />} />
+                <Route path="/profile" element={<Profile />} />
                 <Route path="/settings" element={<Settings />} />
               </Routes>
             </ErrorBoundary>

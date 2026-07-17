@@ -9,6 +9,7 @@ import { MODE_LABEL, MODE_COLOR } from "@/types";
 import { formatTime } from "@/utils/formatTime";
 import { getScoresForBeatmap } from "@/utils/scoreStorage";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
+import { GRADE_COLOR } from "@/utils/ppCalculator";
 
 const MODE_FROM_NUM: Record<number, GameMode> = {
   0: "standard",
@@ -108,10 +109,22 @@ const DifficultyRow: React.FC<{
       {bestScore && (
         <div
           className="hidden md:flex"
-          style={{ alignItems: "center", gap: 5, fontSize: 11, flexShrink: 0 }}
+          style={{ alignItems: "center", gap: 6, fontSize: 11, flexShrink: 0 }}
         >
-          <Trophy size={11} style={{ color: sc }} />
-          <span style={{ color: sc, fontWeight: 700 }}>{bestScore.score.toLocaleString()}</span>
+          {bestScore.pp > 0 && (
+            <>
+              <span className="hud-num" style={{ color: "var(--accent)", fontWeight: 800 }}>
+                {bestScore.pp.toFixed(0)}pp
+              </span>
+              <span style={{ color: "rgba(255,255,255,0.4)" }}>·</span>
+            </>
+          )}
+          <span
+            className="hud-num"
+            style={{ color: GRADE_COLOR[bestScore.grade], fontWeight: 900, fontSize: 12 }}
+          >
+            {bestScore.grade}
+          </span>
           <span style={{ color: "rgba(255,255,255,0.4)" }}>·</span>
           <span style={{ color: "rgba(255,255,255,0.6)" }}>{bestScore.accuracy.toFixed(2)}%</span>
         </div>
