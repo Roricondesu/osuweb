@@ -567,30 +567,38 @@ export default function Settings() {
             {/* 语言 */}
             {activeSection === "language" && (
               <div className="flex flex-col gap-4">
-                <SubHeader>{t("language.title")}</SubHeader>
-                <SettingRow>
-                  <SettingLabel title={t("language.title")} desc={t("language.desc")} />
-                  <div className="flex flex-wrap gap-2">
-                    {SUPPORTED_LANGUAGES.map((lang) => {
-                      const selected = settings.language === lang.code;
-                      return (
-                        <button
-                          key={lang.code}
-                          onClick={() => updateSetting("language", lang.code as Language)}
-                          className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all active:scale-95"
+                <SettingLabel title={t("language.title")} desc={t("language.desc")} />
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {SUPPORTED_LANGUAGES.map((lang) => {
+                    const selected = settings.language === lang.code;
+                    return (
+                      <button
+                        key={lang.code}
+                        onClick={() => updateSetting("language", lang.code as Language)}
+                        className="rounded-xl p-4 text-center transition-all active:scale-95"
+                        style={{
+                          border: `1px solid ${selected ? "var(--accent)" : "var(--glass-border)"}`,
+                          background: selected ? "var(--accent-soft)" : "rgba(255,255,255,0.03)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div
+                          className="font-torus"
                           style={{
-                            border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
-                            color: selected ? "#fff" : "var(--text-primary)",
-                            background: selected ? "var(--accent)" : "rgba(255,255,255,0.04)",
-                            cursor: "pointer",
+                            fontSize: 15,
+                            fontWeight: 700,
+                            color: selected ? "var(--accent)" : "var(--text-primary)",
                           }}
                         >
                           {lang.native}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </SettingRow>
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 3 }}>
+                          {lang.label}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

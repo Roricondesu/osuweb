@@ -13,6 +13,7 @@ import {
   Star,
 } from "lucide-react";
 import type { LoadedBeatmapSet } from "@/types";
+import { useTranslation } from "@/i18n";
 
 type SortBy = "newest" | "oldest" | "title" | "stars";
 
@@ -26,7 +27,8 @@ const SORT_OPTIONS: { key: SortBy; label: string; icon: React.ElementType }[] = 
 const SortButton: React.FC<{
   sort: SortBy;
   onChange: (s: SortBy) => void;
-}> = ({ sort, onChange }) => {
+  labelOf: (s: SortBy) => string;
+}> = ({ sort, onChange, labelOf }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const active = SORT_OPTIONS.find((o) => o.key === sort)!;
@@ -59,7 +61,7 @@ const SortButton: React.FC<{
         }}
       >
         <ArrowUpDown size={13} />
-        <span className="font-torus">{active.label}</span>
+        <span className="font-torus">{labelOf(active.key)}</span>
       </button>
       {open && (
         <div
@@ -105,7 +107,7 @@ const SortButton: React.FC<{
                 }}
               >
                 <Icon size={13} />
-                {o.label}
+                {labelOf(o.key)}
               </button>
             );
           })}
@@ -133,7 +135,15 @@ export default function Downloads() {
   const deleteDownload = useGameStore((s) => s.deleteDownload);
   const clearDownloads = useGameStore((s) => s.clearDownloads);
   const importBeatmapFile = useGameStore((s) => s.importBeatmapFile);
+  const { t } = useTranslation();
   const [sortBy, setSortBy] = useState<SortBy>("newest");
+
+  const sortLabelOf = (s: SortBy): string => {
+    if (s === "newest") return t("downloads.sortNewest");
+    if (s === "oldest") return t("downloads.sortOldest");
+    if (s === "title") return t("downloads.sortTitle");
+    return t("downloads.sortStars");
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -166,7 +176,7 @@ export default function Downloads() {
   };
 
   const handleClear = async () => {
-    if (confirm("确定清空所有本地下载吗？此操作不可恢复。")) {
+    if (confirm(t("downloads.clearConfirm"))) {
       await clearDownloads();
     }
   };
@@ -180,18 +190,18 @@ export default function Downloads() {
       try {
         const loaded = await importBeatmapFile(file);
         if (loaded) {
-          setImportMsg({ text: `已导入：${loaded.title}`, ok: true });
+          setImportMsg({ text: t("downloads.importSuccess", { title: loaded.title }), ok: true });
         } else {
-          setImportMsg({ text: "导入失败，请检查文件格式", ok: false });
+          setImportMsg({ text: t("downloads.importFailFormat"), ok: false });
         }
       } catch {
-        setImportMsg({ text: "导入失败", ok: false });
+        setImportMsg({ text: t("downloads.importFail"), ok: false });
       }
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
       setTimeout(() => setImportMsg(null), 3000);
     },
-    [importBeatmapFile],
+    [importBeatmapFile, t],
   );
 
   return (
@@ -204,7 +214,7 @@ export default function Downloads() {
         <div className="flex items-center gap-2.5">
           <HardDrive size={22} style={{ color: "var(--accent)" }} />
           <h1 className="font-torus text-xl sm:text-2xl" style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-            下载管理
+            {t("downloads.title")}
           </h1>
           <span
             className="font-torus"
@@ -223,7 +233,7 @@ export default function Downloads() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <SortButton sort={sortBy} onChange={setSortBy} />
+          <SortButton sort={sortBy} onChange={setSortBy} labelOf={sortLabelOf} />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={importing}
@@ -231,7 +241,7 @@ export default function Downloads() {
             style={{ padding: "7px 14px", fontSize: 12, fontWeight: 600, color: "var(--accent)" }}
           >
             <Upload size={14} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
-            {importing ? "导入中…" : "导入谱面"}
+            {importing ? t("downloads.importing") : t("downloads.importBeatmap")}
           </button>
           {items.length > 0 && (
             <button
@@ -246,7 +256,7 @@ export default function Downloads() {
               }}
             >
               <Trash2 size={14} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
-              清空全部
+              {t("downloads.clearAll")}
             </button>
           )}
         </div>
@@ -274,8 +284,8 @@ export default function Downloads() {
           }}
         >
           <Music2 size={36} className="mb-3 opacity-50" />
-          <div className="text-sm sm:text-base">暂无本地下载</div>
-          <div className="mt-1.5 text-xs opacity-70">去搜索页下载谱面吧</div>
+          <div className="text-sm sm:text-base">{t("downloads.empty")}</div>
+          <div className="mt-1.5 text-xs opacity-70">{t("downloads.emptyHint")}</div>
         </div>
       ) : (
         <div

@@ -5,6 +5,7 @@ import { Search as SearchIcon, X, SlidersHorizontal, ArrowDownUp, Film, Image } 
 import { OsuModeIcon } from "@/components/common";
 import type { GameMode, BeatmapSet } from "@/types";
 import { MODE_COLOR } from "@/types";
+import { useTranslation } from "@/i18n";
 
 const MODE_TABS: { key: GameMode | null; label: string }[] = [
   { key: null, label: "全部" },
@@ -53,7 +54,8 @@ const RangeFilter: React.FC<{
   value: [number, number];
   onChange: (v: [number, number]) => void;
   format?: (v: number) => string;
-}> = ({ label, min, max, step, value, onChange, format }) => {
+  clearLabel?: string;
+}> = ({ label, min, max, step, value, onChange, format, clearLabel }) => {
   const [lo, hi] = value;
   const fmt = format ?? ((v: number) => String(v));
   const active = lo > min || hi < max;
@@ -70,7 +72,7 @@ const RangeFilter: React.FC<{
             fontSize: 11, padding: 0, opacity: active ? 1 : 0.4,
           }}
         >
-          {fmt(lo)} – {fmt(hi)}{active ? " · 清除" : ""}
+          {fmt(lo)} – {fmt(hi)}{active && clearLabel ? " · " + clearLabel : ""}
         </button>
       </div>
       <div style={{ position: "relative", height: 24, display: "flex", alignItems: "center" }}>
@@ -139,6 +141,21 @@ export default function Search() {
   const error = useGameStore((s) => s.searchError);
   const settings = useGameStore((s) => s.settings);
   const updateSetting = useGameStore((s) => s.updateSetting);
+  const { t } = useTranslation();
+
+  const searchTypeLabel = (key: SearchType): string => {
+    if (key === "all") return t("search.typeAll");
+    if (key === "title") return t("search.typeTitle");
+    return t("search.typeArtist");
+  };
+
+  const sortLabel = (key: SortKey): string => {
+    if (key === "relevance") return t("search.sortRelevance");
+    if (key === "stars_desc") return t("search.sortStarsDesc");
+    if (key === "bpm_desc") return t("search.sortBpmDesc");
+    if (key === "recent") return t("search.sortRecent");
+    return t("search.sortTitle");
+  };
 
   const [query, setQuery] = useState("");
   const [searchType, setSearchType] = useState<SearchType>("all");
@@ -265,7 +282,7 @@ export default function Search() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            placeholder="歌曲 / 艺人 / 关键词…"
+            placeholder={t("search.placeholder")}
             className="font-torus"
             style={{
               flex: 1,
@@ -282,7 +299,7 @@ export default function Search() {
           {query && (
             <button
               onClick={() => { setQuery(""); search("", searchMode); }}
-              aria-label="清空"
+              aria-label={t("search.clear")}
               style={{
                 border: "none", background: "transparent",
                 color: "var(--text-secondary)", cursor: "pointer", padding: 4,
@@ -297,7 +314,7 @@ export default function Search() {
             className="lazer-cta"
             style={{ padding: "8px 18px", fontSize: 13, fontWeight: 700, color: "#fff", flexShrink: 0 }}
           >
-            搜索
+            {t("search.submit")}
           </button>
         </div>
 
@@ -321,7 +338,7 @@ export default function Search() {
                 {tab.key && (
                   <OsuModeIcon mode={tab.key} size={13} color={active ? "var(--accent)" : MODE_COLOR[tab.key]} />
                 )}
-                {tab.label}
+                {tab.key === null ? t("search.typeAll") : tab.label}
               </button>
             );
           })}
@@ -329,12 +346,12 @@ export default function Search() {
 
         {/* 筛选标签行：搜索类型 + storyboard/video + 高级筛选 + 排序 + 搜索源 */}
         <div className="no-scrollbar" style={{ display: "flex", gap: 6, alignItems: "center", overflowX: "auto", paddingBottom: 2 }}>
-          {SEARCH_TYPES.map((t) => (
+          {SEARCH_TYPES.map((st) => (
             <FilterChip
-              key={t.key}
-              active={searchType === t.key}
-              onClick={() => setSearchType(t.key)}
-              label={t.label}
+              key={st.key}
+              active={searchType === st.key}
+              onClick={() => setSearchType(st.key)}
+              label={searchTypeLabel(st.key)}
             />
           ))}
 
@@ -350,7 +367,7 @@ export default function Search() {
             active={!!settings.videoOnly}
             onClick={toggleVideo}
             icon={<Film size={12} />}
-            label="视频"
+            label={t("search.videoChip")}
           />
 
           <span style={{ width: 1, height: 16, background: "var(--glass-border)", flexShrink: 0 }} />
@@ -359,7 +376,7 @@ export default function Search() {
             active={filterOpen}
             onClick={() => setFilterOpen((o) => !o)}
             icon={<SlidersHorizontal size={12} />}
-            label="筛选"
+            label={t("search.filterChip")}
           />
 
           {/* 排序下拉 */}
@@ -378,7 +395,7 @@ export default function Search() {
             >
               {SORT_OPTIONS.map((o) => (
                 <option key={o.key} value={o.key} style={{ background: "var(--card-bg)", color: "#fff" }}>
-                  {o.label}
+                  {sortLabel(o.key)}
                 </option>
               ))}
             </select>
@@ -391,7 +408,7 @@ export default function Search() {
               key={src}
               active={settings.searchSource === src}
               onClick={() => { updateSetting("searchSource", src); search(query, searchMode); }}
-              label={src === "all" ? "全部竞速" : src === "osu" ? "osu.direct" : src === "sayobot" ? "Sayobot" : src === "kitsu" ? "Kitsu" : "Chimu"}
+              label={src === "all" ? t("search.allRace") : src === "osu" ? "osu.direct" : src === "sayobot" ? "Sayobot" : src === "kitsu" ? "Kitsu" : "Chimu"}
             />
           ))}
         </div>
@@ -438,10 +455,10 @@ export default function Search() {
               animation: "stagger-fade-up 0.3s ease both",
             }}
           >
-            <RangeFilter label="BPM" min={0} max={400} step={5} value={bpmRange} onChange={setBpmRange} />
-            <RangeFilter label="星级" min={0} max={10} step={0.1} value={starRange} onChange={setStarRange} format={(v) => v.toFixed(1)} />
-            <RangeFilter label="AR" min={0} max={10} step={0.5} value={arRange} onChange={setArRange} />
-            <RangeFilter label="CS" min={0} max={10} step={0.5} value={csRange} onChange={setCsRange} />
+            <RangeFilter label="BPM" min={0} max={400} step={5} value={bpmRange} onChange={setBpmRange} clearLabel={t("search.rangeClear")} />
+            <RangeFilter label={t("search.rangeStars")} min={0} max={10} step={0.1} value={starRange} onChange={setStarRange} format={(v) => v.toFixed(1)} clearLabel={t("search.rangeClear")} />
+            <RangeFilter label="AR" min={0} max={10} step={0.5} value={arRange} onChange={setArRange} clearLabel={t("search.rangeClear")} />
+            <RangeFilter label="CS" min={0} max={10} step={0.5} value={csRange} onChange={setCsRange} clearLabel={t("search.rangeClear")} />
             {filterActive && (
               <button
                 onClick={() => {
@@ -457,7 +474,7 @@ export default function Search() {
                   color: "var(--text-secondary)", cursor: "pointer",
                 }}
               >
-                清除全部筛选
+                {t("search.clearAllFilters")}
               </button>
             )}
           </div>
@@ -480,7 +497,7 @@ export default function Search() {
       {/* 结果统计 */}
       {!loading && !error && filteredResults.length > 0 && (
         <div style={{ marginTop: 16, fontSize: 12, color: "var(--text-secondary)" }}>
-          共 {filteredResults.length} 个结果
+          {t("search.resultCount", { count: filteredResults.length })}
         </div>
       )}
 
@@ -498,7 +515,7 @@ export default function Search() {
           }}
         >
           <p style={{ color: "var(--text-secondary)", fontSize: 13, margin: 0 }}>
-            没有找到结果，试试别的关键词或调整筛选
+            {t("search.empty")}
           </p>
         </div>
       ) : (

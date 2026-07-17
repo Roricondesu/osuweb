@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Search as SearchIcon, Flame, Heart } from "l
 import type { GameMode, BeatmapSet } from "@/types";
 import { MODE_COLOR } from "@/types";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
+import { useTranslation } from "@/i18n";
 
 const MODE_TABS: { key: GameMode | null; label: string }[] = [
   { key: null, label: "全部" },
@@ -22,7 +23,8 @@ const SectionHeader: React.FC<{
   title: string;
   subtitle?: string;
   onMore?: () => void;
-}> = ({ icon, title, subtitle, onMore }) => (
+  moreLabel?: string;
+}> = ({ icon, title, subtitle, onMore, moreLabel }) => (
   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <span
@@ -49,14 +51,20 @@ const SectionHeader: React.FC<{
         className="hud-btn"
         style={{ padding: "6px 12px", fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}
       >
-        查看更多
+        {moreLabel}
       </button>
     )}
   </div>
 );
 
 /** Hero 推荐（移动端紧凑，桌面端卡片化） */
-const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
+const HeroCarousel: React.FC<{
+  sets: BeatmapSet[];
+  viewDetailLabel: string;
+  prevLabel: string;
+  nextLabel: string;
+  dotIndexLabel: (i: number) => string;
+}> = ({ sets, viewDetailLabel, prevLabel, nextLabel, dotIndexLabel }) => {
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -249,7 +257,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
                 borderRadius: "var(--radius-sm)",
               }}
             >
-              查看详情
+              {viewDetailLabel}
             </button>
           </div>
         </div>
@@ -269,7 +277,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
         >
           <button
             onClick={(e) => { e.stopPropagation(); prev(); }}
-            aria-label="上一个"
+            aria-label={prevLabel}
             className="hud-btn"
             style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
           >
@@ -280,7 +288,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
               <button
                 key={i}
                 onClick={(e) => { e.stopPropagation(); goTo(i); }}
-                aria-label={`第 ${i + 1} 个`}
+                aria-label={dotIndexLabel(i + 1)}
                 style={{
                   width: i === index ? 18 : 5,
                   height: 5,
@@ -295,7 +303,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
           </div>
           <button
             onClick={(e) => { e.stopPropagation(); next(); }}
-            aria-label="下一个"
+            aria-label={nextLabel}
             className="hud-btn"
             style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
           >
@@ -309,6 +317,7 @@ const HeroCarousel: React.FC<{ sets: BeatmapSet[] }> = ({ sets }) => {
 
 export default function Home() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const searchResults = useGameStore((s) => s.searchResults);
   const loading = useGameStore((s) => s.searchLoading);
   const error = useGameStore((s) => s.searchError);
@@ -358,7 +367,13 @@ export default function Home() {
     <div className="page-shell">
       {/* Hero */}
       <section style={{ animation: "stagger-fade-up 0.4s cubic-bezier(0.22,1,0.36,1) both" }}>
-        <HeroCarousel sets={heroSets} />
+        <HeroCarousel
+          sets={heroSets}
+          viewDetailLabel={t("home.viewDetail")}
+          prevLabel={t("home.prev")}
+          nextLabel={t("home.next")}
+          dotIndexLabel={(i) => t("home.dotIndex", { n: i })}
+        />
       </section>
 
       {/* 模式过滤 + 搜索入口 */}
@@ -389,7 +404,7 @@ export default function Home() {
                     color={active ? "var(--accent)" : MODE_COLOR[tab.key]}
                   />
                 )}
-                {tab.label}
+                {tab.key === null ? t("home.modeAll") : tab.label}
               </button>
             );
           })}
@@ -403,7 +418,7 @@ export default function Home() {
           }}
         >
           <SearchIcon size={12} />
-          搜索谱面
+          {t("home.searchBeatmaps")}
         </button>
       </section>
 
@@ -431,9 +446,10 @@ export default function Home() {
           <section style={{ marginTop: 20 }}>
             <SectionHeader
               icon={<Flame size={16} />}
-              title="热门谱面"
-              subtitle="从 osu.direct 镜像获取最新上架的谱面"
+              title={t("home.hotTitle")}
+              subtitle={t("home.hotSubtitle")}
               onMore={() => navigate("/search")}
+              moreLabel={t("home.viewMore")}
             />
             <div className="card-grid">
               {searchResults.map((set, i) => (
@@ -447,8 +463,8 @@ export default function Home() {
             <section style={{ marginTop: 32 }}>
               <SectionHeader
                 icon={<Heart size={16} />}
-                title="我的收藏"
-                subtitle={`${favSets.length} 个收藏的谱面`}
+                title={t("home.favTitle")}
+                subtitle={t("home.favSubtitle", { count: favSets.length })}
               />
               <div className="card-grid">
                 {favSets.map((set, i) => (
@@ -468,7 +484,7 @@ export default function Home() {
               }}
             >
               <p style={{ color: "var(--text-secondary)", fontSize: 13, margin: 0 }}>
-                暂无内容，去搜索页找找看吧
+                {t("home.empty")}
               </p>
             </div>
           )}
