@@ -310,6 +310,236 @@ const ChipGroup = <T extends string>({
   </div>
 );
 
+const wizPrimaryBtn: React.CSSProperties = {
+  padding: "8px 16px",
+  borderRadius: 10,
+  border: "1px solid var(--accent)",
+  background: "var(--accent)",
+  color: "#fff",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+  transition: "all 0.15s ease",
+};
+
+const wizGhostBtn: React.CSSProperties = {
+  padding: "8px 16px",
+  borderRadius: 10,
+  border: "1px solid var(--glass-border)",
+  background: "rgba(255,255,255,0.04)",
+  color: "var(--text-primary)",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+  transition: "all 0.15s ease",
+};
+
+const wizTapBtn: React.CSSProperties = {
+  width: "100%",
+  padding: "22px",
+  borderRadius: 14,
+  border: "1.5px solid var(--accent)",
+  background: "var(--accent-soft)",
+  color: "var(--text-primary)",
+  fontSize: 15,
+  fontWeight: 700,
+  cursor: "pointer",
+  transition: "transform 0.08s ease",
+};
+
+/**
+ * 音频偏移辅助测定工具
+ * 循环播放 120BPM 节拍音，用户跟随节拍点击 8 次，
+ * 取每次点击与最近节拍的时间差均值，作为建议 offset。
+ */
+const OffsetWizard: React.FC<{
+  onApply: (offset: number) => void;
+}> = ({ onApply }) => {
+  const { t } = useTranslation();
+  const TOTAL_TAPS = 8;
+  const BEAT_INTERVAL = 0.5; // 120 BPM
+
+  const [running, setRunning] = useState(false);
+  const [taps, setTaps] = useState<number[]>([]);
+  const [suggested, setSuggested] = useState<number | null>(null);
+
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const beatTimesRef = useRef<number[]>([]);
+  const tapsRef = useRef<number[]>([]);
+  const nextBeatTimeRef = useRef<number>(0);
+  const schedulerRef = useRef<number | null>(null);
+
+  const playClick = useCallback((ctx: AudioContext, time: number) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, time);
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(0.3, time + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(time);
+    osc.stop(time + 0.06);
+  }, []);
+
+  const stopInternal = useCallback(() => {
+    if (schedulerRef.current !== null) {
+      clearInterval(schedulerRef.current);
+      schedulerRef.current = null;
+    }
+    setRunning(false);
+  }, []);
+
+  const start = useCallback(async () => {
+    let ctx = audioCtxRef.current;
+    if (!ctx) {
+      const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      ctx = new Ctor();
+      audioCtxRef.current = ctx;
+    }
+    if (ctx.state === "suspended") await ctx.resume();
+
+    beatTimesRef.current = [];
+    tapsRef.current = [];
+    setTaps([]);
+    setSuggested(null);
+
+    const startAt = ctx.currentTime + 0.3;
+    nextBeatTimeRef.current = startAt;
+    setRunning(true);
+
+    const scheduleAhead = () => {
+      const c = audioCtxRef.current;
+      if (!c) return;
+      while (nextBeatTimeRef.current < c.currentTime + 0.2) {
+        playClick(c, nextBeatTimeRef.current);
+        beatTimesRef.current.push(nextBeatTimeRef.current);
+        nextBeatTimeRef.current += BEAT_INTERVAL;
+      }
+    };
+    scheduleAhead();
+    schedulerRef.current = window.setInterval(scheduleAhead, 25);
+  }, [playClick]);
+
+  const handleTap = useCallback(() => {
+    const ctx = audioCtxRef.current;
+    if (!ctx || !running) return;
+    const now = ctx.currentTime;
+    const beats = beatTimesRef.current;
+    if (beats.length === 0) return;
+
+    let nearest = beats[0];
+    let minDiff = Math.abs(now - nearest);
+    for (let i = 1; i < beats.length; i++) {
+      const d = Math.abs(now - beats[i]);
+      if (d < minDiff) {
+        minDiff = d;
+        nearest = beats[i];
+      }
+    }
+    const deltaMs = Math.round((now - nearest) * 1000);
+    const next = [...tapsRef.current, deltaMs];
+    tapsRef.current = next;
+    setTaps(next);
+
+    if (next.length >= TOTAL_TAPS) {
+      const mean = next.reduce((a, b) => a + b, 0) / next.length;
+      const rounded = Math.round(mean / 5) * 5;
+      const clamped = Math.max(-200, Math.min(200, rounded));
+      setSuggested(clamped);
+      stopInternal();
+    }
+  }, [running, stopInternal]);
+
+  // 空格键跟随点击
+  useEffect(() => {
+    if (!running) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        handleTap();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [running, handleTap]);
+
+  // 卸载时清理
+  useEffect(() => {
+    return () => {
+      if (schedulerRef.current !== null) clearInterval(schedulerRef.current);
+      audioCtxRef.current?.close().catch(() => {});
+    };
+  }, []);
+
+  const reset = useCallback(() => {
+    tapsRef.current = [];
+    setTaps([]);
+    setSuggested(null);
+  }, []);
+
+  const applySuggested = useCallback(() => {
+    if (suggested !== null) onApply(suggested);
+  }, [suggested, onApply]);
+
+  const formatVal = (v: number) => (v > 0 ? `+${v}` : `${v}`);
+
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        padding: 16,
+        borderRadius: "var(--radius-md)",
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid var(--glass-border)",
+      }}
+    >
+      <style>{`.wiz-tap-btn:active{transform:scale(0.97);}`}</style>
+      <div className="text-sm font-semibold" style={{ color: "var(--text-primary)", marginBottom: 4 }}>
+        {t("audio.offsetWizard")}
+      </div>
+      <div className="text-xs" style={{ color: "var(--text-secondary)", marginBottom: 12, lineHeight: 1.45 }}>
+        {t("audio.offsetWizardDesc")}
+      </div>
+
+      {!running && suggested === null && (
+        <div className="flex items-center gap-3" style={{ flexWrap: "wrap" }}>
+          <button onClick={start} style={wizPrimaryBtn}>{t("audio.offsetWizardStart")}</button>
+          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{t("audio.offsetWizardHint")}</span>
+        </div>
+      )}
+
+      {running && (
+        <div className="flex flex-col gap-3">
+          <button className="wiz-tap-btn" onClick={handleTap} style={wizTapBtn}>
+            {t("audio.offsetWizardTap")}
+          </button>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+              {t("audio.offsetWizardTaps", { n: taps.length, total: TOTAL_TAPS })}
+            </span>
+            <button onClick={stopInternal} style={wizGhostBtn}>{t("audio.offsetWizardStop")}</button>
+          </div>
+        </div>
+      )}
+
+      {!running && suggested !== null && (
+        <div className="flex flex-col gap-3">
+          <div className="text-sm" style={{ color: "var(--text-primary)", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+            {t("audio.offsetWizardResult", { value: formatVal(suggested) })}
+          </div>
+          <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
+            <button onClick={applySuggested} style={wizPrimaryBtn}>{t("audio.offsetWizardApply")}</button>
+            <button onClick={start} style={wizGhostBtn}>{t("audio.offsetWizardRetry")}</button>
+            <button onClick={reset} style={wizGhostBtn}>{t("audio.offsetWizardReset")}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function Settings() {
   const { t } = useTranslation();
   const settings = useGameStore((s) => s.settings);
@@ -718,6 +948,7 @@ export default function Settings() {
                 <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
                   {t("audio.offsetHint")}
                 </p>
+                <OffsetWizard onApply={(v) => updateSetting("offset", v)} />
 
                 <SubHeader>{t("audio.hitSamples")}</SubHeader>
                 <SettingRow>
