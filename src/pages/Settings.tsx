@@ -349,38 +349,42 @@ const wizTapBtn: React.CSSProperties = {
 
 /**
  * 音频偏移辅助测定工具
- * 循环播放 120BPM 节拍音，用户跟随节拍点击 8 次，
- * 取每次点击与最近节拍的时间差均值，作为建议 offset。
+ * 循环播放 100BPM 节拍音，每 4 拍一个重音，用户跟随重音点击 8 次，
+ * 取每次点击与最近重音的时间差均值，作为建议 offset。
  */
 const OffsetWizard: React.FC<{
   onApply: (offset: number) => void;
 }> = ({ onApply }) => {
   const { t } = useTranslation();
   const TOTAL_TAPS = 8;
-  const BEAT_INTERVAL = 0.5; // 120 BPM
+  const BEAT_INTERVAL = 0.6; // 100 BPM
+  const ACCENT_EVERY = 4; // 每 4 拍一个重音
 
   const [running, setRunning] = useState(false);
   const [taps, setTaps] = useState<number[]>([]);
   const [suggested, setSuggested] = useState<number | null>(null);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const beatTimesRef = useRef<number[]>([]);
+  const accentBeatTimesRef = useRef<number[]>([]);
   const tapsRef = useRef<number[]>([]);
   const nextBeatTimeRef = useRef<number>(0);
+  const beatIndexRef = useRef<number>(0);
   const schedulerRef = useRef<number | null>(null);
 
-  const playClick = useCallback((ctx: AudioContext, time: number) => {
+  const playClick = useCallback((ctx: AudioContext, time: number, accent: boolean) => {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
-    osc.frequency.setValueAtTime(880, time);
+    osc.frequency.setValueAtTime(accent ? 660 : 990, time);
+    const peak = accent ? 0.4 : 0.16;
+    const dur = accent ? 0.09 : 0.05;
     gain.gain.setValueAtTime(0.0001, time);
-    gain.gain.exponentialRampToValueAtTime(0.3, time + 0.005);
-    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+    gain.gain.exponentialRampToValueAtTime(peak, time + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start(time);
-    osc.stop(time + 0.06);
+    osc.stop(time + dur + 0.01);
   }, []);
 
   const stopInternal = useCallback(() => {
@@ -400,8 +404,9 @@ const OffsetWizard: React.FC<{
     }
     if (ctx.state === "suspended") await ctx.resume();
 
-    beatTimesRef.current = [];
+    accentBeatTimesRef.current = [];
     tapsRef.current = [];
+    beatIndexRef.current = 0;
     setTaps([]);
     setSuggested(null);
 
@@ -413,8 +418,11 @@ const OffsetWizard: React.FC<{
       const c = audioCtxRef.current;
       if (!c) return;
       while (nextBeatTimeRef.current < c.currentTime + 0.2) {
-        playClick(c, nextBeatTimeRef.current);
-        beatTimesRef.current.push(nextBeatTimeRef.current);
+        const idx = beatIndexRef.current;
+        const accent = idx % ACCENT_EVERY === 0;
+        playClick(c, nextBeatTimeRef.current, accent);
+        if (accent) accentBeatTimesRef.current.push(nextBeatTimeRef.current);
+        beatIndexRef.current = idx + 1;
         nextBeatTimeRef.current += BEAT_INTERVAL;
       }
     };
@@ -426,7 +434,7 @@ const OffsetWizard: React.FC<{
     const ctx = audioCtxRef.current;
     if (!ctx || !running) return;
     const now = ctx.currentTime;
-    const beats = beatTimesRef.current;
+    const beats = accentBeatTimesRef.current;
     if (beats.length === 0) return;
 
     let nearest = beats[0];
