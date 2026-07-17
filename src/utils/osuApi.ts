@@ -16,6 +16,10 @@ export interface OsuUserProfile {
   countSS: number;
   countS: number;
   countA: number;
+  /** 头像 URL（osu! 官方 CDN a.ppy.sh） */
+  avatarUrl: string;
+  /** Profile 背景 cover URL（取 top play 的 beatmap cover） */
+  coverUrl: string;
   importedAt: number;
 }
 
@@ -45,9 +49,37 @@ async function fetchWithProxies(url: string, timeoutMs = 12000): Promise<Respons
   throw lastErr instanceof Error ? lastErr : new Error("请求失败");
 }
 
+/** 拼接 osu! 官方头像 URL */
+export function buildOsuAvatarUrl(userId: number): string {
+  return `https://a.ppy.sh/${userId}`;
+}
+
+/** 用 beatmapset_id 拼接 osu! 官方 cover URL */
+export function buildBeatmapCoverUrl(beatmapsetId: number): string {
+  return `https://assets.ppy.sh/beatmaps/${beatmapsetId}/covers/cover.jpg`;
+}
+
+/**
+ * 获取用户最佳成绩（取 top 1 用于 profile 背景）。
+ * 失败返回 null，不影响主流程。
+ */
+async function fetchTopPlayCover(apiKey: string, userId: number): Promise<string> {
+  try {
+    const url = `${API_BASE}/get_user_best?k=${apiKey}&u=${userId}&type=id&limit=1`;
+    const res = await fetchWithProxies(url, 10000);
+    const data = (await res.json()) as Array<Record<string, string>>;
+    if (!Array.isArray(data) || data.length === 0) return "";
+    const beatmapsetId = Number(data[0].beatmapset_id);
+    if (!Number.isFinite(beatmapsetId) || beatmapsetId <= 0) return "";
+    return buildBeatmapCoverUrl(beatmapsetId);
+  } catch {
+    return "";
+  }
+}
+
 /**
  * 通过 API key + 用户名导入 osu! 官方资料。
- * 返回归一化后的 profile。
+ * 返回归一化后的 profile（含头像与背景 cover）。
  */
 export async function fetchOsuUser(apiKey: string, username: string): Promise<OsuUserProfile> {
   const key = apiKey.trim();
@@ -66,8 +98,14 @@ export async function fetchOsuUser(apiKey: string, username: string): Promise<Os
     return Number.isFinite(n) ? n : d;
   };
 
+  const userId = num(u.user_id);
+  const avatarUrl = buildOsuAvatarUrl(userId);
+
+  // 并行拉取 top play cover 作为 profile 背景
+  const coverUrl = await fetchTopPlayCover(key, userId);
+
   return {
-    userId: num(u.user_id),
+    userId,
     username: u.username,
     country: u.country,
     level: num(u.level),
@@ -82,6 +120,8 @@ export async function fetchOsuUser(apiKey: string, username: string): Promise<Os
     countSS: num(u.count_rank_ss),
     countS: num(u.count_rank_s),
     countA: num(u.count_rank_a),
+    avatarUrl,
+    coverUrl,
     importedAt: Date.now(),
   };
 }
