@@ -210,9 +210,12 @@ export class ManiaEngine extends GameEngine {
 
       if (obj.type === "hold" && obj.endTime) {
         const isHeld = this.activeHolds.has(obj);
-        // 头部位置：按住时贴在判定线，未按住时随时间下落
-        const headY = isHeld ? this.judgeY : this.noteY(obj.time, time);
-        const tailY = this.noteY(obj.endTime, time);
+        // 头部位置：按住时贴在判定线，未按住时随时间下落（钳制不越过判定线）
+        const headY = isHeld ? this.judgeY : Math.min(this.noteY(obj.time, time), this.judgeY);
+        // 尾部位置：按住时钳制到判定线（hold 结束后 body 不延伸到判定线下方）
+        const tailY = isHeld
+          ? Math.min(this.noteY(obj.endTime, time), this.judgeY)
+          : this.noteY(obj.endTime, time);
         // hold body：从 tail（上）到 head（下）
         const top = Math.min(tailY, headY);
         const bottom = Math.max(tailY, headY);
@@ -225,7 +228,7 @@ export class ManiaEngine extends GameEngine {
           }
         }
         // 头部 note（仅未按住时显示，按住后头部已"消失"在判定线）
-        if (!isHeld && headY > -40 && headY < this.ctx.height + 40) {
+        if (!isHeld && headY > -40 && headY <= this.judgeY) {
           const headTex = this.noteTexture(col, "");
           if (headTex) {
             this.ctx.ctx.drawImage(headTex, x - noteW / 2, headY - noteH / 2, noteW, noteH);
@@ -234,8 +237,8 @@ export class ManiaEngine extends GameEngine {
             drawRect(this.ctx, x - noteW / 2, headY - noteH / 2, noteW, 5, "#ffffff", 4);
           }
         }
-        // 尾部标记（仅当尾部还在屏幕内时显示）
-        if (tailY > -40 && tailY < this.ctx.height + 40) {
+        // 尾部标记（仅当尾部在屏幕内且未越过判定线时显示）
+        if (tailY > -40 && tailY <= this.judgeY) {
           const tailTex = this.noteTexture(col, "T");
           if (tailTex) {
             this.ctx.ctx.drawImage(tailTex, x - noteW / 2, tailY - noteH / 2, noteW, noteH);

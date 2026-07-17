@@ -18,14 +18,21 @@ import {
   type JudgementWindows,
 } from "./Judger";
 import type { CanvasContext } from "./renderer/Canvas2D";
-import { setupCanvas, clear, GAME_FONT, clamp } from "./renderer/Canvas2D";
+import { setupCanvas, clear, GAME_FONT, clamp, hexToRgba } from "./renderer/Canvas2D";
 import { getCurrentLyric } from "@/utils/lrclibLyrics";
+
+interface HitParticle {
+  angle: number;
+  speed: number;
+  size: number;
+}
 
 interface HitEffect {
   x: number;
   y: number;
   judgement: Judgement;
   time: number;
+  particles: HitParticle[];
 }
 
 interface JudgePopup {
@@ -1137,6 +1144,9 @@ export abstract class GameEngine {
       this.callbacks.onScoreUpdate?.(this.score);
     }
 
+    // 底部进度条（在所有游戏元素和 HUD 之上）
+    this.drawProgressBar();
+
     // 检查是否结束（所有 hitObjects 已处理 + 音频结束）
     if (this.isFinished(time)) {
       this.finish();
@@ -1693,9 +1703,30 @@ export abstract class GameEngine {
     return best;
   }
 
-  /** 添加命中爆点 */
+  /** 添加命中爆点（预生成粒子方向/速度/大小，渲染时确定性动画） */
   protected spawnHitEffect(x: number, y: number, judgement: Judgement, time: number): void {
-    this.hitEffects.push({ x, y, judgement, time });
+    const cfg: Record<Judgement, { count: number; speed: number; size: number }> = {
+      "300": { count: 10, speed: 0.14, size: 3.5 },
+      "100": { count: 7, speed: 0.11, size: 3 },
+      "50": { count: 5, speed: 0.09, size: 2.5 },
+      miss: { count: 6, speed: 0.07, size: 2.5 },
+    };
+    const c = cfg[judgement];
+    const particles: HitParticle[] = [];
+    for (let i = 0; i < c.count; i++) {
+      const baseAngle = (i / c.count) * Math.PI * 2;
+      const jitter = (Math.random() - 0.5) * 0.6;
+      // miss 粒子偏向下方（坠落感）
+      const angle = judgement === "miss"
+        ? Math.PI * 0.25 + (i / c.count) * Math.PI * 0.5 + jitter
+        : baseAngle + jitter;
+      particles.push({
+        angle,
+        speed: c.speed * (0.75 + Math.random() * 0.5),
+        size: c.size * (0.75 + Math.random() * 0.5),
+      });
+    }
+    this.hitEffects.push({ x, y, judgement, time, particles });
   }
 
   /** 添加判定文字（实际坐标由子类传入） */
@@ -1734,7 +1765,7 @@ export abstract class GameEngine {
     this.judgePopups.length = w2;
   }
 
-  /** 绘制命中爆点 - 空心渐变圆环 */
+  /** 绘制命中爆点 - 粒子爆发 + 扩散环 + 中心闪光 + 光晕 */
   protected drawHitEffects(time: number): void {
     if (!this.showHitEffects) return;
     const { ctx } = this.ctx;
@@ -1744,36 +1775,66 @@ export abstract class GameEngine {
       "50": "#4ade80",
       miss: "#ff375f",
     };
+    const DURATION = 380;
     for (const e of this.hitEffects) {
       const age = time - e.time;
-      if (age > 420) continue;
-      const t = age / 420;
+      if (age > DURATION) continue;
+      const t = age / DURATION;
       const alpha = 1 - t;
-      const r = 16 + t * 60;
       const color = colorMap[e.judgement];
+
       ctx.save();
-      ctx.globalAlpha = alpha;
 
-      // 外环 - 空心
+      // 1. 光晕（径向渐变，快速衰减）
+      if (age < 260) {
+        const glowT = age / 260;
+        const glowAlpha = (1 - glowT) * 0.35;
+        const glowR = 18 + glowT * 28;
+        const grad = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, glowR);
+        grad.addColorStop(0, hexToRgba(color, glowAlpha));
+        grad.addColorStop(0.6, hexToRgba(color, glowAlpha * 0.4));
+        grad.addColorStop(1, hexToRgba(color, 0));
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, glowR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 2. 扩散环（细亮线，快速扩张并变细）
+      const ringR = 6 + t * 40;
+      ctx.globalAlpha = alpha * 0.85;
       ctx.strokeStyle = color;
-      ctx.lineWidth = Math.max(2, 10 * (1 - t));
+      ctx.lineWidth = Math.max(0.5, 3.5 * (1 - t * 0.65));
       ctx.beginPath();
-      ctx.arc(e.x, e.y, r, 0, Math.PI * 2);
+      ctx.arc(e.x, e.y, ringR, 0, Math.PI * 2);
       ctx.stroke();
 
-      // 内环残影
-      ctx.globalAlpha = alpha * 0.45;
-      ctx.lineWidth = Math.max(1, 4 * (1 - t));
-      ctx.beginPath();
-      ctx.arc(e.x, e.y, r * 0.55, 0, Math.PI * 2);
-      ctx.stroke();
+      // 3. 中心闪光（白色核心，极短）
+      if (age < 110) {
+        const flashT = age / 110;
+        const flashAlpha = (1 - flashT) * 0.85;
+        const flashR = 4 + flashT * 5;
+        ctx.globalAlpha = flashAlpha;
+        ctx.fillStyle = e.judgement === "miss" ? color : "#ffffff";
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, flashR, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
-      // 中心微光点
-      ctx.globalAlpha = alpha * 0.35;
+      // 4. 粒子爆发（预生成方向，向外飞散并缩小）
       ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(e.x, e.y, 4 * (1 - t), 0, Math.PI * 2);
-      ctx.fill();
+      for (const p of e.particles) {
+        const dist = p.speed * age;
+        const px = e.x + Math.cos(p.angle) * dist;
+        const py = e.y + Math.sin(p.angle) * dist;
+        const pr = p.size * (1 - t * 0.85);
+        if (pr > 0.3) {
+          ctx.globalAlpha = alpha * 0.9;
+          ctx.beginPath();
+          ctx.arc(px, py, pr, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
 
       ctx.restore();
     }
@@ -3464,6 +3525,44 @@ export abstract class GameEngine {
         }
       }
       ctx.restore();
+    }
+  }
+
+  /** 绘制底部歌曲进度条 */
+  protected drawProgressBar(): void {
+    const { ctx, width, height } = this.ctx;
+    const duration = this.audio.duration;
+    const current = this.audio.currentTime;
+    let ratio = 0;
+    if (Number.isFinite(duration) && duration > 0) {
+      ratio = clamp(current / duration, 0, 1);
+    } else {
+      // fallback：用 beatmap 首尾 note 时间跨度
+      const objs = this.beatmap.hitObjects;
+      if (objs.length > 0) {
+        const first = objs[0].time;
+        const last = objs[objs.length - 1].endTime || objs[objs.length - 1].time;
+        const span = last - first;
+        if (span > 0) ratio = clamp((this.currentTime - first) / span, 0, 1);
+      }
+    }
+    const barH = 3;
+    const barY = height - barH;
+    // 轨道
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fillRect(0, barY, width, barH);
+    // 进度填充
+    if (ratio > 0) {
+      const fillW = width * ratio;
+      ctx.fillStyle = "#66ccff";
+      ctx.fillRect(0, barY, fillW, barH);
+      // 当前位置高亮点
+      if (ratio < 1) {
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(fillW, barY + barH / 2, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 }
