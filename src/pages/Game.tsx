@@ -89,7 +89,7 @@ export default function Game() {
   const lastReplayRef = useRef<Replay | null>(null);
   const autoStartRef = useRef(false);
 
-  // 加载歌词（优先使用下载时预加载的，没有则实时拉取）
+  // 加载歌词（优先使用下载时预加载的，没有则实时拉取并回写缓存）
   useEffect(() => {
     if (!showLyrics || !set) return;
     if (set.lyrics && set.lyrics.length > 0) {
@@ -98,7 +98,11 @@ export default function Game() {
     }
     let cancelled = false;
     fetchLyrics(set.title, set.artist).then((lines) => {
-      if (!cancelled) setLyrics(lines);
+      if (cancelled) return;
+      setLyrics(lines);
+      if (lines.length > 0) {
+        useGameStore.getState().cacheLyrics(set.setId, lines);
+      }
     });
     return () => { cancelled = true; };
   }, [set, showLyrics]);

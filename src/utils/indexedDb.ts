@@ -189,6 +189,33 @@ export async function clearAllDownloads(): Promise<void> {
   });
 }
 
+/** 局部更新单条下载记录的歌词字段（不触碰 Blob） */
+export async function updateDownloadLyrics(
+  setId: number,
+  lyrics: { time: number; text: string }[],
+): Promise<void> {
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, "readwrite");
+  const store = tx.objectStore(STORE_NAME);
+  return new Promise((resolve, reject) => {
+    const getReq = store.get(setId);
+    getReq.onerror = () => reject(getReq.error);
+    getReq.onsuccess = () => {
+      const record = getReq.result as StoredBeatmapSet | undefined;
+      if (!record) {
+        resolve();
+        return;
+      }
+      record.lyrics = lyrics;
+      const putReq = store.put(record);
+      putReq.onerror = () => reject(putReq.error);
+      putReq.onsuccess = () => resolve();
+    };
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 /** 自定义音效采样：以 Blob 形式持久化 */
 export async function saveCustomHitSounds(assetUrls: Record<string, string>): Promise<void> {
   const blobs: Record<string, Blob> = {};

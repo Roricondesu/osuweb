@@ -21,7 +21,7 @@ import {
   downloadOszRacing,
 } from "@/api/osuDirect";
 import { extractOsz, extractOszFromFile, extractOsk, extractHitSounds } from "@/utils/oszLoader";
-import { saveDownload, loadAllDownloads, deleteDownload, clearAllDownloads, saveCustomHitSounds, loadCustomHitSounds, deleteCustomHitSounds, saveCustomSkin, loadCustomSkin, deleteCustomSkin } from "@/utils/indexedDb";
+import { saveDownload, loadAllDownloads, deleteDownload, clearAllDownloads, saveCustomHitSounds, loadCustomHitSounds, deleteCustomHitSounds, saveCustomSkin, loadCustomSkin, deleteCustomSkin, updateDownloadLyrics } from "@/utils/indexedDb";
 import { fetchLyrics } from "@/utils/lyricsProvider";
 
 const EMPTY_RUNTIME: GameRuntime = {
@@ -77,6 +77,8 @@ interface GameState {
   clearDownloads: () => Promise<void>;
   loadDownloads: () => Promise<void>;
   importBeatmapFile: (file: File) => Promise<LoadedBeatmapSet | null>;
+  /** 缓存歌词到下载记录（内存 + IndexedDB），避免重复请求 */
+  cacheLyrics: (setId: number, lyrics: { time: number; text: string }[]) => Promise<void>;
 
   // 后台下载队列
   bgDownloads: BgDownloadTask[];
@@ -314,6 +316,8 @@ export const useGameStore = create<GameState>()(
         try {
           const buf = await file.arrayBuffer();
           const loaded = await extractOszFromFile(buf);
+          // 获取歌词（与下载流程一致）
+          loaded.lyrics = await fetchLyrics(loaded.title, loaded.artist).catch(() => []);
           // 如果已存在同 ID 的谱面，用新导入的覆盖
           set((s) => ({
             downloaded: new Map(s.downloaded).set(loaded.setId, loaded),
@@ -323,6 +327,20 @@ export const useGameStore = create<GameState>()(
         } catch (e) {
           console.error("导入谱面失败", e);
           return null;
+        }
+      },
+      cacheLyrics: async (setId, lyrics) => {
+        set((s) => {
+          const existing = s.downloaded.get(setId);
+          if (!existing) return {};
+          const next = new Map(s.downloaded);
+          next.set(setId, { ...existing, lyrics });
+          return { downloaded: next };
+        });
+        try {
+          await updateDownloadLyrics(setId, lyrics);
+        } catch (e) {
+          console.warn("持久化歌词失败", e);
         }
       },
 
