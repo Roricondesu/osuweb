@@ -363,9 +363,13 @@ const OffsetWizard: React.FC<{
   const [running, setRunning] = useState(false);
   const [taps, setTaps] = useState<number[]>([]);
   const [suggested, setSuggested] = useState<number | null>(null);
+  const [beatPulseKey, setBeatPulseKey] = useState(0);
+  const [beatIsAccent, setBeatIsAccent] = useState(false);
+  const [tapRecords, setTapRecords] = useState<{ index: number; delta: number }[]>([]);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const accentBeatTimesRef = useRef<number[]>([]);
+  const scheduledBeatsRef = useRef<{ time: number; accent: boolean; fired: boolean }[]>([]);
   const tapsRef = useRef<number[]>([]);
   const nextBeatTimeRef = useRef<number>(0);
   const beatIndexRef = useRef<number>(0);
@@ -405,10 +409,13 @@ const OffsetWizard: React.FC<{
     if (ctx.state === "suspended") await ctx.resume();
 
     accentBeatTimesRef.current = [];
+    scheduledBeatsRef.current = [];
     tapsRef.current = [];
     beatIndexRef.current = 0;
     setTaps([]);
     setSuggested(null);
+    setTapRecords([]);
+    setBeatPulseKey(0);
 
     const startAt = ctx.currentTime + 0.3;
     nextBeatTimeRef.current = startAt;
@@ -421,6 +428,7 @@ const OffsetWizard: React.FC<{
         const idx = beatIndexRef.current;
         const accent = idx % ACCENT_EVERY === 0;
         playClick(c, nextBeatTimeRef.current, accent);
+        scheduledBeatsRef.current.push({ time: nextBeatTimeRef.current, accent, fired: false });
         if (accent) accentBeatTimesRef.current.push(nextBeatTimeRef.current);
         beatIndexRef.current = idx + 1;
         nextBeatTimeRef.current += BEAT_INTERVAL;
@@ -450,6 +458,7 @@ const OffsetWizard: React.FC<{
     const next = [...tapsRef.current, deltaMs];
     tapsRef.current = next;
     setTaps(next);
+    setTapRecords((rs) => [...rs, { index: next.length, delta: deltaMs }]);
 
     if (next.length >= TOTAL_TAPS) {
       const mean = next.reduce((a, b) => a + b, 0) / next.length;
@@ -473,6 +482,34 @@ const OffsetWizard: React.FC<{
     return () => window.removeEventListener("keydown", onKey);
   }, [running, handleTap]);
 
+  // raf 驱动节拍脉冲可视化
+  useEffect(() => {
+    if (!running) return;
+    let raf = 0;
+    const loop = () => {
+      const ctx = audioCtxRef.current;
+      if (ctx) {
+        const now = ctx.currentTime;
+        const beats = scheduledBeatsRef.current;
+        for (let i = 0; i < beats.length; i++) {
+          const b = beats[i];
+          if (!b.fired && now >= b.time) {
+            b.fired = true;
+            setBeatPulseKey((k) => k + 1);
+            setBeatIsAccent(b.accent);
+          }
+        }
+        // 清理过期记录
+        while (beats.length > 0 && now - beats[0].time > 2) {
+          beats.shift();
+        }
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [running]);
+
   // 卸载时清理
   useEffect(() => {
     return () => {
@@ -485,6 +522,7 @@ const OffsetWizard: React.FC<{
     tapsRef.current = [];
     setTaps([]);
     setSuggested(null);
+    setTapRecords([]);
   }, []);
 
   const applySuggested = useCallback(() => {
@@ -492,6 +530,17 @@ const OffsetWizard: React.FC<{
   }, [suggested, onApply]);
 
   const formatVal = (v: number) => (v > 0 ? `+${v}` : `${v}`);
+
+  const deltaColor = (d: number) => {
+    const abs = Math.abs(d);
+    if (abs <= 15) return "#4ade80";
+    if (abs <= 40) return "#facc15";
+    return "#ff375f";
+  };
+
+  const avgDelta = tapRecords.length > 0
+    ? Math.round(tapRecords.reduce((a, r) => a + r.delta, 0) / tapRecords.length)
+    : null;
 
   return (
     <div
@@ -503,7 +552,18 @@ const OffsetWizard: React.FC<{
         border: "1px solid var(--glass-border)",
       }}
     >
-      <style>{`.wiz-tap-btn:active{transform:scale(0.97);}`}</style>
+      <style>{`
+        .wiz-tap-btn:active{transform:scale(0.97);}
+        @keyframes wiz-pulse {
+          0% { transform: scale(0.5); opacity: 0.9; }
+          100% { transform: scale(1.8); opacity: 0; }
+        }
+        @keyframes wiz-core {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.25); }
+          100% { transform: scale(1); }
+        }
+      `}</style>
       <div className="text-sm font-semibold" style={{ color: "var(--text-primary)", marginBottom: 4 }}>
         {t("audio.offsetWizard")}
       </div>
@@ -520,15 +580,143 @@ const OffsetWizard: React.FC<{
 
       {running && (
         <div className="flex flex-col gap-3">
+          {/* 节拍脉冲可视化 */}
+          <div
+            className="wiz-pulse-area"
+            onClick={handleTap}
+            role="button"
+            tabIndex={0}
+            style={{
+              position: "relative",
+              height: 88,
+              borderRadius: 12,
+              background: "rgba(0,0,0,0.18)",
+              border: "1px solid var(--glass-border)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              overflow: "hidden",
+              userSelect: "none",
+            }}
+          >
+            {/* 拍号指示：4 格 */}
+            <div style={{ position: "absolute", top: 6, left: 0, right: 0, display: "flex", justifyContent: "space-around", pointerEvents: "none" }}>
+              {[0, 1, 2, 3].map((i) => (
+                <span
+                  key={i}
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: i === 0 ? "var(--accent)" : "var(--text-secondary)",
+                    opacity: i === 0 ? 0.9 : 0.4,
+                  }}
+                >
+                  {i === 0 ? "♪" : "·"}
+                </span>
+              ))}
+            </div>
+            {/* 脉冲环 */}
+            <div
+              key={`pulse-${beatPulseKey}`}
+              style={{
+                position: "absolute",
+                width: beatIsAccent ? 64 : 44,
+                height: beatIsAccent ? 64 : 44,
+                borderRadius: "50%",
+                border: `2px solid ${beatIsAccent ? "var(--accent)" : "var(--text-secondary)"}`,
+                opacity: 0,
+                animation: "wiz-pulse 0.6s ease-out",
+                pointerEvents: "none",
+              }}
+            />
+            {/* 中心核 */}
+            <div
+              key={`core-${beatPulseKey}`}
+              style={{
+                width: beatIsAccent ? 22 : 14,
+                height: beatIsAccent ? 22 : 14,
+                borderRadius: "50%",
+                background: beatIsAccent ? "var(--accent)" : "var(--text-secondary)",
+                boxShadow: beatIsAccent ? "0 0 16px var(--accent)" : "none",
+                animation: "wiz-core 0.25s ease-out",
+                pointerEvents: "none",
+              }}
+            />
+            {/* 提示文字（首次点击前） */}
+            {tapRecords.length === 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 8,
+                  fontSize: 11,
+                  color: "var(--text-secondary)",
+                  pointerEvents: "none",
+                }}
+              >
+                {t("audio.offsetWizardTap")}
+              </div>
+            )}
+          </div>
+
+          {/* 点击按钮 */}
           <button className="wiz-tap-btn" onClick={handleTap} style={wizTapBtn}>
             {t("audio.offsetWizardTap")}
           </button>
+
+          {/* 进度 + 停止 */}
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
               {t("audio.offsetWizardTaps", { n: taps.length, total: TOTAL_TAPS })}
+              {avgDelta !== null && (
+                <span style={{ marginLeft: 8, color: deltaColor(avgDelta), fontWeight: 700 }}>
+                  {t("audio.offsetWizardAvg", { value: `${avgDelta > 0 ? "+" : ""}${avgDelta}` })}
+                </span>
+              )}
             </span>
             <button onClick={stopInternal} style={wizGhostBtn}>{t("audio.offsetWizardStop")}</button>
           </div>
+
+          {/* 偏差记录条 */}
+          {tapRecords.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 96, overflow: "auto" }}>
+              {tapRecords.map((r) => (
+                <div
+                  key={r.index}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 11,
+                    fontVariantNumeric: "tabular-nums",
+                    padding: "3px 8px",
+                    borderRadius: 6,
+                    background: "rgba(255,255,255,0.03)",
+                  }}
+                >
+                  <span style={{ color: "var(--text-secondary)", minWidth: 20 }}>#{r.index}</span>
+                  <span style={{ color: deltaColor(r.delta), fontWeight: 700, minWidth: 56 }}>
+                    {r.delta > 0 ? "+" : ""}{r.delta} ms
+                  </span>
+                  {/* 偏差条 */}
+                  <div style={{ flex: 1, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.08)", position: "relative" }}>
+                    <div style={{ position: "absolute", left: "50%", top: -2, width: 1, height: 8, background: "var(--text-secondary)", opacity: 0.5 }} />
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        height: 4,
+                        borderRadius: 2,
+                        background: deltaColor(r.delta),
+                        left: r.delta >= 0 ? "50%" : `${50 + Math.max(-50, r.delta / 2)}%`,
+                        width: `${Math.min(50, Math.abs(r.delta) / 2)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -537,6 +725,45 @@ const OffsetWizard: React.FC<{
           <div className="text-sm" style={{ color: "var(--text-primary)", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
             {t("audio.offsetWizardResult", { value: formatVal(suggested) })}
           </div>
+          {/* 复盘记录 */}
+          {tapRecords.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 96, overflow: "auto" }}>
+              {tapRecords.map((r) => (
+                <div
+                  key={r.index}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 11,
+                    fontVariantNumeric: "tabular-nums",
+                    padding: "3px 8px",
+                    borderRadius: 6,
+                    background: "rgba(255,255,255,0.03)",
+                  }}
+                >
+                  <span style={{ color: "var(--text-secondary)", minWidth: 20 }}>#{r.index}</span>
+                  <span style={{ color: deltaColor(r.delta), fontWeight: 700, minWidth: 56 }}>
+                    {r.delta > 0 ? "+" : ""}{r.delta} ms
+                  </span>
+                  <div style={{ flex: 1, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.08)", position: "relative" }}>
+                    <div style={{ position: "absolute", left: "50%", top: -2, width: 1, height: 8, background: "var(--text-secondary)", opacity: 0.5 }} />
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        height: 4,
+                        borderRadius: 2,
+                        background: deltaColor(r.delta),
+                        left: r.delta >= 0 ? "50%" : `${50 + Math.max(-50, r.delta / 2)}%`,
+                        width: `${Math.min(50, Math.abs(r.delta) / 2)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
             <button onClick={applySuggested} style={wizPrimaryBtn}>{t("audio.offsetWizardApply")}</button>
             <button onClick={start} style={wizGhostBtn}>{t("audio.offsetWizardRetry")}</button>
