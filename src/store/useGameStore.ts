@@ -103,8 +103,6 @@ const initSearch = async (
   query: string,
   mode: GameMode | null,
   source: "osu" | "sayobot" | "kitsu" | "chimu" | "all",
-  storyboardOnly: boolean,
-  videoOnly: boolean,
   set: (patch: Partial<GameState>) => void,
 ): Promise<void> => {
   set({ searchLoading: true, searchError: null, searchQuery: query, searchMode: mode });
@@ -132,21 +130,15 @@ const initSearch = async (
           : await apiFeatured(mode || undefined, 50);
         break;
     }
-    if (storyboardOnly) {
-      results = results.filter((s) => s.hasStoryboard === true);
-    }
-    if (videoOnly) {
-      results = results.filter((s) => s.hasVideo === true);
-    }
+    // 注：storyboard / video 筛选交给 Search 页 filteredResults 处理，
+    // 这里写入全量数据，避免污染 Home 推荐页的展示。
     set({ searchResults: results, searchLoading: false });
   } catch (e) {
     // 单源失败时（如 osu.direct 超时），自动 fallback 到竞速搜索
     if (source !== "all") {
       try {
-        let fallback = await searchAllSources(query, mode, 50);
+        const fallback = await searchAllSources(query, mode, 50);
         if (fallback.length > 0) {
-          if (storyboardOnly) fallback = fallback.filter((s) => s.hasStoryboard === true);
-          if (videoOnly) fallback = fallback.filter((s) => s.hasVideo === true);
           set({ searchResults: fallback, searchLoading: false });
           return;
         }
@@ -179,12 +171,12 @@ export const useGameStore = create<GameState>()(
       search: async (query, mode) => {
         const m = mode !== undefined ? mode : get().searchMode;
         const { settings } = get();
-        await initSearch(query, m, settings.searchSource, settings.storyboardOnly, settings.videoOnly, set);
+        await initSearch(query, m, settings.searchSource, set);
       },
       loadFeatured: async (mode) => {
         const m = mode !== undefined ? mode : get().searchMode;
         const { settings } = get();
-        await initSearch("", m, settings.searchSource, settings.storyboardOnly, settings.videoOnly, set);
+        await initSearch("", m, settings.searchSource, set);
       },
 
       detailSet: null,

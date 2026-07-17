@@ -205,6 +205,9 @@ export default function Search() {
       if (st.cs < csRange[0] || st.cs > csRange[1]) return false;
       return true;
     });
+    // storyboard / video 筛选仅在搜索页生效，不影响 Home 推荐页
+    if (settings.storyboardOnly) list = list.filter((s) => s.hasStoryboard === true);
+    if (settings.videoOnly) list = list.filter((s) => s.hasVideo === true);
     if (sortKey !== "relevance") {
       list = list.slice().sort((a, b) => {
         const sa = setStats(a);
@@ -218,7 +221,7 @@ export default function Search() {
       });
     }
     return list;
-  }, [results, searchType, query, bpmRange, starRange, arRange, csRange, sortKey]);
+  }, [results, searchType, query, bpmRange, starRange, arRange, csRange, sortKey, settings.storyboardOnly, settings.videoOnly]);
 
   const visibleResults = filteredResults.slice(0, visibleCount);
   const hasMore = visibleResults.length < filteredResults.length;
@@ -251,12 +254,10 @@ export default function Search() {
 
   const toggleStoryboard = () => {
     updateSetting("storyboardOnly", !settings.storyboardOnly);
-    search(query, searchMode);
   };
 
   const toggleVideo = () => {
     updateSetting("videoOnly", !settings.videoOnly);
-    search(query, searchMode);
   };
 
   return (
