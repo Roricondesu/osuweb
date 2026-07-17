@@ -21,18 +21,11 @@ import type { CanvasContext } from "./renderer/Canvas2D";
 import { setupCanvas, clear, GAME_FONT, clamp, hexToRgba } from "./renderer/Canvas2D";
 import { getCurrentLyric } from "@/utils/lrclibLyrics";
 
-interface HitParticle {
-  angle: number;
-  speed: number;
-  size: number;
-}
-
 interface HitEffect {
   x: number;
   y: number;
   judgement: Judgement;
   time: number;
-  particles: HitParticle[];
 }
 
 interface JudgePopup {
@@ -1703,30 +1696,9 @@ export abstract class GameEngine {
     return best;
   }
 
-  /** 添加命中爆点（预生成粒子方向/速度/大小，渲染时确定性动画） */
+  /** 添加命中爆点 */
   protected spawnHitEffect(x: number, y: number, judgement: Judgement, time: number): void {
-    const cfg: Record<Judgement, { count: number; speed: number; size: number }> = {
-      "300": { count: 10, speed: 0.14, size: 3.5 },
-      "100": { count: 7, speed: 0.11, size: 3 },
-      "50": { count: 5, speed: 0.09, size: 2.5 },
-      miss: { count: 6, speed: 0.07, size: 2.5 },
-    };
-    const c = cfg[judgement];
-    const particles: HitParticle[] = [];
-    for (let i = 0; i < c.count; i++) {
-      const baseAngle = (i / c.count) * Math.PI * 2;
-      const jitter = (Math.random() - 0.5) * 0.6;
-      // miss 粒子偏向下方（坠落感）
-      const angle = judgement === "miss"
-        ? Math.PI * 0.25 + (i / c.count) * Math.PI * 0.5 + jitter
-        : baseAngle + jitter;
-      particles.push({
-        angle,
-        speed: c.speed * (0.75 + Math.random() * 0.5),
-        size: c.size * (0.75 + Math.random() * 0.5),
-      });
-    }
-    this.hitEffects.push({ x, y, judgement, time, particles });
+    this.hitEffects.push({ x, y, judgement, time });
   }
 
   /** 添加判定文字（实际坐标由子类传入） */
@@ -1765,7 +1737,7 @@ export abstract class GameEngine {
     this.judgePopups.length = w2;
   }
 
-  /** 绘制命中爆点 - 粒子爆发 + 扩散环 + 中心闪光 + 光晕 */
+  /** 绘制命中爆点 - 扩散环 + 中心闪光 + 光晕 */
   protected drawHitEffects(time: number): void {
     if (!this.showHitEffects) return;
     const { ctx } = this.ctx;
@@ -1775,7 +1747,7 @@ export abstract class GameEngine {
       "50": "#4ade80",
       miss: "#ff375f",
     };
-    const DURATION = 380;
+    const DURATION = 320;
     for (const e of this.hitEffects) {
       const age = time - e.time;
       if (age > DURATION) continue;
@@ -1786,10 +1758,10 @@ export abstract class GameEngine {
       ctx.save();
 
       // 1. 光晕（径向渐变，快速衰减）
-      if (age < 260) {
-        const glowT = age / 260;
-        const glowAlpha = (1 - glowT) * 0.35;
-        const glowR = 18 + glowT * 28;
+      if (age < 220) {
+        const glowT = age / 220;
+        const glowAlpha = (1 - glowT) * 0.32;
+        const glowR = 16 + glowT * 24;
         const grad = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, glowR);
         grad.addColorStop(0, hexToRgba(color, glowAlpha));
         grad.addColorStop(0.6, hexToRgba(color, glowAlpha * 0.4));
@@ -1801,39 +1773,24 @@ export abstract class GameEngine {
       }
 
       // 2. 扩散环（细亮线，快速扩张并变细）
-      const ringR = 6 + t * 40;
+      const ringR = 5 + t * 38;
       ctx.globalAlpha = alpha * 0.85;
       ctx.strokeStyle = color;
-      ctx.lineWidth = Math.max(0.5, 3.5 * (1 - t * 0.65));
+      ctx.lineWidth = Math.max(0.5, 3 * (1 - t * 0.65));
       ctx.beginPath();
       ctx.arc(e.x, e.y, ringR, 0, Math.PI * 2);
       ctx.stroke();
 
       // 3. 中心闪光（白色核心，极短）
-      if (age < 110) {
-        const flashT = age / 110;
+      if (age < 90) {
+        const flashT = age / 90;
         const flashAlpha = (1 - flashT) * 0.85;
-        const flashR = 4 + flashT * 5;
+        const flashR = 4 + flashT * 4;
         ctx.globalAlpha = flashAlpha;
         ctx.fillStyle = e.judgement === "miss" ? color : "#ffffff";
         ctx.beginPath();
         ctx.arc(e.x, e.y, flashR, 0, Math.PI * 2);
         ctx.fill();
-      }
-
-      // 4. 粒子爆发（预生成方向，向外飞散并缩小）
-      ctx.fillStyle = color;
-      for (const p of e.particles) {
-        const dist = p.speed * age;
-        const px = e.x + Math.cos(p.angle) * dist;
-        const py = e.y + Math.sin(p.angle) * dist;
-        const pr = p.size * (1 - t * 0.85);
-        if (pr > 0.3) {
-          ctx.globalAlpha = alpha * 0.9;
-          ctx.beginPath();
-          ctx.arc(px, py, pr, 0, Math.PI * 2);
-          ctx.fill();
-        }
       }
 
       ctx.restore();
@@ -3551,18 +3508,10 @@ export abstract class GameEngine {
     // 轨道
     ctx.fillStyle = "rgba(255,255,255,0.12)";
     ctx.fillRect(0, barY, width, barH);
-    // 进度填充
+    // 进度填充（纯白）
     if (ratio > 0) {
-      const fillW = width * ratio;
-      ctx.fillStyle = "#66ccff";
-      ctx.fillRect(0, barY, fillW, barH);
-      // 当前位置高亮点
-      if (ratio < 1) {
-        ctx.fillStyle = "#ffffff";
-        ctx.beginPath();
-        ctx.arc(fillW, barY + barH / 2, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, barY, width * ratio, barH);
     }
   }
 }
