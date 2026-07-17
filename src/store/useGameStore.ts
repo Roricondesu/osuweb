@@ -106,38 +106,44 @@ const initSearch = async (
   set: (patch: Partial<GameState>) => void,
 ): Promise<void> => {
   set({ searchLoading: true, searchError: null, searchQuery: query, searchMode: mode });
-  try {
-    let results: BeatmapSet[];
+
+  // 整体超时兜底：防止某些设备上 AbortController 失效导致 fetch 永远 pending
+  const HARD_TIMEOUT_MS = 25000;
+  const hardTimeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("搜索整体超时")), HARD_TIMEOUT_MS),
+  );
+
+  const doSearch = async (): Promise<BeatmapSet[]> => {
     const hasQuery = query.trim().length > 0;
     switch (source) {
       case "sayobot":
-        results = hasQuery
+        return hasQuery
           ? await searchSayobot(query, mode || undefined, 50)
           : await fetchSayobotFeatured(mode || undefined, 50);
-        break;
       case "kitsu":
-        results = await searchKitsu(query, mode || undefined, 50);
-        break;
+        return await searchKitsu(query, mode || undefined, 50);
       case "chimu":
-        results = await searchChimu(query, mode || undefined, 50);
-        break;
+        return await searchChimu(query, mode || undefined, 50);
       case "all":
-        results = await searchAllSources(query, mode, 50);
-        break;
+        return await searchAllSources(query, mode, 50);
       default:
-        results = hasQuery
+        return hasQuery
           ? await apiSearch(query, mode || undefined, 50)
           : await apiFeatured(mode || undefined, 50);
-        break;
     }
-    // 注：storyboard / video 筛选交给 Search 页 filteredResults 处理，
-    // 这里写入全量数据，避免污染 Home 推荐页的展示。
+  };
+
+  try {
+    const results = await Promise.race([doSearch(), hardTimeout]);
     set({ searchResults: results, searchLoading: false });
   } catch (e) {
     // 单源失败时（如 osu.direct 超时），自动 fallback 到竞速搜索
     if (source !== "all") {
       try {
-        const fallback = await searchAllSources(query, mode, 50);
+        const fallback = await Promise.race([
+          searchAllSources(query, mode, 50),
+          hardTimeout,
+        ]);
         if (fallback.length > 0) {
           set({ searchResults: fallback, searchLoading: false });
           return;

@@ -66,13 +66,22 @@ export default function App() {
     loadFonts((r) => {
       fontProgressRef.current = r;
       updateProgress();
+    }).catch(() => {
+      // 字体加载彻底失败也算完成，避免 splash 卡住
+      fontProgressRef.current = 1;
+      updateProgress();
     });
 
     // 下载列表加载（50% 权重）
-    loadDownloads().then(() => {
-      downloadsDoneRef.current = true;
-      updateProgress();
-    });
+    loadDownloads()
+      .then(() => {
+        downloadsDoneRef.current = true;
+        updateProgress();
+      })
+      .catch(() => {
+        downloadsDoneRef.current = true;
+        updateProgress();
+      });
 
     function updateProgress() {
       const fp = fontProgressRef.current;

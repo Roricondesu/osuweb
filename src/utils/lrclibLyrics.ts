@@ -40,9 +40,14 @@ export async function fetchLrclibLyrics(title: string, artist: string): Promise<
       track_name: title,
       artist_name: artist,
     });
+    // 8 秒超时，防止部分设备 LRCLIB 请求挂起导致下载/游戏流程卡死
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
     const res = await fetch(`${LRCLIB_SEARCH}?${params.toString()}`, {
       headers: { Accept: "application/json" },
+      signal: controller.signal,
     });
+    clearTimeout(timer);
     if (!res.ok) return [];
     const results = (await res.json()) as LrcLibResult[];
     if (!Array.isArray(results) || results.length === 0) return [];
