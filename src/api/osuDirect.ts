@@ -5,6 +5,40 @@ import type { BeatmapSet, Beatmap, GameMode } from "@/types";
 import { MODE_TO_ID } from "@/types";
 
 const OSU_DIRECT_HOST = "https://osu.direct/api/v2";
+
+/** 默认搜索 / 详情请求超时（毫秒） */
+const SEARCH_TIMEOUT_MS = 12000;
+/** 下载请求的连接超时（毫秒）：仅约束到响应头返回，流式读取本体不计时 */
+const DOWNLOAD_CONNECT_TIMEOUT_MS = 15000;
+
+/**
+ * 带 timeout 的 fetch。
+ * @param connectOnly 为 true 时，仅约束到响应头返回（适合流式下载）；
+ *                    为 false 时，约束整个请求（适合搜索 / 详情）。
+ */
+async function fetchWithTimeout(
+  url: string,
+  init?: RequestInit,
+  timeoutMs: number = SEARCH_TIMEOUT_MS,
+  connectOnly = false,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    if (connectOnly) {
+      clearTimeout(timer);
+    }
+    return res;
+  } catch (e) {
+    clearTimeout(timer);
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new Error(`请求超时（${timeoutMs / 1000}s）：${url}`);
+    }
+    throw e;
+  }
+}
+
 const SAYOBOT_MINI = "https://dl.sayobot.cn/beatmaps/download/mini";
 const SAYOBOT_FULL = "https://dl.sayobot.cn/beatmaps/download/full";
 const SAYOBOT_LIST = "https://api.sayobot.cn/beatmaplist";
@@ -134,7 +168,7 @@ export const searchBeatmapsets = async (
   });
   if (mode) params.set("mode", String(MODE_TO_ID[mode]));
   const url = `${OSU_DIRECT_HOST}/search?${params.toString()}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`osu.direct 搜索失败：HTTP ${res.status}`);
   const data = (await res.json()) as OsuDirectBeatmapSet[];
   return data
@@ -153,7 +187,7 @@ export const fetchFeatured = async (
   });
   if (mode) params.set("mode", String(MODE_TO_ID[mode]));
   const url = `${OSU_DIRECT_HOST}/search?${params.toString()}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`osu.direct 列表失败：HTTP ${res.status}`);
   const data = (await res.json()) as OsuDirectBeatmapSet[];
   return data
@@ -164,7 +198,7 @@ export const fetchFeatured = async (
 /** 通过 setId 获取谱面详情（osu.direct） */
 export const fetchBeatmapSet = async (setId: number): Promise<BeatmapSet> => {
   const url = `${OSU_DIRECT_HOST}/s/${setId}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`osu.direct 详情失败：HTTP ${res.status}`);
   const data = (await res.json()) as OsuDirectBeatmapSet;
   return mapBeatmapSet(data);
@@ -182,7 +216,7 @@ export const searchSayobot = async (
     "2": "4",
     "3": query,
   });
-  const res = await fetch(`${SAYOBOT_LIST}?${params.toString()}`);
+  const res = await fetchWithTimeout(`${SAYOBOT_LIST}?${params.toString()}`);
   if (!res.ok) throw new Error(`Sayobot 搜索失败：HTTP ${res.status}`);
   const json = (await res.json()) as { data?: SayobotListItem[] };
   const items = json.data || [];
@@ -192,7 +226,7 @@ export const searchSayobot = async (
   const detailed = await Promise.all(
     items.map(async (item) => {
       try {
-        const infoRes = await fetch(`${SAYOBOT_INFO}?1=${item.sid}`);
+        const infoRes = await fetchWithTimeout(`${SAYOBOT_INFO}?1=${item.sid}`);
         if (!infoRes.ok) return null;
         const infoJson = (await infoRes.json()) as { data?: SayobotBeatmap[] };
         const bms = infoJson.data || [];
@@ -259,7 +293,7 @@ export const downloadOsz = async (
 ): Promise<ArrayBuffer> => {
   const base = full ? SAYOBOT_FULL : SAYOBOT_MINI;
   const url = `${base}/${setId}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, undefined, DOWNLOAD_CONNECT_TIMEOUT_MS, true);
   if (!res.ok) throw new Error(`下载失败：HTTP ${res.status}`);
 
   const total = Number(res.headers.get("content-length") || 0);
@@ -362,7 +396,7 @@ export const searchKitsu = async (
   if (query.trim()) params.set("query", query);
   if (mode) params.set("mode", String(MODE_TO_ID[mode]));
   const url = `${KITSU_HOST}/search?${params.toString()}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`Kitsu 搜索失败：HTTP ${res.status}`);
   const data = (await res.json()) as KitsuBeatmapSet[];
   if (!Array.isArray(data)) return [];
@@ -450,7 +484,7 @@ export const searchChimu = async (
   if (query.trim()) params.query = query;
   if (mode) params.mode = String(MODE_TO_ID[mode]);
   const url = `${CHIMU_HOST}/search?${new URLSearchParams(params).toString()}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`Chimu 搜索失败：HTTP ${res.status}`);
   const data = (await res.json()) as ChimuBeatmapSet[];
   if (!Array.isArray(data)) return [];
@@ -488,6 +522,9 @@ export const searchAllSources = async (
     hasQuery
       ? searchChimu(query, mode || undefined, limit)
       : searchChimu("", mode || undefined, limit),
+    hasQuery
+      ? searchSayobot(query, mode || undefined, limit)
+      : fetchSayobotFeatured(mode || undefined, limit),
   ];
 
   // 竞速：取第一个成功且非空的结果
@@ -538,7 +575,7 @@ async function downloadStream(
   url: string,
   onProgress?: (ratio: number) => void,
 ): Promise<ArrayBuffer> {
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, undefined, DOWNLOAD_CONNECT_TIMEOUT_MS, true);
   if (!res.ok) throw new Error(`下载失败：HTTP ${res.status}`);
 
   const total = Number(res.headers.get("content-length") || 0);

@@ -138,6 +138,20 @@ const initSearch = async (
     }
     set({ searchResults: results, searchLoading: false });
   } catch (e) {
+    // 单源失败时（如 osu.direct 超时），自动 fallback 到竞速搜索
+    if (source !== "all") {
+      try {
+        let fallback = await searchAllSources(query, mode, 50);
+        if (fallback.length > 0) {
+          if (storyboardOnly) fallback = fallback.filter((s) => s.hasStoryboard === true);
+          if (videoOnly) fallback = fallback.filter((s) => s.hasVideo === true);
+          set({ searchResults: fallback, searchLoading: false });
+          return;
+        }
+      } catch {
+        // 竞速也失败，继续报原始错误
+      }
+    }
     set({
       searchLoading: false,
       searchError: e instanceof Error ? e.message : "搜索失败",
