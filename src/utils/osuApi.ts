@@ -18,7 +18,7 @@ export interface OsuUserProfile {
   countA: number;
   /** 头像 URL（osu! 官方 CDN a.ppy.sh） */
   avatarUrl: string;
-  /** Profile 背景 cover URL（取 top play 的 beatmap cover） */
+  /** Profile 背景 cover URL（来自 osu! 官方 profile 页面的 cover_url，fallback 到 top play beatmap cover） */
   coverUrl: string;
   importedAt: number;
 }
@@ -60,8 +60,8 @@ export function buildBeatmapCoverUrl(beatmapsetId: number): string {
 }
 
 /**
- * 获取用户最佳成绩（取 top 1 用于 profile 背景）。
- * 失败返回 null，不影响主流程。
+ * 获取用户最佳成绩（取 top 1 用于 profile 背景 fallback）。
+ * 失败返回空串，不影响主流程。
  */
 async function fetchTopPlayCover(apiKey: string, userId: number): Promise<string> {
   try {
@@ -72,6 +72,33 @@ async function fetchTopPlayCover(apiKey: string, userId: number): Promise<string
     const beatmapsetId = Number(data[0].beatmapset_id);
     if (!Number.isFinite(beatmapsetId) || beatmapsetId <= 0) return "";
     return buildBeatmapCoverUrl(beatmapsetId);
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * 从 osu! 公开 profile 页面抓取用户真实的 profile cover URL。
+ * profile 页面（https://osu.ppy.sh/users/{id}）是公开可访问的，
+ * HTML 中内嵌的 JSON 包含 cover_url 字段（assets.ppy.sh/user-profile-covers/...）。
+ * 无需 API key，仅需经 CORS 代理抓取 HTML 后正则提取。
+ * 失败返回空串。
+ */
+export async function fetchUserProfileCover(userId: number): Promise<string> {
+  try {
+    const url = `https://osu.ppy.sh/users/${userId}`;
+    const res = await fetchWithProxies(url, 10000);
+    const html = await res.text();
+    // HTML 中 JSON 被 entity 编码：&quot;cover_url&quot;:&quot;...&quot;
+    // URL 中的 / 在 JSON 里被转义为 \/
+    const match = html.match(/cover_url&quot;:\s*&quot;(.*?)&quot;/);
+    if (!match) return "";
+    const coverUrl = match[1]
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/\\\//g, "/");
+    if (!coverUrl.startsWith("http")) return "";
+    return coverUrl;
   } catch {
     return "";
   }
@@ -101,8 +128,11 @@ export async function fetchOsuUser(apiKey: string, username: string): Promise<Os
   const userId = num(u.user_id);
   const avatarUrl = buildOsuAvatarUrl(userId);
 
-  // 并行拉取 top play cover 作为 profile 背景
-  const coverUrl = await fetchTopPlayCover(key, userId);
+  // 优先从公开 profile 页面抓取真实 cover（无需 API key），失败再 fallback 到 top play beatmap cover
+  let coverUrl = await fetchUserProfileCover(userId);
+  if (!coverUrl) {
+    coverUrl = await fetchTopPlayCover(key, userId);
+  }
 
   return {
     userId,
