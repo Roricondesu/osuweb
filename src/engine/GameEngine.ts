@@ -1741,8 +1741,9 @@ export abstract class GameEngine {
   protected drawHitEffects(time: number): void {
     if (!this.showHitEffects) return;
     const { ctx } = this.ctx;
+    // 与判定文字主色一致（PERFECT 金 / GREAT 蓝 / GOOD 绿 / MISS 红）
     const colorMap: Record<Judgement, string> = {
-      "300": "#ff9ecf",
+      "300": "#facc15",
       "100": "#38bdf8",
       "50": "#4ade80",
       miss: "#ff375f",
