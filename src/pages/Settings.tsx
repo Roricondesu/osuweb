@@ -503,10 +503,9 @@ export default function Settings() {
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* 移动端：icon-only 横向滚动标签栏 */}
           <div
-            className="md:hidden no-scrollbar"
+            className="flex md:hidden no-scrollbar"
             style={{
               marginBottom: 12,
-              display: "flex",
               gap: 6,
               overflowX: "auto",
               scrollSnapType: "x mandatory",
