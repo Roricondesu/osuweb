@@ -93,7 +93,8 @@ export const drawRect = (
   }
 };
 
-export const GAME_FONT = '"Code Pro", "SF Mono", ui-monospace, monospace';
+// 统一使用 AlimamaFangYuanTi（注册名 "Torus Pro"）。等宽数字通过 font-variant-numeric 控制。
+export const GAME_FONT = '"Torus Pro", "PingFang SC", system-ui, sans-serif';
 
 /** 绘制文本（居中） */
 export const drawText = (

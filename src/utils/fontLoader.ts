@@ -55,7 +55,6 @@ async function setCachedFont(key: string, blob: Blob): Promise<void> {
 interface FontConfig {
   family: string;
   url: string;
-  format: string;
   weight?: string;
   /** 可变字体范围，如 "100 900" */
   weightRange?: string;
@@ -65,14 +64,7 @@ const FONTS: FontConfig[] = [
   {
     family: "Torus Pro",
     url: "/fonts/AlimamaFangYuanTiVF-Thin-2.ttf",
-    format: "truetype",
     weightRange: "100 900",
-  },
-  {
-    family: "Code Pro",
-    url: "/fonts/code-pro.otf",
-    format: "opentype",
-    weight: "400",
   },
 ];
 

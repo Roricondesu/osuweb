@@ -5,8 +5,8 @@
 /* 字体通过 fontLoader.ts 从 IndexedDB 加载（持久化），此处不写 @font-face */
 
 :root {
-  /* Torus Pro 作为全局默认字体（支持中文的可变圆体） */
-  font-family: "Torus Pro", "PingFang SC", "Microsoft YaHei", "Code Pro", system-ui, sans-serif;
+  /* AlimamaFangYuanTi（注册为 "Torus Pro"）作为全局默认字体（支持中文的可变圆体） */
+  font-family: "Torus Pro", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   font-variation-settings: "wght" 500, "BEVL" 100;
   line-height: 1.5;
   font-weight: 500;
@@ -76,9 +76,9 @@
   --radius-pill: 999px;
 }
 
-/* Torus Pro 标题/品牌加粗（全局默认已是 Torus Pro 500） */
+/* AlimamaFangYuanTi 标题/品牌加粗（全局默认已是 500） */
 .font-torus {
-  font-family: "Torus Pro", "PingFang SC", "Microsoft YaHei", "Code Pro", system-ui, sans-serif;
+  font-family: "Torus Pro", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   font-variation-settings: "wght" 700, "BEVL" 100;
   font-weight: 700;
 }
