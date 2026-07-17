@@ -18,7 +18,7 @@ import {
   type JudgementWindows,
 } from "./Judger";
 import type { CanvasContext } from "./renderer/Canvas2D";
-import { setupCanvas, clear, GAME_FONT, clamp, hexToRgba } from "./renderer/Canvas2D";
+import { setupCanvas, clear, GAME_FONT, clamp } from "./renderer/Canvas2D";
 import { getCurrentLyric } from "@/utils/lrclibLyrics";
 
 interface HitEffect {
@@ -1737,7 +1737,7 @@ export abstract class GameEngine {
     this.judgePopups.length = w2;
   }
 
-  /** 绘制命中爆点 - 扩散环 + 中心闪光 + 光晕 */
+  /** 绘制命中爆点 - 扩散环 + 中心闪光（两层，无渐变，性能优） */
   protected drawHitEffects(time: number): void {
     if (!this.showHitEffects) return;
     const { ctx } = this.ctx;
@@ -1748,7 +1748,7 @@ export abstract class GameEngine {
       "50": "#4ade80",
       miss: "#ff375f",
     };
-    const DURATION = 320;
+    const DURATION = 300;
     for (const e of this.hitEffects) {
       const age = time - e.time;
       if (age > DURATION) continue;
@@ -1758,35 +1758,20 @@ export abstract class GameEngine {
 
       ctx.save();
 
-      // 1. 光晕（径向渐变，快速衰减）
-      if (age < 220) {
-        const glowT = age / 220;
-        const glowAlpha = (1 - glowT) * 0.32;
-        const glowR = 16 + glowT * 24;
-        const grad = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, glowR);
-        grad.addColorStop(0, hexToRgba(color, glowAlpha));
-        grad.addColorStop(0.6, hexToRgba(color, glowAlpha * 0.4));
-        grad.addColorStop(1, hexToRgba(color, 0));
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, glowR, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // 2. 扩散环（细亮线，快速扩张并变细）
-      const ringR = 5 + t * 38;
-      ctx.globalAlpha = alpha * 0.85;
+      // 1. 扩散环（亮线，快速扩张并变细）
+      const ringR = 8 + t * 56;
+      ctx.globalAlpha = alpha * 0.9;
       ctx.strokeStyle = color;
-      ctx.lineWidth = Math.max(0.5, 3 * (1 - t * 0.65));
+      ctx.lineWidth = Math.max(0.5, 4 * (1 - t * 0.7));
       ctx.beginPath();
       ctx.arc(e.x, e.y, ringR, 0, Math.PI * 2);
       ctx.stroke();
 
-      // 3. 中心闪光（白色核心，极短）
-      if (age < 90) {
-        const flashT = age / 90;
-        const flashAlpha = (1 - flashT) * 0.85;
-        const flashR = 4 + flashT * 4;
+      // 2. 中心闪光（实心圆，快速衰减）
+      if (age < 120) {
+        const flashT = age / 120;
+        const flashAlpha = (1 - flashT) * 0.9;
+        const flashR = 6 + flashT * 8;
         ctx.globalAlpha = flashAlpha;
         ctx.fillStyle = e.judgement === "miss" ? color : "#ffffff";
         ctx.beginPath();
