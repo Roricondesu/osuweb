@@ -9,7 +9,7 @@ import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { useTranslation } from "@/i18n";
 
 const MODE_TABS: { key: GameMode | null; label: string }[] = [
-  { key: null, label: "全部" },
+  { key: null, label: "" }, // "全部" via i18n
   { key: "standard", label: "osu!" },
   { key: "taiko", label: "Taiko" },
   { key: "catch", label: "Catch" },

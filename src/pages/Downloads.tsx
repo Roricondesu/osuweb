@@ -308,7 +308,7 @@ export default function Downloads() {
 
       <div className="mt-5 flex items-center gap-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
         <AlertCircle size={14} className="shrink-0" />
-        <span>下载数据保存在浏览器 IndexedDB 中，清理浏览器数据会丢失。</span>
+        <span>{t("downloads.storageHint")}</span>
       </div>
 
       <input
