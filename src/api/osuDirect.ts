@@ -571,7 +571,18 @@ export const searchNerinyan = async (
   if (!res.ok) throw new Error(`Nerinyan 搜索失败：HTTP ${res.status}`);
   const data = (await res.json()) as OsuDirectBeatmapSet[];
   if (!Array.isArray(data)) return [];
-  const sets = data
+  // Nerinyan 的响应里没有 covers 字段（精简过的 osu!API v2 镜像），
+  // 用 osu! 官方 assets CDN 按 setId 拼接所有规格封面 URL。
+  const withCovers = data.map((s) => ({
+    ...s,
+    covers: s.covers || {
+      cover: `https://assets.ppy.sh/beatmaps/${s.id}/covers/cover.jpg`,
+      "cover@2x": `https://assets.ppy.sh/beatmaps/${s.id}/covers/cover@2x.jpg`,
+      card: `https://assets.ppy.sh/beatmaps/${s.id}/covers/card.jpg`,
+      list: `https://assets.ppy.sh/beatmaps/${s.id}/covers/list.jpg`,
+    },
+  }));
+  const sets = withCovers
     .filter((s) => s.id && s.beatmaps?.length)
     .map(mapBeatmapSet);
   // Nerinyan 服务端不支持按 mode 过滤，客户端筛一遍 beatmaps
