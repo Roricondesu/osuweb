@@ -1704,9 +1704,9 @@ export abstract class GameEngine {
   /** 添加判定文字（实际坐标由子类传入） */
   protected spawnJudgePopup(judgement: Judgement, x: number, y: number, time: number): void {
     const map: Record<Judgement, { text: string; color: string; scale: number }> = {
-      "300": { text: "PERFECT", color: "#facc15", scale: 0.9 },
-      "100": { text: "GREAT", color: "#38bdf8", scale: 0.85 },
-      "50": { text: "GOOD", color: "#4ade80", scale: 0.8 },
+      "300": { text: "GREAT", color: "#facc15", scale: 0.9 },
+      "100": { text: "GOOD", color: "#38bdf8", scale: 0.85 },
+      "50": { text: "MEH", color: "#4ade80", scale: 0.8 },
       miss: { text: "MISS", color: "#ff375f", scale: 0.75 },
     };
     const info = map[judgement];
@@ -1796,18 +1796,17 @@ export abstract class GameEngine {
       const age = time - p.time;
       const t = age / 600;
       const alpha = 1 - t;
-      const drift = -t * 40;
-      const scale = p.scale * (1 + Math.sin(t * Math.PI) * 0.15);
+      const scale = p.scale * (1 + t * 0.5);
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.translate(p.x, p.y + drift);
+      ctx.translate(p.x, p.y);
       ctx.scale(scale, scale);
       const skin = this.getSkinTexture(skinMap[p.judgement]);
       if (skin) {
         const size = 48;
         ctx.drawImage(skin, -size / 2, -size / 2, size, size);
       } else {
-        ctx.font = `bold 24px ${GAME_FONT}`;
+        ctx.font = `900 24px ${GAME_FONT}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillStyle = p.color;
