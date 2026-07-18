@@ -122,6 +122,10 @@ interface SayobotBeatmap {
   mode: number;
   length: number;
   BPM: number;
+  /** storyboard 标志，"0" = 无 storyboard，非 "0" = 有 */
+  img?: string;
+  /** 视频文件名，"" = 无视频，非空 = 有 */
+  video?: string;
 }
 
 const mapBeatmap = (b: OsuDirectBeatmap): Beatmap => ({
@@ -270,6 +274,8 @@ export const searchSayobot = async (
           "cover@2x": `https://a.sayobot.cn/beatmaps/${item.sid}/covers/cover@2x.jpg`,
         },
         beatmaps,
+        hasStoryboard: bms.some((b) => b.img != null && b.img !== "0") || undefined,
+        hasVideo: bms.some((b) => b.video != null && b.video !== "") || undefined,
       };
     })
     .filter((s) => s.beatmaps.length > 0);
