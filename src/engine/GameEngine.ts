@@ -1215,6 +1215,8 @@ export abstract class GameEngine {
     if (!alreadyJudged) {
       this.submitJudgement(j);
       this.spawnJudgePopup(j, x, y, time);
+      // 记录命中时刻用于击中后的渐隐放大动画（仅非 miss）
+      if (j !== "miss") obj._hitTime = time;
     }
     if (j !== "miss") this.playHitSound(obj);
     return j;

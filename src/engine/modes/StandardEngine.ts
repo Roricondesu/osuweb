@@ -17,6 +17,11 @@ const MODE_COLOR = "#f472b6";
 
 const GLASS_ALPHA = 0.45;
 
+/** circle 命中后渐隐放大动画时长（毫秒） */
+const HIT_CIRCLE_FADE_MS = 240;
+/** 渐隐期间最大放大倍率 */
+const HIT_CIRCLE_FADE_SCALE = 1.4;
+
 const arToPreempt = (ar: number): number => {
   if (ar < 5) return 1200 + 600 * (5 - ar) / 5;
   if (ar === 5) return 1200;
@@ -506,7 +511,14 @@ export class StandardEngine extends GameEngine {
     const objs = this.beatmap.hitObjects;
     for (let i = objs.length - 1; i >= this.activeIndex; i--) {
       const obj = objs[i];
-      if (obj.judged && obj.judgement !== "miss" && !(obj.type === "slider" && obj._sliderHit)) continue;
+      // 命中的 circle 在渐隐放大期间继续渲染，动画结束后再跳过
+      if (obj.judged && obj.judgement !== "miss" && !(obj.type === "slider" && obj._sliderHit)) {
+        const inFade =
+          obj.type === "circle" &&
+          obj._hitTime !== undefined &&
+          time - obj._hitTime < HIT_CIRCLE_FADE_MS;
+        if (!inFade) continue;
+      }
       const timeUntil = obj.time - time;
       if (timeUntil > this.preempt) continue;
       const endTime = obj.endTime || obj.time;
@@ -591,10 +603,18 @@ export class StandardEngine extends GameEngine {
   private drawCircle(obj: HitObject, idx: number, time: number): void {
     const c = this.cached[idx];
     const p = this.toCanvas(obj.x, obj.y);
-    const r = this.radius * this.hitCircleScale;
+    let r = this.radius * this.hitCircleScale;
     const timeUntil = obj.time - time;
     const approachT = clamp(1 - timeUntil / this.preempt, 0, 1);
     const color = c.comboColor;
+
+    // 命中后渐隐放大：alpha 从 1→0，半径从 1→HIT_CIRCLE_FADE_SCALE
+    let hitFade = 1;
+    if (obj.judged && obj.judgement !== "miss" && obj._hitTime !== undefined) {
+      const elapsed = time - obj._hitTime;
+      hitFade = clamp(1 - elapsed / HIT_CIRCLE_FADE_MS, 0, 1);
+      r = r * (1 + (1 - hitFade) * (HIT_CIRCLE_FADE_SCALE - 1));
+    }
 
     // Hidden Mod：物件在引导圈收缩后期淡出，命中后完全消失
     let hiddenAlpha = 1;
@@ -604,6 +624,7 @@ export class StandardEngine extends GameEngine {
       }
       if (timeUntil < 0) hiddenAlpha = 0;
     }
+    hiddenAlpha *= hitFade;
 
     // approach circle - 优先使用皮肤纹理；Hidden 下收缩过半后隐藏
     if (approachT < 1 && this.showApproachCircles && !(this.modHidden && approachT > 0.5)) {

@@ -300,6 +300,8 @@ export interface HitObject {
   hit?: boolean;
   judged?: boolean;
   judgement?: Judgement | null;
+  /** 命中（非 miss）时刻，用于击中后的渐隐放大动画 */
+  _hitTime?: number;
   // 扩展字段
   _comboIndex?: number;
   _comboNumber?: number;
