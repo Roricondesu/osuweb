@@ -328,8 +328,8 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
             gap: 12,
             background: isDownloaded || downloaded || isLoadedSet(set) ? "#D4F792" : "#5C6970",
             transition: "background 0.45s cubic-bezier(0.22,1,0.36,1), clip-path 0.3s cubic-bezier(0.22,1,0.36,1)",
-            // 默认露出右侧 4px 悬停栏颜色；hover 时完全展开
-            clipPath: hover ? "inset(0 0 0 0)" : "inset(0 0 0 calc(100% - 4px))",
+            // 默认露出右侧 8px 悬停栏颜色；hover 时完全展开
+            clipPath: hover ? "inset(0 0 0 0)" : "inset(0 0 0 calc(100% - 8px))",
             zIndex: 1,
           }}
         >
@@ -420,7 +420,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           style={{
             position: "absolute",
             top: 0, bottom: 0, left: 0,
-            right: hover ? 32 : 4,
+            right: hover ? 32 : 8,
             borderRadius: 10,
             overflow: "hidden",
             transition: "right 0.3s cubic-bezier(0.22,1,0.36,1)",
@@ -434,7 +434,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           style={{
             position: "absolute",
             top: 0, bottom: 0, left: 0,
-            right: hover ? 32 : 4,
+            right: hover ? 32 : 8,
             borderRadius: 10,
             overflow: "hidden",
             transition: "right 0.3s cubic-bezier(0.22,1,0.36,1)",
