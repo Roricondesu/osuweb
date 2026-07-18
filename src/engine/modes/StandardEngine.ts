@@ -609,9 +609,11 @@ export class StandardEngine extends GameEngine {
     const color = c.comboColor;
 
     // 命中后渐隐放大：alpha 从 1→0，半径从 1→HIT_CIRCLE_FADE_SCALE
+    const inHitFade =
+      obj.judged && obj.judgement !== "miss" && obj._hitTime !== undefined;
     let hitFade = 1;
-    if (obj.judged && obj.judgement !== "miss" && obj._hitTime !== undefined) {
-      const elapsed = time - obj._hitTime;
+    if (inHitFade) {
+      const elapsed = time - (obj._hitTime as number);
       hitFade = clamp(1 - elapsed / HIT_CIRCLE_FADE_MS, 0, 1);
       r = r * (1 + (1 - hitFade) * (HIT_CIRCLE_FADE_SCALE - 1));
     }
@@ -686,6 +688,17 @@ export class StandardEngine extends GameEngine {
           offsetY: -1,
         });
       }
+    }
+    // 命中渐隐期间的变亮闪光：白色 + 'lighter' 叠加，alpha 随 hitFade 衰减
+    if (inHitFade) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = hitFade * 0.5;
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
     ctx.restore();
   }
