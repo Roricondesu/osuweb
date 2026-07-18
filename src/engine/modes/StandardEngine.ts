@@ -509,7 +509,20 @@ export class StandardEngine extends GameEngine {
     this.drawPlayfield();
 
     const objs = this.beatmap.hitObjects;
-    for (let i = objs.length - 1; i >= this.activeIndex; i--) {
+    // 渲染下界：允许命中后渐隐放大的 circle 仍可见
+    let lowerBound = this.activeIndex;
+    if (lowerBound > 0) {
+      for (let i = lowerBound - 1; i >= 0; i--) {
+        const o = objs[i];
+        if (o.type !== "circle" || o.judgement === "miss" || o._hitTime === undefined) break;
+        if (time - o._hitTime < HIT_CIRCLE_FADE_MS) {
+          lowerBound = i;
+        } else {
+          break;
+        }
+      }
+    }
+    for (let i = objs.length - 1; i >= lowerBound; i--) {
       const obj = objs[i];
       // 命中的 circle 在渐隐放大期间继续渲染，动画结束后再跳过
       if (obj.judged && obj.judgement !== "miss" && !(obj.type === "slider" && obj._sliderHit)) {
