@@ -188,6 +188,7 @@ export class StandardEngine extends GameEngine {
         if (obj.type === "slider" && obj._sliderHit) {
           obj.judged = true;
           obj.judgement = "300";
+          obj._hitTime = time;
           this.submitJudgement("300");
           const endPos = this.sliderEndPosition(obj, i);
           this.spawnHitEffect(endPos.x, endPos.y, "300", time);
@@ -509,12 +510,13 @@ export class StandardEngine extends GameEngine {
     this.drawPlayfield();
 
     const objs = this.beatmap.hitObjects;
-    // 渲染下界：允许命中后渐隐放大的 circle 仍可见
+    // 渲染下界：允许命中后渐隐放大的 circle/slider 仍可见
     let lowerBound = this.activeIndex;
     if (lowerBound > 0) {
       for (let i = lowerBound - 1; i >= 0; i--) {
         const o = objs[i];
-        if (o.type !== "circle" || o.judgement === "miss" || o._hitTime === undefined) break;
+        if (o.judgement === "miss" || o._hitTime === undefined) break;
+        if (o.type !== "circle" && o.type !== "slider") break;
         if (time - o._hitTime < HIT_CIRCLE_FADE_MS) {
           lowerBound = i;
         } else {
@@ -524,10 +526,10 @@ export class StandardEngine extends GameEngine {
     }
     for (let i = objs.length - 1; i >= lowerBound; i--) {
       const obj = objs[i];
-      // 命中的 circle 在渐隐放大期间继续渲染，动画结束后再跳过
+      // 命中的 circle/slider 在渐隐放大期间继续渲染，动画结束后再跳过
       if (obj.judged && obj.judgement !== "miss" && !(obj.type === "slider" && obj._sliderHit)) {
         const inFade =
-          obj.type === "circle" &&
+          (obj.type === "circle" || obj.type === "slider") &&
           obj._hitTime !== undefined &&
           time - obj._hitTime < HIT_CIRCLE_FADE_MS;
         if (!inFade) continue;
@@ -720,10 +722,20 @@ export class StandardEngine extends GameEngine {
     const c = this.cached[idx];
     const color = c.comboColor;
     const pts = c.canvasPoints;
-    const r = this.radius;
+    let r = this.radius;
     const timeUntil = obj.time - time;
     const started = time >= obj.time;
     const ended = time > (obj.endTime || obj.time);
+
+    // 命中后渐隐放大：alpha 从 1→0，半径从 1→HIT_CIRCLE_FADE_SCALE
+    const inHitFade =
+      obj.judged && obj.judgement !== "miss" && obj._hitTime !== undefined;
+    let hitFade = 1;
+    if (inHitFade) {
+      const elapsed = time - (obj._hitTime as number);
+      hitFade = clamp(1 - elapsed / HIT_CIRCLE_FADE_MS, 0, 1);
+      r = r * (1 + (1 - hitFade) * (HIT_CIRCLE_FADE_SCALE - 1));
+    }
 
     if (pts.length < 2) {
       // 退化成普通圆
@@ -732,6 +744,8 @@ export class StandardEngine extends GameEngine {
     }
 
     const { ctx } = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = hitFade;
     const sd = c.sliderDuration || 1;
     const slides = obj.slides || 1;
     let ballPos: SliderEvalResult | null = null;
@@ -899,6 +913,19 @@ export class StandardEngine extends GameEngine {
         drawCircle(this.ctx, bx, by, r * 0.48, "rgba(255,255,255,0.95)", color, 2.5);
       }
     }
+    // 命中渐隐期间的变亮闪光：白色 + 'lighter' 叠加，alpha 随 hitFade 衰减
+    if (inHitFade) {
+      const head = pts[0];
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = hitFade * 0.5;
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(head.x, head.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
   }
 
   private drawReverseArrow(tail: { x: number; y: number }, prev: { x: number; y: number }, r: number, _color: string, time: number): void {
