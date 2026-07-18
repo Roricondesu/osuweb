@@ -45,6 +45,8 @@ const SAYOBOT_LIST = "https://api.sayobot.cn/beatmaplist";
 const SAYOBOT_INFO = "https://api.sayobot.cn/beatmapinfo";
 const KITSU_HOST = "https://kitsu.moe/api/d";
 const CHIMU_HOST = "https://api.chimu.moe/v1";
+const NERINYAN_API = "https://api.nerinyan.moe";
+const NERINYAN_DL = "https://api.nerinyan.moe/d";
 
 interface OsuDirectBeatmap {
   id: number;
@@ -208,6 +210,41 @@ export const fetchBeatmapSet = async (setId: number): Promise<BeatmapSet> => {
   return mapBeatmapSet(data);
 };
 
+/**
+ * 用 osu.direct 的搜索结果为 Sayobot / Kitsu / Chimu 等结果补全 storyboard/video 标签。
+ * Sayobot 的 beatmapinfo 接口已不再可靠返回 img/video（实测恒为 "0"/""），
+ * 这里通过同关键词的 osu.direct 批量搜索做交叉引用。
+ */
+export const enrichWithOsuDirect = async (
+  results: BeatmapSet[],
+  query: string,
+  mode?: GameMode,
+): Promise<BeatmapSet[]> => {
+  const needsEnrich = results.some(
+    (s) => s.hasStoryboard === undefined || s.hasVideo === undefined,
+  );
+  if (!needsEnrich) return results;
+  try {
+    const hasQuery = query.trim().length > 0;
+    const osuResults = hasQuery
+      ? await searchBeatmapsets(query, mode, 100)
+      : await fetchFeatured(mode, 100);
+    if (osuResults.length === 0) return results;
+    const meta = new Map<number, BeatmapSet>(osuResults.map((r) => [r.id, r]));
+    return results.map((s) => {
+      const m = meta.get(s.id);
+      if (!m) return s;
+      return {
+        ...s,
+        hasStoryboard: s.hasStoryboard ?? m.hasStoryboard,
+        hasVideo: s.hasVideo ?? m.hasVideo,
+      };
+    });
+  } catch {
+    return results;
+  }
+};
+
 /** Sayobot 搜索 */
 export const searchSayobot = async (
   query: string,
@@ -241,7 +278,9 @@ export const searchSayobot = async (
     }),
   );
 
-  return detailed
+  // Sayobot 的 img / video 字段已不再可靠（实测恒返回 "0"/""），
+  // 这里先不写死标签，随后由 enrichWithOsuDirect 用 osu.direct 交叉补全。
+  const mapped = detailed
     .filter((d): d is { item: SayobotListItem; bms: SayobotBeatmap[] } => !!d && d.bms.length > 0)
     .map(({ item, bms }) => {
       let beatmaps = bms.map((b): Beatmap => ({
@@ -262,6 +301,9 @@ export const searchSayobot = async (
         const modeId = MODE_TO_ID[mode];
         beatmaps = beatmaps.filter((b) => b.mode === modeId);
       }
+      // 仅当 Sayobot 真实给出非空值时才采纳，避免误报
+      const sbHint = bms.some((b) => b.img != null && b.img !== "0") || undefined;
+      const videoHint = bms.some((b) => b.video != null && b.video !== "") || undefined;
       return {
         id: item.sid,
         title: item.title,
@@ -274,11 +316,14 @@ export const searchSayobot = async (
           "cover@2x": `https://a.sayobot.cn/beatmaps/${item.sid}/covers/cover@2x.jpg`,
         },
         beatmaps,
-        hasStoryboard: bms.some((b) => b.img != null && b.img !== "0") || undefined,
-        hasVideo: bms.some((b) => b.video != null && b.video !== "") || undefined,
+        hasStoryboard: sbHint,
+        hasVideo: videoHint,
       };
     })
     .filter((s) => s.beatmaps.length > 0);
+
+  // 用 osu.direct 同关键词搜索补全 storyboard / video 标签
+  return enrichWithOsuDirect(mapped, query, mode);
 };
 
 /** 获取 Sayobot 热门/默认列表（空查询时返回最新上架） */
@@ -507,11 +552,64 @@ export const downloadChimu = async (
   return downloadStream(`${CHIMU_HOST}/set/${setId}`, onProgress);
 };
 
+// ===== Nerinyan.moe =====
+// 与 osu.direct v2 完全相同的响应格式（皆为 osu!API v2 镜像），
+// 因此直接复用 OsuDirectBeatmapSet 类型与 mapBeatmapSet。
+// Nerinyan 的 /search 接口同时支持 q=（简单字符串）与 b64=（base64 JSON）参数，
+// 但 b64 模式下传 totalLength.min=0/max=0 等字段会被当作严格过滤器（恒返回 0 条），
+// 这里用最简单的 q= 参数即可，模式过滤在客户端做。
+
+/** Nerinyan 搜索 */
+export const searchNerinyan = async (
+  query: string,
+  mode?: GameMode,
+  limit = 50,
+): Promise<BeatmapSet[]> => {
+  const params = new URLSearchParams({ q: query, ps: String(limit) });
+  const url = `${NERINYAN_API}/search?${params.toString()}`;
+  const res = await fetchWithTimeout(url);
+  if (!res.ok) throw new Error(`Nerinyan 搜索失败：HTTP ${res.status}`);
+  const data = (await res.json()) as OsuDirectBeatmapSet[];
+  if (!Array.isArray(data)) return [];
+  const sets = data
+    .filter((s) => s.id && s.beatmaps?.length)
+    .map(mapBeatmapSet);
+  // Nerinyan 服务端不支持按 mode 过滤，客户端筛一遍 beatmaps
+  if (mode !== undefined) {
+    const modeId = MODE_TO_ID[mode];
+    return sets
+      .map((s) => ({
+        ...s,
+        beatmaps: s.beatmaps.filter((b) => b.mode === modeId),
+      }))
+      .filter((s) => s.beatmaps.length > 0);
+  }
+  return sets;
+};
+
+/** Nerinyan 下载：?novideo=true&nostoryboard=true 等价 Sayobot mini 包 */
+export const downloadNerinyan = async (
+  setId: number,
+  full = false,
+  onProgress?: (ratio: number) => void,
+): Promise<ArrayBuffer> => {
+  const params = new URLSearchParams();
+  if (!full) {
+    params.set("novideo", "true");
+    params.set("nostoryboard", "true");
+  }
+  const qs = params.toString();
+  const url = qs ? `${NERINYAN_DL}/${setId}?${qs}` : `${NERINYAN_DL}/${setId}`;
+  return downloadStream(url, onProgress);
+};
+
 // ===== 并行竞速搜索 / 下载 =====
 
-export type SearchSource = "osu" | "sayobot" | "kitsu" | "chimu" | "all";
+export type SearchSource = "osu" | "sayobot" | "kitsu" | "chimu" | "nerinyan" | "all";
 
-/** 并行竞速搜索：所有源同时请求，取最先返回且成功的结果，其余丢弃 */
+/** 并行竞速搜索：所有源同时请求，取最先返回且成功的结果，其余丢弃
+ *  额外用 osu.direct 同关键词搜索补全胜出方的 storyboard/video 标签
+ */
 export const searchAllSources = async (
   query: string,
   mode?: GameMode | null,
@@ -531,11 +629,13 @@ export const searchAllSources = async (
     hasQuery
       ? searchSayobot(query, mode || undefined, limit)
       : fetchSayobotFeatured(mode || undefined, limit),
+    searchNerinyan(query, mode || undefined, limit),
   ];
 
   // 竞速：取第一个成功且非空的结果
+  let winner: BeatmapSet[] | null = null;
   try {
-    const first = await Promise.any(
+    winner = await Promise.any(
       sources.map((p) =>
         p.then((r) => {
           if (r.length === 0) throw new Error("empty");
@@ -543,17 +643,22 @@ export const searchAllSources = async (
         }),
       ),
     );
-    return first;
   } catch {
     // 全部失败或全部空，尝试 Sayobot 作为兜底（它有独立 API 格式）
     try {
-      return hasQuery
+      winner = hasQuery
         ? await searchSayobot(query, mode || undefined, limit)
         : await fetchSayobotFeatured(mode || undefined, limit);
     } catch {
-      return [];
+      winner = [];
     }
   }
+  // 胜出方若缺 storyboard/video 标签，再用 osu.direct 同关键词补全
+  // （避免 Sayobot/Kitsu/Chimu/Nerinyan 单源胜出时丢标签）
+  if (winner.length > 0) {
+    return enrichWithOsuDirect(winner, query, mode || undefined);
+  }
+  return winner;
 };
 
 /** 并行竞速下载：多个源同时请求，取最先成功的结果 */
@@ -564,6 +669,7 @@ export const downloadOszRacing = async (
 ): Promise<ArrayBuffer> => {
   const sources: Promise<ArrayBuffer>[] = [
     downloadOsz(setId, full, onProgress),
+    downloadNerinyan(setId, full, onProgress),
     downloadKitsu(setId, onProgress),
     downloadChimu(setId, onProgress),
   ];

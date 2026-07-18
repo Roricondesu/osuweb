@@ -1542,11 +1542,16 @@ export default function Settings() {
                 <div>
                   <SubHeader>{t("search.source")}</SubHeader>
                   <ChipGroup
-                    options={["all", "osu", "sayobot", "kitsu", "chimu"] as const}
+                    options={["all", "osu", "sayobot", "kitsu", "chimu", "nerinyan"] as const}
                     value={settings.searchSource}
                     onChange={(v) => updateSetting("searchSource", v)}
                     renderLabel={(v) =>
-                      v === "all" ? t("search.allRace") : v === "osu" ? "osu.direct" : v === "sayobot" ? "Sayobot" : v === "kitsu" ? "Kitsu" : "Chimu"
+                      v === "all" ? t("search.allRace")
+                      : v === "osu" ? "osu.direct"
+                      : v === "sayobot" ? "Sayobot"
+                      : v === "kitsu" ? "Kitsu"
+                      : v === "chimu" ? "Chimu"
+                      : "Nerinyan"
                     }
                   />
                   <p className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
@@ -1751,6 +1756,7 @@ export default function Settings() {
                       { key: "osuDirect", label: t("advanced.osuDirectSearch") },
                       { key: "sayobotSearch", label: t("advanced.sayobotSearch") },
                       { key: "sayobotDownload", label: t("advanced.sayobotDetail") },
+                      { key: "nerinyan", label: "Nerinyan" },
                       { key: "lrclibLyrics", label: t("advanced.lrclibLyrics") },
                     ].map(({ key, label }) => {
                       const ok = health[key as keyof ApiHealthResult];

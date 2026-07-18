@@ -470,7 +470,7 @@ export interface Settings {
   showCursor: boolean; // 显示光标
 
   // 搜索 / 下载
-  searchSource: "osu" | "sayobot" | "kitsu" | "chimu" | "all";
+  searchSource: "osu" | "sayobot" | "kitsu" | "chimu" | "nerinyan" | "all";
   storyboardOnly: boolean;
   videoOnly: boolean;
   downloadFullPackage: boolean;

@@ -17,6 +17,7 @@ import {
   fetchSayobotFeatured,
   searchKitsu,
   searchChimu,
+  searchNerinyan,
   searchAllSources,
   downloadOszRacing,
 } from "@/api/osuDirect";
@@ -102,7 +103,7 @@ interface GameState {
 const initSearch = async (
   query: string,
   mode: GameMode | null,
-  source: "osu" | "sayobot" | "kitsu" | "chimu" | "all",
+  source: Settings["searchSource"],
   set: (patch: Partial<GameState>) => void,
 ): Promise<void> => {
   set({ searchLoading: true, searchError: null, searchQuery: query, searchMode: mode });
@@ -124,6 +125,8 @@ const initSearch = async (
         return await searchKitsu(query, mode || undefined, 50);
       case "chimu":
         return await searchChimu(query, mode || undefined, 50);
+      case "nerinyan":
+        return await searchNerinyan(query, mode || undefined, 50);
       case "all":
         return await searchAllSources(query, mode, 50);
       default:

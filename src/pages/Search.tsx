@@ -404,12 +404,19 @@ export default function Search() {
 
           <span style={{ width: 1, height: 16, background: "var(--glass-border)", flexShrink: 0 }} />
 
-          {(["all", "osu", "sayobot", "kitsu", "chimu"] as const).map((src) => (
+          {(["all", "osu", "sayobot", "kitsu", "chimu", "nerinyan"] as const).map((src) => (
             <FilterChip
               key={src}
               active={settings.searchSource === src}
               onClick={() => { updateSetting("searchSource", src); search(query, searchMode); }}
-              label={src === "all" ? t("search.allRace") : src === "osu" ? "osu.direct" : src === "sayobot" ? "Sayobot" : src === "kitsu" ? "Kitsu" : "Chimu"}
+              label={
+                src === "all" ? t("search.allRace")
+                : src === "osu" ? "osu.direct"
+                : src === "sayobot" ? "Sayobot"
+                : src === "kitsu" ? "Kitsu"
+                : src === "chimu" ? "Chimu"
+                : "Nerinyan"
+              }
             />
           ))}
         </div>
