@@ -420,7 +420,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           style={{
             position: "absolute",
             top: 0, bottom: 0, left: 0,
-            right: hover ? 32 : 8,
+            right: hover ? 32 : 4,
             borderRadius: 10,
             overflow: "hidden",
             transition: "right 0.3s cubic-bezier(0.22,1,0.36,1)",
@@ -434,7 +434,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
           style={{
             position: "absolute",
             top: 0, bottom: 0, left: 0,
-            right: hover ? 32 : 8,
+            right: hover ? 32 : 4,
             borderRadius: 10,
             overflow: "hidden",
             transition: "right 0.3s cubic-bezier(0.22,1,0.36,1)",
