@@ -130,8 +130,10 @@ export class ManiaEngine extends GameEngine {
   private judgeAndFinalize(obj: HitObject, j: Judgement, col: number, time: number): void {
     obj.judged = true;
     obj.judgement = j;
+    obj._hitTime = j !== "miss" ? time : obj._hitTime;
     this.submitJudgement(j);
     this.spawnHitEffect(this.colX(col), this.judgeY, j, time);
+    this.spawnJudgePopup(j, this.colX(col), this.judgeY - 30, time);
   }
 
   /** 完成 hold 判定：取头/尾 delta 较差者 */
@@ -155,12 +157,23 @@ export class ManiaEngine extends GameEngine {
     }
     obj.judged = true;
     obj.judgement = j;
+    obj._hitTime = j !== "miss" ? releaseTime : obj._hitTime;
     this.submitJudgement(j);
     this.spawnHitEffect(this.colX(col), this.judgeY, j, releaseTime);
+    // 尾部判定文字：在判定线上方显示
+    this.spawnJudgePopup(j, this.colX(col), this.judgeY - 30, releaseTime);
   }
 
   private autoPlay(time: number): void {
     const win300 = this.windows["300"];
+    // 自动释放已到达尾部的 hold：在 endTime 立即判定尾部
+    const toRelease: HitObject[] = [];
+    for (const [obj] of this.activeHolds) {
+      if (obj.endTime && time >= obj.endTime) toRelease.push(obj);
+    }
+    for (const obj of toRelease) {
+      this.finalizeHold(obj, obj.column ?? 0, obj.endTime);
+    }
     this.heldCols.clear();
     for (let c = 0; c < this.cols; c++) {
       // 保持正在按住的长条

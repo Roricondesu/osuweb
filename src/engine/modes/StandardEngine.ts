@@ -758,6 +758,15 @@ export class StandardEngine extends GameEngine {
         ballPos = this.evalSliderPos(pts, t);
       }
     }
+    // 命中渐隐期间：ballPos 为空时，将白色高亮延伸至尾部，避免结束时突然消失
+    if (inHitFade && !ballPos && pts.length > 1) {
+      ballPos = {
+        x: pts[pts.length - 1].x,
+        y: pts[pts.length - 1].y,
+        segmentIndex: pts.length - 2,
+        segmentT: 1,
+      };
+    }
 
     // 绘制整条路径（闭路复用）
     const drawPath = (lineWidth: number, strokeStyle: string, glow = false) => {

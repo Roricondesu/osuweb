@@ -79,8 +79,8 @@ export const TopNav: React.FC = () => {
               onMouseLeave={() => setHoveredIdx(null)}
               className="no-underline"
               style={{
-                width: 32,
-                height: 32,
+                width: 36,
+                height: 36,
                 borderRadius: "var(--radius-pill)",
                 display: "flex",
                 alignItems: "center",
@@ -90,7 +90,7 @@ export const TopNav: React.FC = () => {
                 transition: "all 0.15s ease",
               }}
             >
-              <Icon size={16} style={{ flexShrink: 0 }} />
+              <Icon size={18} style={{ flexShrink: 0 }} />
             </Link>
           );
         })}
@@ -104,7 +104,7 @@ export const TopNav: React.FC = () => {
         onClick={toggle}
         aria-label={active ? t("nav.exitFullscreen") : t("nav.enterFullscreen")}
         style={{
-          width: 32, height: 32, borderRadius: "var(--radius-pill)",
+          width: 36, height: 36, borderRadius: "var(--radius-pill)",
           display: "flex", alignItems: "center", justifyContent: "center",
           cursor: "pointer",
           color: active ? "var(--accent)" : "var(--text-secondary)",
@@ -116,7 +116,7 @@ export const TopNav: React.FC = () => {
         onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "#fff"; }}
         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = active ? "var(--accent)" : "var(--text-secondary)"; }}
       >
-        {active ? <Minimize size={14} /> : <Maximize size={14} />}
+        {active ? <Minimize size={16} /> : <Maximize size={16} />}
       </button>
     </div>
   );
