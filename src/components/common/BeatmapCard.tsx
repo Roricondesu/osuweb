@@ -292,7 +292,7 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
               </svg>
             ) : (
               <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <path d="M7 4.5 L23 14 L7 23.5 Z" fill="#fff" rx="3" />
+                <path d="M8.72,5.52 L21.28,12.98 Q23,14 21.28,15.02 L8.72,22.48 Q7,23.5 7,21.5 L7,6.5 Q7,4.5 8.72,5.52 Z" fill="#fff" />
               </svg>
             )}
           </button>
