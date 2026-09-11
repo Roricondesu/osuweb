@@ -11,11 +11,26 @@ import {
   Calendar,
   Type,
   Star,
+  Search as SearchIcon,
+  X,
 } from "lucide-react";
-import type { LoadedBeatmapSet } from "@/types";
+import type { LoadedBeatmapSet, GameMode } from "@/types";
+import { MODE_COLOR } from "@/types";
+import { OsuModeIcon } from "@/components/common";
 import { useTranslation } from "@/i18n";
 
 type SortBy = "newest" | "oldest" | "title" | "stars";
+
+/** Beatmap.mode 数字 -> GameMode */
+const MODE_NUM: Record<GameMode, number> = { standard: 0, taiko: 1, catch: 2, mania: 3 };
+
+const MODE_FILTERS: { key: GameMode | null; label: string }[] = [
+  { key: null, label: "ALL" },
+  { key: "standard", label: "osu!" },
+  { key: "taiko", label: "Taiko" },
+  { key: "catch", label: "Catch" },
+  { key: "mania", label: "Mania" },
+];
 
 const SORT_OPTIONS: { key: SortBy; label: string; icon: React.ElementType }[] = [
   { key: "newest", label: "最新下载", icon: Calendar },
@@ -137,6 +152,8 @@ export default function Downloads() {
   const importBeatmapFile = useGameStore((s) => s.importBeatmapFile);
   const { t } = useTranslation();
   const [sortBy, setSortBy] = useState<SortBy>("newest");
+  const [modeFilter, setModeFilter] = useState<GameMode | null>(null);
+  const [query, setQuery] = useState("");
 
   const sortLabelOf = (s: SortBy): string => {
     if (s === "newest") return t("downloads.sortNewest");
@@ -153,7 +170,18 @@ export default function Downloads() {
   }, [loadDownloads]);
 
   const items = useMemo(() => {
-    const arr = Array.from(downloaded.values());
+    let arr = Array.from(downloaded.values());
+    if (modeFilter) {
+      arr = arr.filter((s) => s.beatmaps.some((b) => b.mode === MODE_NUM[modeFilter]));
+    }
+    const q = query.trim().toLowerCase();
+    if (q) {
+      arr = arr.filter(
+        (s) =>
+          s.title.toLowerCase().includes(q) ||
+          s.artist.toLowerCase().includes(q),
+      );
+    }
     switch (sortBy) {
       case "newest":
         return arr.sort((a, b) => b.downloadedAt - a.downloadedAt);
@@ -169,7 +197,7 @@ export default function Downloads() {
       default:
         return arr;
     }
-  }, [downloaded, sortBy]);
+  }, [downloaded, sortBy, modeFilter, query]);
 
   const handleDelete = async (setId: number) => {
     await deleteDownload(setId);
@@ -243,7 +271,7 @@ export default function Downloads() {
             <Upload size={14} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
             {importing ? t("downloads.importing") : t("downloads.importBeatmap")}
           </button>
-          {items.length > 0 && (
+          {downloaded.size > 0 && (
             <button
               onClick={handleClear}
               className="hud-btn font-torus"
@@ -261,6 +289,103 @@ export default function Downloads() {
           )}
         </div>
       </div>
+
+      {/* 搜索 + 模式筛选 */}
+      {downloaded.size > 0 && (
+        <div
+          className="no-scrollbar"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            flexWrap: "wrap",
+            marginBottom: 14,
+          }}
+        >
+          <div
+            style={{
+              flex: "1 1 200px",
+              minWidth: 160,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "7px 12px",
+              borderRadius: "var(--radius-pill)",
+              background: "var(--glass-bg)",
+              border: "1px solid var(--glass-border)",
+            }}
+          >
+            <SearchIcon size={14} style={{ color: "var(--text-secondary)", flexShrink: 0 }} />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("downloads.searchPlaceholder")}
+              className="font-torus"
+              style={{
+                flex: 1,
+                minWidth: 0,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                color: "var(--text-primary)",
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            />
+            {query && (
+              <button
+                onClick={() => setQuery("")}
+                aria-label={t("search.clear")}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  padding: 2,
+                  display: "flex",
+                  flexShrink: 0,
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          <div className="no-scrollbar" style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+            {MODE_FILTERS.map((m) => {
+              const active = modeFilter === m.key;
+              return (
+                <button
+                  key={m.label}
+                  onClick={() => setModeFilter(m.key)}
+                  className="hud-btn font-torus"
+                  style={{
+                    padding: "6px 13px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: active ? "var(--accent)" : "var(--text-secondary)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    flexShrink: 0,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {m.key && (
+                    <OsuModeIcon
+                      mode={m.key}
+                      size={13}
+                      color={active ? "var(--accent)" : MODE_COLOR[m.key]}
+                    />
+                  )}
+                  {m.key === null ? t("search.typeAll") : m.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {!downloadsReady ? (
         <div
@@ -284,8 +409,17 @@ export default function Downloads() {
           }}
         >
           <Music2 size={36} className="mb-3 opacity-50" />
-          <div className="text-sm sm:text-base">{t("downloads.empty")}</div>
-          <div className="mt-1.5 text-xs opacity-70">{t("downloads.emptyHint")}</div>
+          {downloaded.size === 0 ? (
+            <>
+              <div className="text-sm sm:text-base">{t("downloads.empty")}</div>
+              <div className="mt-1.5 text-xs opacity-70">{t("downloads.emptyHint")}</div>
+            </>
+          ) : (
+            <>
+              <div className="text-sm sm:text-base">{t("downloads.noMatch")}</div>
+              <div className="mt-1.5 text-xs opacity-70">{t("downloads.noMatchHint")}</div>
+            </>
+          )}
         </div>
       ) : (
         <div
