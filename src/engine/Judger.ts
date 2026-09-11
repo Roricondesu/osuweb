@@ -1,4 +1,5 @@
 import type { Judgement } from "@/types";
+import { officialAccuracy } from "@/utils/ppCalculator";
 
 /** 判定窗口（毫秒）。
  *  基于 osu!standard 的判定规则，OverallDifficulty 影响窗口宽度。
@@ -43,11 +44,12 @@ export const SCORE_VALUE: Record<Judgement, number> = {
   miss: 0,
 };
 
-/** 准确率权重 */
+/** 准确率权重（官方口径：300=1、100=1/3、50=1/6、miss=0）。
+ *  仅作说明用途，实际计算统一走 `officialAccuracy`，避免两套口径分叉。 */
 export const ACC_WEIGHT: Record<Judgement, number> = {
   "300": 1,
-  "100": 0.66,
-  "50": 0.33,
+  "100": 1 / 3,
+  "50": 1 / 6,
   miss: 0,
 };
 
@@ -96,14 +98,13 @@ export const applyJudgement = (
     const heal = Math.max(0.2, (j === "300" ? 2.4 : j === "100" ? 1.2 : 0.4) * (1 - hp * 0.05));
     next.health = Math.min(100, next.health + heal);
   }
-  // 重新计算准确率
-  const total = next.judgements["300"] + next.judgements["100"] + next.judgements["50"] + next.judgements.miss;
-  if (total > 0) {
-    const accSum =
-      next.judgements["300"] * ACC_WEIGHT["300"] +
-      next.judgements["100"] * ACC_WEIGHT["100"] +
-      next.judgements["50"] * ACC_WEIGHT["50"];
-    next.accuracy = (accSum / total) * 100;
+  // 重新计算准确率。
+  // 统一走 ppCalculator 的官方口径（300=1、100=1/3、50=1/6），
+  // 与资料页历史成绩、calculateGrade 评级、calculatePP 保持一致。
+  // 原先这里用 1/0.66/0.33 的独立权重表，导致同一份成绩在游戏内 HUD 显示
+  // 66% 而结算评级按 33% 判定这类「两套口径」矛盾。
+  if (next.judgements["300"] + next.judgements["100"] + next.judgements["50"] + next.judgements.miss > 0) {
+    next.accuracy = officialAccuracy(next.judgements);
   }
   return next;
 };

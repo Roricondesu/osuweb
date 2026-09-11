@@ -36,6 +36,8 @@ export class ManiaEngine extends GameEngine {
   private startX = 0;
   private judgeY = 0;
   private heldCols: Set<number> = new Set();
+  /** 指针当前按下的列：指针可能在舞台外释放，需靠它保证一定能释放 */
+  private pointerCol: number | null = null;
   /** 正在按住的 hold：obj -> 按下时间（用于尾判） */
   private activeHolds: Map<HitObject, number> = new Map();
   private keyMap: string[] = [];
@@ -115,6 +117,8 @@ export class ManiaEngine extends GameEngine {
           // 模拟"在 endTime 释放"以给最宽容的判定
           this.finalizeHold(obj, col, obj.endTime);
         }
+        // 该 hold 尚未进入判定窗口时，后面的物件只会更晚，停止扫描
+        if (obj.time - time > win50 + 200) break;
       } else {
         if (time - obj.time > win50) {
           this.judgeAndFinalize(obj, "miss", col, time);
@@ -213,9 +217,15 @@ export class ManiaEngine extends GameEngine {
       const obj = objs[i];
       if (obj.judged && obj.judgement !== "miss") continue;
       const col = obj.column ?? 0;
+      const isHoldNote = obj.type === "hold" && !!obj.endTime;
       const y = this.noteY(obj.time, time);
-      if (y > this.ctx.height + 40) continue;
-      if (y < -100) continue;
+      // 普通 note 用自身位置裁剪。
+      // hold 的头部时间过去后 y 会一路增大（头部实际被钳在判定线），
+      // 若仍用头部 y 裁剪，长按约 0.2s 后整条会被误裁掉 —— 改为在下方按尾部裁剪。
+      if (!isHoldNote) {
+        if (y > this.ctx.height + 40) continue;
+        if (y < -100) continue;
+      }
       const x = this.colX(col);
       const color = colColor(col, this.cols);
       const noteW = this.colWidth * 0.82;
@@ -229,6 +239,11 @@ export class ManiaEngine extends GameEngine {
         const tailY = isHeld
           ? Math.min(this.noteY(obj.endTime, time), this.judgeY)
           : this.noteY(obj.endTime, time);
+        // 可见性：尾部（下端）已滑出屏幕下方 → 整条已过场；
+        // 头部（上端，未按住时钳在判定线）仍在屏幕上方 → 还没进场。
+        // 不能用头部原始 y 判断：头部时间过去后 y 会一路增大，会把按住中的长条误裁掉。
+        if (tailY > this.ctx.height + 40) continue;
+        if (headY < -100) continue;
         // hold body：从 tail（上）到 head（下）
         const top = Math.min(tailY, headY);
         const bottom = Math.max(tailY, headY);
@@ -240,8 +255,8 @@ export class ManiaEngine extends GameEngine {
             drawRect(this.ctx, x - noteW / 2, top, noteW, bottom - top, hexToRgba(color, isHeld ? 0.55 : 0.32), 3);
           }
         }
-        // 头部 note（仅未按住时显示，按住后头部已"消失"在判定线）
-        if (!isHeld && headY > -40 && headY <= this.judgeY) {
+        // 头部 note：按住时固定在判定线上，作为「正在长按」的持续视觉反馈
+        if (headY > -40 && headY <= this.judgeY) {
           const headTex = this.noteTexture(col, "");
           if (headTex) {
             this.ctx.ctx.drawImage(headTex, x - noteW / 2, headY - noteH / 2, noteW, noteH);
@@ -275,8 +290,9 @@ export class ManiaEngine extends GameEngine {
       }
     }
 
-    this.drawHitEffects(time);
-    this.drawJudgePopups(time);
+    // 统一走基类前景层：命中特效 + 判定弹字 + BREAK 休息段 + Flashlight 遮罩。
+    // 原先这里只手动调了前两项，导致 Flashlight 在 mania 下完全没有视觉表现。
+    this.renderForeground(time);
     this.drawHUD({ comboColor: MODE_COLOR, modeLabel: "osu!mania", modeColor: MODE_COLOR });
   }
 
@@ -421,12 +437,16 @@ export class ManiaEngine extends GameEngine {
     if (this.status !== "playing") return;
     const col = Math.floor((x - this.startX) / this.colWidth);
     if (col < 0 || col >= this.cols) return;
+    this.pointerCol = col;
     this.heldCols.add(col);
     this.tryHit(col);
   }
   protected handlePointerMove = (): void => {};
   protected handlePointerUp = (x: number): void => {
-    const col = Math.floor((x - this.startX) / this.colWidth);
+    // 指针可能在舞台外释放（拖出画布/舞台边缘），此时按 x 反推列会越界。
+    // 用按下时记录的列兜底，避免：① 长条一直"按住"白送判定 ② heldCols 残留导致该列键盘永久失灵。
+    const col = this.pointerCol ?? Math.floor((x - this.startX) / this.colWidth);
+    this.pointerCol = null;
     if (col < 0 || col >= this.cols) return;
     this.releaseCol(col, this.currentTime);
   };
@@ -448,9 +468,17 @@ export class ManiaEngine extends GameEngine {
     this.releaseCol(idx, this.currentTime);
   };
 
+  /** 时钟跳变被指针跳过时，正在按住的 hold 也要从 activeHolds 摘掉，
+   *  否则后续 update 会把它当成「按住中」对同一物件二次结算。 */
+  protected settleSkippedObject(obj: HitObject, time: number): void {
+    this.activeHolds.delete(obj);
+    super.settleSkippedObject(obj, time);
+  }
+
   protected resetState(): void {
     super.resetState();
     this.activeHolds.clear();
     this.heldCols.clear();
+    this.pointerCol = null;
   }
 }

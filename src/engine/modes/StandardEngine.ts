@@ -21,6 +21,15 @@ const GLASS_ALPHA = 0.45;
 const HIT_CIRCLE_FADE_MS = 240;
 /** 渐隐期间最大放大倍率 */
 const HIT_CIRCLE_FADE_SCALE = 1.4;
+/** 圆圈边框基准宽度（px），实际宽度 = 该值 × 设置项 skin.circleBorderWidth */
+const CIRCLE_BORDER_BASE = 2;
+
+/** miss 后灰化 / 淡出时长（毫秒）：物件存活期间保持可见，结束后再淡出，不能立刻消失 */
+const MISS_FADE_MS = 480;
+/** miss 的滑条灰化颜色（不再使用 combo 色） */
+const MISS_SLIDER_GRAY = "#9aa3ad";
+/** miss 的滑条存活期间整体不透明度（灰化但仍可见） */
+const MISS_SLIDER_ALPHA = 0.85;
 
 const arToPreempt = (ar: number): number => {
   if (ar < 5) return 1200 + 600 * (5 - ar) / 5;
@@ -103,13 +112,19 @@ export class StandardEngine extends GameEngine {
       if (obj.type === "slider") {
         obj.endTime = obj.time + this.sliderDuration(obj);
         cache.sliderDuration = obj.endTime - obj.time;
-        if (obj.curvePoints?.length) {
-          cache.canvasPoints = [{ x: obj.x, y: obj.y }, ...obj.curvePoints];
-        }
+        const pts = this.sliderPathPoints(obj);
+        if (pts.length >= 2) cache.canvasPoints = pts;
       }
       this.cached[i] = cache;
       cn++;
     }
+  }
+
+  /** 滑条路径（osu 坐标）：优先使用解析期按 curveType 求值好的离散路径 */
+  private sliderPathPoints(obj: HitObject): { x: number; y: number }[] {
+    if (obj.path && obj.path.length >= 2) return obj.path;
+    // 兜底：未求值时退回「起点 + 原始控制点」折线
+    return [{ x: obj.x, y: obj.y }, ...(obj.curvePoints || [])];
   }
 
   private sliderDuration(obj: HitObject): number {
@@ -149,8 +164,9 @@ export class StandardEngine extends GameEngine {
     for (let i = 0; i < this.beatmap.hitObjects.length; i++) {
       const obj = this.beatmap.hitObjects[i];
       const c = this.cached[i];
-      if (obj.type === "slider" && obj.curvePoints?.length) {
-        c.canvasPoints = [{ x: obj.x, y: obj.y }, ...obj.curvePoints].map((p) => this.toCanvas(p.x, p.y));
+      if (obj.type === "slider") {
+        const pts = this.sliderPathPoints(obj);
+        if (pts.length >= 2) c.canvasPoints = pts.map((p) => this.toCanvas(p.x, p.y));
       }
     }
   }
@@ -184,6 +200,17 @@ export class StandardEngine extends GameEngine {
       const obj = objs[i];
       if (obj.judged && !(obj.type === "slider" && obj._sliderHit)) continue;
       const endTime = obj.endTime || obj.time;
+      // 滑条头部判定：头部窗口（obj.time ± w50）过后仍未碰到 → 立即记 miss。
+      // 原实现要等整条滑条结束（endTime + w50）才判，于是整条滑条一路显示正常、
+      // 结束时却瞬间消失：玩家既得不到 miss 反馈，也看不到「这条已经废了」。
+      // 头部命中窗口本来就只有 ±w50（见 handlePointerDown），提前判定不改变可击打性。
+      if (obj.type === "slider" && !obj._sliderHit && time > obj.time + this.windows["50"]) {
+        obj.judged = true;
+        obj.judgement = "miss";
+        obj._missTime = time;
+        this.submitJudgement("miss");
+        continue;
+      }
       if (time > endTime + this.windows["50"]) {
         if (obj.type === "slider" && obj._sliderHit) {
           obj.judged = true;
@@ -204,6 +231,7 @@ export class StandardEngine extends GameEngine {
           else j = "miss";
           obj.judged = true;
           obj.judgement = j;
+          if (j === "miss") obj._missTime = time;
           this.submitJudgement(j);
           const cx = this.ctx.width / 2;
           const cy = this.offsetY + OSU_H * this.scale / 2;
@@ -216,6 +244,7 @@ export class StandardEngine extends GameEngine {
         } else {
           obj.judged = true;
           obj.judgement = "miss";
+          obj._missTime = time;
           this.submitJudgement("miss");
         }
       } else {
@@ -268,12 +297,11 @@ export class StandardEngine extends GameEngine {
       }
       if (focus) {
         if (focus.type === "spinner") {
-          this.spinnerRotation += 0.6;
-          if (this.spinnerRotation > 10) {
-            this.judgeHit(focus, time);
-            this.spawnHitEffect(this.ctx.width / 2, this.ctx.height / 2, "300", time);
-            this.spinnerRotation = 0;
-          }
+          // 同 autoPlay：spinner 不能用 judgeHit 的 delta 判定（obj.time 是起始时间），
+          // 这里填满所需旋转量，判定交给 update() 的 spinner 结束分支
+          this.spinnerRequiredRotations = this.computeSpinnerRequiredRotations(focus);
+          const requiredForAuto = this.spinnerRequiredRotations * 2 * Math.PI;
+          if (this.spinnerAccumRotation < requiredForAuto) this.spinnerAccumRotation = requiredForAuto;
           this.cursorTargetX = this.ctx.width / 2 + Math.cos(time / 80) * 60;
           this.cursorTargetY = this.ctx.height / 2 + Math.sin(time / 80) * 60;
         } else {
@@ -405,12 +433,14 @@ export class StandardEngine extends GameEngine {
 
     if (focus.type === "spinner") {
       const cx = this.ctx.width / 2, cy = this.ctx.height / 2;
-      this.spinnerRotation += 0.6;
-      if (this.spinnerRotation > 10) {
-        this.judgeHit(focus, time);
-        this.spawnHitEffect(cx, cy, "300", time);
-        this.spinnerRotation = 0;
-      }
+      // spinner 的 obj.time 是「起始时间」，早于判定时刻，
+      // 直接走 judgeHit 的 delta 判定必然判成 miss（实测会在 spinner 开始前约 0.8s 被判 miss，
+      // 画面却显示 300 特效，连击与血量被误扣）。
+      // Auto 只负责把旋转量填满，真正的判定交给 update() 里 spinner 结束分支，
+      // 那里按累积旋转比例给 300/100/50，与手动游玩走同一套逻辑。
+      this.spinnerRequiredRotations = this.computeSpinnerRequiredRotations(focus);
+      const requiredForAuto = this.spinnerRequiredRotations * 2 * Math.PI;
+      if (this.spinnerAccumRotation < requiredForAuto) this.spinnerAccumRotation = requiredForAuto;
       targetX = cx + Math.cos(time / 80) * 60;
       targetY = cy + Math.sin(time / 80) * 60;
     } else if (focus.type === "slider") {
@@ -510,12 +540,20 @@ export class StandardEngine extends GameEngine {
     this.drawPlayfield();
 
     const objs = this.beatmap.hitObjects;
-    // 渲染下界：允许命中后渐隐放大的 circle/slider 仍可见
+    // 渲染下界：允许命中后渐隐放大的 circle/slider、以及 miss 后灰化淡出的物件继续可见
     let lowerBound = this.activeIndex;
     if (lowerBound > 0) {
       for (let i = lowerBound - 1; i >= 0; i--) {
         const o = objs[i];
-        if (o.judgement === "miss" || o._hitTime === undefined) break;
+        if (o.judgement === "miss") {
+          // miss 的物件（尤其滑条）在灰化淡出窗口内必须继续渲染，不能立刻消失
+          if (this.missFade(o, time) > 0) {
+            lowerBound = i;
+            continue;
+          }
+          break;
+        }
+        if (o._hitTime === undefined) break;
         if (o.type !== "circle" && o.type !== "slider") break;
         if (time - o._hitTime < HIT_CIRCLE_FADE_MS) {
           lowerBound = i;
@@ -536,8 +574,12 @@ export class StandardEngine extends GameEngine {
       }
       const timeUntil = obj.time - time;
       if (timeUntil > this.preempt) continue;
-      const endTime = obj.endTime || obj.time;
-      if (obj.judged && time > endTime + 220) continue;
+      // 消失时机统一交给上面两个机制决定，不再用 endTime + 220 硬切：
+      //  - 命中的 circle/slider → `_hitTime + HIT_CIRCLE_FADE_MS`（渐隐放大走满，等于原效果且不会切在半路）
+      //  - miss 的物件 → missFade（滑条要留到结束之后再淡出）
+      //  - 其它（含 spinner）→ 上面的 inFade 分支已经 continue 掉
+      // 原先的 `endTime + 220` 会在 `_hitTime + 240` 之前把渐隐动画截断，命中偏晚的
+      // circle/slider 会在 alpha 还没到 0 时突然消失。
 
       if (obj.type === "circle") this.drawCircle(obj, i, time);
       else if (obj.type === "slider") this.drawSlider(obj, i, time);
@@ -547,6 +589,18 @@ export class StandardEngine extends GameEngine {
     this.drawGuideLine(time);
     this.renderForeground(time);
     this.drawHUD({ comboColor: MODE_COLOR, modeLabel: "osu!standard", modeColor: MODE_COLOR });
+  }
+
+  /**
+   * miss 物件的可见度。
+   * - 物件存活期间（time <= endTime）恒为 1：滑条表现为「灰化但还在」，不提前消失；
+   * - 物件结束之后在 MISS_FADE_MS 内线性淡出到 0，返回 0 时渲染层才可以跳过它。
+   */
+  private missFade(obj: HitObject, time: number): number {
+    if (obj.judgement !== "miss") return 0;
+    const endTime = obj.endTime || obj.time;
+    const lingerStart = Math.max(obj._missTime ?? 0, endTime);
+    return clamp(1 - (time - lingerStart) / MISS_FADE_MS, 0, 1);
   }
 
   private drawPlayfield(): void {
@@ -642,6 +696,8 @@ export class StandardEngine extends GameEngine {
       if (timeUntil < 0) hiddenAlpha = 0;
     }
     hiddenAlpha *= hitFade;
+    // miss 的圆圈：在 missFade 窗口内淡出，而不是被渲染裁剪直接切掉（否则 miss 后一帧内就没了）
+    if (obj.judgement === "miss") hiddenAlpha *= this.missFade(obj, time);
 
     // approach circle - 优先使用皮肤纹理；Hidden 下收缩过半后隐藏
     if (approachT < 1 && this.showApproachCircles && !(this.modHidden && approachT > 0.5)) {
@@ -692,7 +748,7 @@ export class StandardEngine extends GameEngine {
       }
     } else {
       // 原始 Canvas 绘制
-      drawGlassCircle(this.ctx, p.x, p.y, r, hexToRgba(color, GLASS_ALPHA), "rgba(255,255,255,0.7)", 2);
+      drawGlassCircle(this.ctx, p.x, p.y, r, hexToRgba(color, GLASS_ALPHA), "rgba(255,255,255,0.7)", CIRCLE_BORDER_BASE * this.circleBorderWidth);
       drawCircle(this.ctx, p.x, p.y, r * 0.55, hexToRgba(color, 0.7));
       if (this.showComboNumbers) {
         drawText(this.ctx, String(c.comboNumber), p.x, p.y, {
@@ -720,7 +776,9 @@ export class StandardEngine extends GameEngine {
 
   private drawSlider(obj: HitObject, idx: number, time: number): void {
     const c = this.cached[idx];
-    const color = c.comboColor;
+    const missed = obj.judgement === "miss";
+    // miss 后整条滑条灰化：不再使用 combo 色，也不再有「正在跟随」的白色高亮
+    const color = missed ? MISS_SLIDER_GRAY : c.comboColor;
     const pts = c.canvasPoints;
     let r = this.radius;
     const timeUntil = obj.time - time;
@@ -736,6 +794,8 @@ export class StandardEngine extends GameEngine {
       hitFade = clamp(1 - elapsed / HIT_CIRCLE_FADE_MS, 0, 1);
       r = r * (1 + (1 - hitFade) * (HIT_CIRCLE_FADE_SCALE - 1));
     }
+    // miss：灰化但继续可见，直到滑条结束之后再淡出（missFade 负责收尾）
+    if (missed) hitFade *= MISS_SLIDER_ALPHA * this.missFade(obj, time);
 
     if (pts.length < 2) {
       // 退化成普通圆
@@ -795,8 +855,8 @@ export class StandardEngine extends GameEngine {
     drawPath(borderW, color);
     drawPath(borderW * 0.9, hexToRgba("#000000", 0.35));
 
-    // 已滑过部分高亮（沿实际路径）
-    if (ballPos) {
+    // 已滑过部分高亮（沿实际路径）：miss 的滑条没有被跟随，不画这段高亮
+    if (ballPos && !missed) {
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -829,10 +889,11 @@ export class StandardEngine extends GameEngine {
       this.drawTintedTexture(hitCircleSkin, pts[0].x - size / 2, pts[0].y - size / 2, size, size, color);
       if (overlaySkin) ctx.drawImage(overlaySkin, pts[0].x - size / 2, pts[0].y - size / 2, size, size);
     } else {
-      drawGlassCircle(this.ctx, pts[0].x, pts[0].y, r, hexToRgba(color, GLASS_ALPHA), "rgba(255,255,255,0.85)", 2);
+      drawGlassCircle(this.ctx, pts[0].x, pts[0].y, r, hexToRgba(color, GLASS_ALPHA), "rgba(255,255,255,0.85)", CIRCLE_BORDER_BASE * this.circleBorderWidth);
       drawCircle(this.ctx, pts[0].x, pts[0].y, r * 0.55, hexToRgba(color, 0.55));
     }
-    if (this.showComboNumbers) {
+    // combo 数字：miss 的滑条灰化后不再显示编号，避免看起来还在「有效连击」中
+    if (this.showComboNumbers && !missed) {
       drawText(this.ctx, String(c.comboNumber), pts[0].x, pts[0].y, {
         font: `800 ${Math.max(12, Math.round(r * 0.8))}px ${this.fontStack}`,
         fillStyle: "rgba(255,255,255,0.95)",
@@ -849,7 +910,7 @@ export class StandardEngine extends GameEngine {
       this.drawTintedTexture(hitCircleSkin, tail.x - size / 2, tail.y - size / 2, size, size, color);
       if (overlaySkin) ctx.drawImage(overlaySkin, tail.x - size / 2, tail.y - size / 2, size, size);
     } else {
-      drawGlassCircle(this.ctx, tail.x, tail.y, r * 0.82, hexToRgba(color, 0.28), "rgba(255,255,255,0.45)", 1.5);
+      drawGlassCircle(this.ctx, tail.x, tail.y, r * 0.82, hexToRgba(color, 0.28), "rgba(255,255,255,0.45)", 1.5 * this.circleBorderWidth);
     }
 
     // 反向箭头（多 slide 时在尾部）

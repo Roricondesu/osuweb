@@ -68,6 +68,166 @@ const computeManiaColumn = (x: number, cs: number): number => {
   return Math.min(cols - 1, Math.max(0, Math.floor(x / colWidth)));
 };
 
+// === 滑条曲线求值 ===
+// osu! 的 curvePoints 只是控制点，真正形状由 curveType 决定：
+//   L 直线 / B 分段贝塞尔（重复点表示分段）/ C Catmull-Rom / P 三点定圆
+// 这里在解析期把它们离散成折线，渲染层直接消费，避免每帧求值。
+
+const SLIDER_MIN_SAMPLES = 8;
+const SLIDER_MAX_SAMPLES = 96;
+/** 采样密度：约每 N 个 osu 像素取一个点 */
+const SLIDER_SAMPLE_STEP = 4;
+/** 圆心半径超过该值视为退化（近似共线），退回折线 */
+const PERFECT_MAX_RADIUS = 2000;
+
+type Pt = { x: number; y: number };
+
+const polyLength = (pts: Pt[]): number => {
+  let sum = 0;
+  for (let i = 1; i < pts.length; i++) {
+    sum += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  }
+  return sum;
+};
+
+/** 按估计长度决定采样点数（含首尾） */
+const sampleCount = (pts: Pt[], declaredLength?: number): number => {
+  const est = declaredLength && declaredLength > 0 ? declaredLength : polyLength(pts);
+  return Math.max(SLIDER_MIN_SAMPLES, Math.min(SLIDER_MAX_SAMPLES, Math.round(est / SLIDER_SAMPLE_STEP)));
+};
+
+/** de Casteljau 求任意阶贝塞尔在 t 处的点 */
+const bezierAt = (pts: Pt[], t: number): Pt => {
+  const n = pts.length;
+  if (n === 1) return { ...pts[0] };
+  if (n === 2) {
+    return {
+      x: pts[0].x + (pts[1].x - pts[0].x) * t,
+      y: pts[0].y + (pts[1].y - pts[0].y) * t,
+    };
+  }
+  let cx = pts.map((p) => p.x);
+  let cy = pts.map((p) => p.y);
+  for (let k = n - 1; k > 0; k--) {
+    for (let i = 0; i < k; i++) {
+      cx[i] += (cx[i + 1] - cx[i]) * t;
+      cy[i] += (cy[i + 1] - cy[i]) * t;
+    }
+  }
+  return { x: cx[0], y: cy[0] };
+};
+
+/** 归一化角度到 (-PI, PI] */
+const normAngle = (a: number): number => {
+  while (a <= -Math.PI) a += Math.PI * 2;
+  while (a > Math.PI) a -= Math.PI * 2;
+  return a;
+};
+
+/** B：分段贝塞尔，重复的控制点表示新一段的起点 */
+const buildBezierPath = (pts: Pt[], declaredLength?: number): Pt[] => {
+  if (pts.length < 2) return pts.slice();
+  const segments: Pt[][] = [];
+  let cur: Pt[] = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1];
+    if (pts[i].x === prev.x && pts[i].y === prev.y) {
+      if (cur.length >= 2) segments.push(cur);
+      cur = [pts[i]];
+    } else {
+      cur.push(pts[i]);
+    }
+  }
+  if (cur.length >= 2) segments.push(cur);
+  if (segments.length === 0) return [pts[0], pts[pts.length - 1]];
+
+  const total = sampleCount(pts, declaredLength);
+  const out: Pt[] = [];
+  for (let s = 0; s < segments.length; s++) {
+    const seg = segments[s];
+    const count = Math.max(2, Math.round(total / segments.length));
+    // 非首段跳过起点，避免与上一段的终点重复
+    for (let i = s === 0 ? 0 : 1; i <= count; i++) {
+      out.push(bezierAt(seg, i / count));
+    }
+  }
+  return out;
+};
+
+/** C：Catmull-Rom 转分段三次贝塞尔后求值（与 osu! 一致） */
+const buildCatmullPath = (pts: Pt[], declaredLength?: number): Pt[] => {
+  if (pts.length < 3) return buildBezierPath(pts, declaredLength);
+  const total = sampleCount(pts, declaredLength);
+  const segs = pts.length - 1;
+  const out: Pt[] = [];
+  for (let s = 0; s < segs; s++) {
+    const p0 = pts[s - 1] || pts[s];
+    const p1 = pts[s];
+    const p2 = pts[s + 1];
+    const p3 = pts[s + 2] || pts[s + 1];
+    const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
+    const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+    const count = Math.max(2, Math.round(total / segs));
+    for (let i = s === 0 ? 0 : 1; i <= count; i++) {
+      out.push(bezierAt([p1, c1, c2, p2], i / count));
+    }
+  }
+  return out;
+};
+
+/** P：三点定圆，取经过中间点的那段弧；退化时回退折线 */
+const buildPerfectPath = (pts: Pt[], declaredLength?: number): Pt[] => {
+  if (pts.length < 3) return buildBezierPath(pts, declaredLength);
+  const [a, b, c] = pts;
+  const d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
+  if (Math.abs(d) < 1e-6) return buildBezierPath(pts, declaredLength);
+  const aLen2 = a.x * a.x + a.y * a.y;
+  const bLen2 = b.x * b.x + b.y * b.y;
+  const cLen2 = c.x * c.x + c.y * c.y;
+  const cx = (aLen2 * (b.y - c.y) + bLen2 * (c.y - a.y) + cLen2 * (a.y - b.y)) / d;
+  const cy = (aLen2 * (c.x - b.x) + bLen2 * (a.x - c.x) + cLen2 * (b.x - a.x)) / d;
+  const r = Math.hypot(a.x - cx, a.y - cy);
+  if (!Number.isFinite(r) || r <= 0 || r > PERFECT_MAX_RADIUS) {
+    return buildBezierPath(pts, declaredLength);
+  }
+
+  const angA = Math.atan2(a.y - cy, a.x - cx);
+  const angB = Math.atan2(b.y - cy, b.x - cx);
+  const angC = Math.atan2(c.y - cy, c.x - cx);
+  let sweep = normAngle(angC - angA);
+  const sweepToMid = normAngle(angB - angA);
+  // 若中间点不在 a→c 的这段弧上，说明要取另一侧（优弧）
+  if (sweepToMid * sweep < 0 || Math.abs(sweepToMid) > Math.abs(sweep)) {
+    sweep = sweep > 0 ? sweep - Math.PI * 2 : sweep + Math.PI * 2;
+  }
+
+  const n = sampleCount(pts, declaredLength);
+  const out: Pt[] = [];
+  for (let i = 0; i <= n; i++) {
+    const ang = angA + sweep * (i / n);
+    out.push({ x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r });
+  }
+  return out;
+};
+
+/** 生成滑条离散路径（含起点） */
+const buildSliderPath = (obj: HitObject): Pt[] => {
+  const start: Pt = { x: obj.x, y: obj.y };
+  const cps = obj.curvePoints || [];
+  if (cps.length === 0) return [start];
+  const pts = [start, ...cps];
+  switch (obj.curveType) {
+    case "L":
+      return pts;
+    case "P":
+      return buildPerfectPath(pts, obj.length);
+    case "C":
+      return buildCatmullPath(pts, obj.length);
+    default:
+      return buildBezierPath(pts, obj.length);
+  }
+};
+
 /** 解析单行 HitObject */
 const parseHitObjectLine = (line: string, mode: GameMode, cs: number): HitObject | null => {
   // x,y,time,type,hitSound,objectParams,hitSample
@@ -99,6 +259,8 @@ const parseHitObjectLine = (line: string, mode: GameMode, cs: number): HitObject
     // slides 在第 7 位，length 在第 8 位（params 之后）
     obj.slides = Number(parts[6]) || 1;
     obj.length = Number(parts[7]) || 0;
+    // 按 curveType 求值为离散路径，供渲染直接使用
+    obj.path = buildSliderPath(obj);
   } else if (type === "spinner") {
     obj.endTime = Number(parts[5]) || time;
   } else if (type === "hold") {

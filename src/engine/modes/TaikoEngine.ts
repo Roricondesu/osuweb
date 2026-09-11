@@ -123,8 +123,9 @@ export class TaikoEngine extends GameEngine {
 
     this.drawJudgeCircle();
     this.drawHitHint();
-    this.drawHitEffects(time);
-    this.drawJudgePopups(time);
+    // 统一走基类前景层：命中特效 + 判定弹字 + BREAK 休息段 + Flashlight 遮罩。
+    // 原先这里只手动调了前两项，导致 Flashlight 在 taiko 下完全没有视觉表现。
+    this.renderForeground(time);
     this.drawHUD({ comboColor: MODE_COLOR, modeLabel: "osu!taiko", modeColor: MODE_COLOR });
   }
 
@@ -255,7 +256,8 @@ export class TaikoEngine extends GameEngine {
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.strokeStyle = color;
-      ctx.lineWidth = big ? 5 : 4;
+      // 边框宽度跟随设置项 skin.circleBorderWidth（原先该设置只被存字段、从未参与绘制）
+      ctx.lineWidth = (big ? 5 : 4) * this.circleBorderWidth;
       ctx.stroke();
 
       // 内圈装饰

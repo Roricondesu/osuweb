@@ -372,6 +372,13 @@ export default function Game() {
     const onDown = (e: PointerEvent) => {
       e.preventDefault();
       if (activePointerId === null) activePointerId = e.pointerId;
+      // 捕获指针：保证指针移出画布后的 up/cancel 仍回到 canvas，
+      // 否则 mania 的按键/长条会一直停留在「按住」状态
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {
+        // 指针已失效时忽略
+      }
       const p = getPos(e);
       engine.setCursorPos(p.x, p.y);
       engine.onPointerDown(p.x, p.y);
@@ -383,8 +390,14 @@ export default function Game() {
       engine.onPointerMove?.(p.x, p.y);
     };
     const onUp = (e: PointerEvent) => {
-      if (activePointerId !== null && e.pointerId !== activePointerId) return;
-      activePointerId = null;
+      // 每个指针都要释放：多指同时按不同列时，非主指针抬起不能丢，
+      // 否则对应列会残留「按住」状态（长条白送判定 + 该列键盘失灵）
+      if (e.pointerId === activePointerId) activePointerId = null;
+      try {
+        canvas.releasePointerCapture(e.pointerId);
+      } catch {
+        // 未被捕获时忽略
+      }
       const p = getPos(e);
       engine.setCursorPos(p.x, p.y);
       engine.onPointerUp?.(p.x, p.y);

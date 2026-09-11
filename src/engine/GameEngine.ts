@@ -962,7 +962,7 @@ export abstract class GameEngine {
     this.startTime = performance.now();
     this.audioStartedAt = 0;
     this.initCursorPosition();
-    this.loop();
+    this.startLoop();
   }
 
   pause(): void {
@@ -999,7 +999,7 @@ export abstract class GameEngine {
     this.lastFrameAt = 0;
     this.fpsFrameCount = 0;
     this.fpsLastUpdate = 0;
-    this.loop();
+    this.startLoop();
   }
 
   restart(): void {
@@ -1041,7 +1041,7 @@ export abstract class GameEngine {
     this.fpsFrameCount = 0;
     this.fpsLastUpdate = 0;
     this.initCursorPosition();
-    this.loop();
+    this.startLoop();
   }
 
   protected get currentTime(): number {
@@ -1075,6 +1075,18 @@ export abstract class GameEngine {
       this.audioCtx.close().catch(() => {});
       this.audioCtx = null;
     }
+  }
+
+  /** 启动主循环。所有入口都必须走这里：
+   *  若已有排队的 RAF 回调未取消就再调一次 loop()，会出现两条并行的循环链，
+   *  每帧 update/render 各跑两次（光标速度翻倍、判定与音效重复结算）。
+   *  restart() 在 playing 状态下被调用时正是这种情形。 */
+  private startLoop(): void {
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    this.loop();
   }
 
   /** 主循环 */
@@ -1199,6 +1211,7 @@ export abstract class GameEngine {
     if (delta > this.windows["50"]) {
       obj.judged = true;
       obj.judgement = "miss";
+      obj._missTime = time;
       this.submitJudgement("miss");
       return true;
     }
@@ -1217,6 +1230,7 @@ export abstract class GameEngine {
       this.spawnJudgePopup(j, x, y, time);
       // 记录命中时刻用于击中后的渐隐放大动画（仅非 miss）
       if (j !== "miss") obj._hitTime = time;
+      else obj._missTime = time;
     }
     if (j !== "miss") this.playHitSound(obj);
     return j;
@@ -1668,9 +1682,26 @@ export abstract class GameEngine {
     const len = objs.length;
     while (this.activeIndex < len) {
       const obj = objs[this.activeIndex];
-      if (!obj.judged && time - (obj.endTime || obj.time) < this.windows["50"] + 200) break;
+      if (!obj.judged) {
+        // 物件已超出判定窗口却仍未判定：音频时钟一次前进过多（切后台时 RAF 被节流、
+        // 掉帧卡顿、调整 offset）会让指针直接跨过它。若就这么推进，这个物件既不显示
+        // 也不计入成绩，准确率与连击会被静默抬高。先补一次结算，下一帧再推进指针。
+        if (time - (obj.endTime || obj.time) < this.windows["50"] + 200) break;
+        this.settleSkippedObject(obj, time);
+        break;
+      }
       this.activeIndex++;
     }
+  }
+
+  /** 时钟跳变导致物件来不及判定就被指针跳过时的补结算（子类可重写）。
+   *  默认按 miss 处理：这些物件玩家确实没有打中。 */
+  protected settleSkippedObject(obj: HitObject, time: number): void {
+    if (obj.judged) return;
+    obj.judged = true;
+    obj.judgement = "miss";
+    obj._missTime = time;
+    this.submitJudgement("miss");
   }
 
   /** 通用：查找最近的命中目标 */
@@ -2380,6 +2411,17 @@ export abstract class GameEngine {
 
   /** 子类可重写：重置状态（restart 时调用） */
   protected resetState(): void {
+    // 清空上一局残留在每个 hitObject 上的运行态。
+    // beatmap 在重开/重看回放时是复用的同一对象，若不清理，
+    // 重开后所有物件仍是「已判定」→ activeIndex 直接被推到末尾，整局空屏无判定。
+    for (const obj of this.beatmap.hitObjects) {
+      obj.judged = false;
+      obj.judgement = null;
+      obj.hit = false;
+      obj._hitTime = undefined;
+      obj._missTime = undefined;
+      obj._sliderHit = false;
+    }
     this.activeIndex = 0;
     this.hitEffects = [];
     this.judgePopups = [];
@@ -3395,6 +3437,16 @@ export abstract class GameEngine {
     const top = 16;
     const left = 16;
 
+    // HUD 缩放（设置项 display.hudScale，0.8~1.5）：以左上角为锚点整体缩放，
+    // 原先该设置只被存进字段、从未参与绘制，滑杆等于无效。
+    const hudScale = clamp(this.hudScale, 0.5, 2);
+    ctx.save();
+    if (hudScale !== 1) {
+      ctx.translate(left, top);
+      ctx.scale(hudScale, hudScale);
+      ctx.translate(-left, -top);
+    }
+
     // 模式标签
     ctx.save();
     ctx.font = `700 12px ${GAME_FONT}`;
@@ -3470,6 +3522,8 @@ export abstract class GameEngine {
       }
       ctx.restore();
     }
+    // 与外层 save 配对（HUD 缩放变换）
+    ctx.restore();
   }
 
   /** 绘制底部歌曲进度条 */

@@ -288,6 +288,8 @@ export interface HitObject {
   // slider
   curveType?: "B" | "C" | "L" | "P";
   curvePoints?: { x: number; y: number }[];
+  /** 按 curveType 求值后的离散滑条路径（osu 坐标）；渲染优先用它，curvePoints 保留为原始控制点 */
+  path?: { x: number; y: number }[];
   slides?: number;
   length?: number;
   // spinner / hold
@@ -302,6 +304,8 @@ export interface HitObject {
   judgement?: Judgement | null;
   /** 命中（非 miss）时刻，用于击中后的渐隐放大动画 */
   _hitTime?: number;
+  /** 判为 miss 的时刻，用于 miss 后的灰化 / 淡出动画（不能立刻消失） */
+  _missTime?: number;
   // 扩展字段
   _comboIndex?: number;
   _comboNumber?: number;

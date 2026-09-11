@@ -202,8 +202,9 @@ export class CatchEngine extends GameEngine {
     }
 
     this.drawPlate();
-    this.drawHitEffects(time);
-    this.drawJudgePopups(time);
+    // 统一走基类前景层：命中特效 + 判定弹字 + BREAK 休息段 + Flashlight 遮罩。
+    // 原先这里只手动调了前两项，导致 Flashlight 在 catch 下完全没有视觉表现。
+    this.renderForeground(time);
     this.drawHUD({ comboColor: MODE_COLOR, modeLabel: "osu!catch", modeColor: MODE_COLOR });
   }
 
