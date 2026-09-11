@@ -211,7 +211,12 @@ export class StandardEngine extends GameEngine {
         this.submitJudgement("miss");
         continue;
       }
-      if (time > endTime + this.windows["50"]) {
+      // 已按住头部的滑条：endTime 一到就结算。
+      // 若拖到 endTime + w50 才结算，中间会出现「球先消失、轨道静置、
+      // 结算后 hitFade 又突然全亮再淡出」的闪烁；提前到 endTime 让
+      // 渐隐放大动画与球的消失无缝衔接。
+      const settleAt = obj.type === "slider" && obj._sliderHit ? endTime : endTime + this.windows["50"];
+      if (time > settleAt) {
         if (obj.type === "slider" && obj._sliderHit) {
           obj.judged = true;
           obj.judgement = "300";
@@ -254,6 +259,18 @@ export class StandardEngine extends GameEngine {
     if (this.auto) this.autoPlay(time);
     else if (this.modRelax || this.modAutopilot) this.modAutoInput(time);
     this.pruneHitEffects(time);
+  }
+
+  /** 时钟跳变跨过滑条时的补结算：已按住头部的滑条按完成（300）处理，与正常路径一致 */
+  protected override settleSkippedObject(obj: HitObject, time: number): void {
+    if (obj.type === "slider" && obj._sliderHit) {
+      obj.judged = true;
+      obj.judgement = "300";
+      obj._hitTime = time;
+      this.submitJudgement("300");
+      return;
+    }
+    super.settleSkippedObject(obj, time);
   }
 
   /**
@@ -809,6 +826,8 @@ export class StandardEngine extends GameEngine {
     const sd = c.sliderDuration || 1;
     const slides = obj.slides || 1;
     let ballPos: SliderEvalResult | null = null;
+    // 已划过区域的高亮终点（沿路径弧长参数）
+    let highlightEnd: SliderEvalResult | null = null;
     if (started && !ended) {
       const progressRaw = (time - obj.time) / sd;
       const slideIdx = Math.floor(progressRaw * slides);
@@ -816,6 +835,9 @@ export class StandardEngine extends GameEngine {
         const localT = (progressRaw * slides) % 1;
         const t = slideIdx % 2 === 0 ? localT : 1 - localT;
         ballPos = this.evalSliderPos(pts, t);
+        // 高亮覆盖「球曾到达的最远进度」：首趟跟随球生长；
+        // 返程及后续趟整条保持高亮，避免往返滑条亮起的部分又缩回去。
+        highlightEnd = this.evalSliderPos(pts, slideIdx === 0 ? t : 1);
       }
     }
     // 命中渐隐期间：ballPos 为空时，将白色高亮延伸至尾部，避免结束时突然消失
@@ -826,6 +848,7 @@ export class StandardEngine extends GameEngine {
         segmentIndex: pts.length - 2,
         segmentT: 1,
       };
+      highlightEnd = ballPos;
     }
 
     // 绘制整条路径（闭路复用）
@@ -856,18 +879,18 @@ export class StandardEngine extends GameEngine {
     drawPath(borderW * 0.9, hexToRgba("#000000", 0.35));
 
     // 已滑过部分高亮（沿实际路径）：miss 的滑条没有被跟随，不画这段高亮
-    if (ballPos && !missed) {
+    if (highlightEnd && !missed) {
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
       ctx.moveTo(pts[0].x, pts[0].y);
-      for (let i = 1; i <= ballPos.segmentIndex + 1; i++) {
+      for (let i = 1; i <= highlightEnd.segmentIndex + 1; i++) {
         if (i >= pts.length) break;
-        if (i === ballPos.segmentIndex + 1) {
+        if (i === highlightEnd.segmentIndex + 1) {
           const a = pts[i - 1];
           const b = pts[i];
-          const k = ballPos.segmentT;
+          const k = highlightEnd.segmentT;
           ctx.lineTo(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k);
         } else {
           ctx.lineTo(pts[i].x, pts[i].y);
@@ -983,15 +1006,15 @@ export class StandardEngine extends GameEngine {
         drawCircle(this.ctx, bx, by, r * 0.48, "rgba(255,255,255,0.95)", color, 2.5);
       }
     }
-    // 命中渐隐期间的变亮闪光：白色 + 'lighter' 叠加，alpha 随 hitFade 衰减
-    if (inHitFade) {
-      const head = pts[0];
+    // 命中渐隐期间的变亮闪光：白色 + 'lighter' 叠加，alpha 随 hitFade 衰减。
+    // 滑条的渐隐从 endTime 结算开始，闪光跟随球（渐隐期兜底在尾部），亮在结束端。
+    if (inHitFade && ballPos) {
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = hitFade * 0.5;
       ctx.fillStyle = "#fff";
       ctx.beginPath();
-      ctx.arc(head.x, head.y, r, 0, Math.PI * 2);
+      ctx.arc(ballPos.x, ballPos.y, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
