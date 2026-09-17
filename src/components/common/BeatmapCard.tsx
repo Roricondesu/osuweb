@@ -178,7 +178,10 @@ export const BeatmapCard: React.FC<BeatmapCardProps> = React.memo(({ set, index 
   const handleDownloadClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isLoadedSet(set) && !isDownloaded && !isDownloading) {
-      bgDownloadSet(set);
+      // 卡片直接下载：默认取完整谱面包（含 Storyboard / 视频），
+      // 不再跟随 settings.downloadFullPackage 开关（该设置默认关闭会下到 mini 包）。
+      // 若本地已有无视频的旧缓存，这里会因 needsVideo 判定自动补下完整包。
+      bgDownloadSet(set, true);
     }
   };
 
