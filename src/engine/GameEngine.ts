@@ -279,6 +279,17 @@ export abstract class GameEngine {
   protected activeIndex = 0;
   protected hitEffects: HitEffect[] = [];
   protected judgePopups: JudgePopup[] = [];
+  /**
+   * 非 null 时表示音频正在 seek 到该位置（秒），seek 是异步的。
+   * seek 完成前 getCurrentTime() 可能仍返回上一局的位置，若照常推进判定，
+   * 谱面前半段会被整体按 miss 结算、activeIndex 直接推到末尾 ——
+   * 表现为「重玩 / 看回放时前半段谱面不显示，只有后面的部分才出现」。
+   */
+  private pendingAudioSeekTo: number | null = null;
+  /** 等待音频 seek 归位的截止时刻（performance.now），超时后放弃等待 */
+  private audioSeekDeadline = 0;
+  /** 上一帧的时钟（毫秒），用于识别 seek / 缓冲造成的异常回退 */
+  private lastLoopTime: number | null = null;
 
   constructor(opts: EngineOptions) {
     this.canvas = opts.canvas;
@@ -928,6 +939,8 @@ export abstract class GameEngine {
     this.audio.playbackRate = this.playbackRate;
     try {
       this.audio.currentTime = 0;
+      this.pendingAudioSeekTo = 0;
+      this.audioSeekDeadline = performance.now() + 4000;
     } catch {
       // 音频未加载完成时设置 currentTime 可能抛错
     }
@@ -961,6 +974,7 @@ export abstract class GameEngine {
     this.unlockAudio();
     this.startTime = performance.now();
     this.audioStartedAt = 0;
+    this.lastLoopTime = null;
     this.initCursorPosition();
     this.startLoop();
   }
@@ -1007,6 +1021,8 @@ export abstract class GameEngine {
     this.resetState();
     try {
       this.audio.currentTime = 0;
+      this.pendingAudioSeekTo = 0;
+      this.audioSeekDeadline = performance.now() + 4000;
     } catch {
       // 忽略音频未就绪时的设置异常
     }
@@ -1040,6 +1056,7 @@ export abstract class GameEngine {
     this.lastFrameAt = 0;
     this.fpsFrameCount = 0;
     this.fpsLastUpdate = 0;
+    this.lastLoopTime = null;
     this.initCursorPosition();
     this.startLoop();
   }
@@ -1106,6 +1123,34 @@ export abstract class GameEngine {
     this.fpsFrameCount++;
 
     const time = this.getCurrentTime();
+
+    // 时钟归位保护：start / restart 后音频 seek 回起点是异步的，seek 生效前
+    // getCurrentTime() 可能仍返回上一局的位置。此时若照常推进判定，谱面前半段会被
+    // 整体按 miss 结算、activeIndex 一路推到末尾，表现为「重玩 / 看回放时前半段
+    // 谱面不显示，只有后半段才出现」。等待期间只渲染背景与 HUD。
+    if (this.pendingAudioSeekTo !== null) {
+      const pos = this.audio.currentTime;
+      // 兜底：音频未就绪时 currentTime 可能非有限值或 seek 始终不生效，
+      // 等待超过 4 秒就放行，避免整局卡在背景画面。
+      const arrived = !Number.isFinite(pos) || Math.abs(pos - this.pendingAudioSeekTo) < 0.5;
+      if (arrived || performance.now() > this.audioSeekDeadline) {
+        this.pendingAudioSeekTo = null;
+      } else {
+        this.renderBackground(time);
+        this.drawFPS();
+        this.rafId = requestAnimationFrame(this.loop);
+        return;
+      }
+    }
+    // 时钟异常回退（seek / 缓冲跳变）同样不能推进判定与回放注入
+    if (this.lastLoopTime !== null && time < this.lastLoopTime - 200) {
+      this.lastLoopTime = time;
+      this.renderBackground(time);
+      this.drawFPS();
+      this.rafId = requestAnimationFrame(this.loop);
+      return;
+    }
+    this.lastLoopTime = time;
 
     // 每帧同步背景视频到音频时间（storyboard 有视频时不同步背景视频）
     if (this.useBackgroundVideo) this.syncVideo();
