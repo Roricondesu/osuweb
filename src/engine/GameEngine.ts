@@ -273,7 +273,9 @@ export abstract class GameEngine {
   // drawTintedTexture 复用离屏 canvas（避免每帧每对象新建 canvas 触发 GC）
   private tintCanvas: HTMLCanvasElement | null = null;
   // 歌词切换动画状态
-  private lastLyricText = "";
+  // 用「当前行的时间戳」而非文本作为行标识：副歌等重复行文本相同但时间不同，
+  // 用文本比较会漏掉切换动画。
+  private lastLyricTime = -1;
   private lyricSwitchStartTime = 0;
 
   protected activeIndex = 0;
@@ -2002,11 +2004,16 @@ export abstract class GameEngine {
   protected drawLyrics(time: number): void {
     if (!this.showLyrics || this.lyrics.length === 0) return;
     const current = getCurrentLyric(this.lyrics, time);
-    if (!current || !current.text) return;
+    if (!current || !current.text) {
+      // 还没唱到第一句（前奏 / 开局）或该行无文本：不绘制，
+      // 并清掉行状态，保证第一句到来时能正常播放切换动画
+      this.lastLyricTime = -1;
+      return;
+    }
     const { ctx, width, height } = this.ctx;
 
-    if (current.text !== this.lastLyricText) {
-      this.lastLyricText = current.text;
+    if (current.time !== this.lastLyricTime) {
+      this.lastLyricTime = current.time;
       this.lyricSwitchStartTime = time;
     }
 
@@ -2501,7 +2508,7 @@ export abstract class GameEngine {
     this.cursorMoveStartY = -100;
     this.cursorLastTargetX = -100;
     this.cursorLastTargetY = -100;
-    this.lastLyricText = "";
+    this.lastLyricTime = -1;
     this.lyricSwitchStartTime = 0;
   }
 

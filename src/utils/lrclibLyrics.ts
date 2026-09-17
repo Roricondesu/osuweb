@@ -65,6 +65,10 @@ export async function fetchLrclibLyrics(title: string, artist: string): Promise<
 /** 根据当前时间获取当前歌词行 */
 export function getCurrentLyric(lines: LyricLine[], time: number): LyricLine | null {
   if (lines.length === 0) return null;
+  // 还没到第一句的时间点：不显示任何歌词。
+  // 原实现以 lines[0] 作为初始值，导致歌曲前奏（甚至开局 0 秒）就把第一句歌词
+  // 提前显示出来，直到第一句真正唱到为止。
+  if (time < lines[0].time) return null;
   let best: LyricLine = lines[0];
   for (const line of lines) {
     if (line.time <= time) best = line;
