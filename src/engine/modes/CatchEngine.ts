@@ -7,6 +7,7 @@
  */
 import type { HitObject, Judgement } from "@/types";
 import { GameEngine, type EngineOptions } from "../GameEngine";
+import { applyBonus } from "../Judger";
 import { clamp } from "../renderer/Canvas2D";
 
 const APPROACH_TIME = 1500;
@@ -16,6 +17,13 @@ const PLATE_W = 100;
 const PLATE_H = 14;
 const MODE_COLOR = "#4ade80";
 
+/** 香蕉（spinner 的对应物）：官方为可选奖励物件，接住 +1100 分，
+ *  不影响连击、不计入准确率，漏接没有任何惩罚。 */
+const BANANA_SCORE = 1100;
+/** 香蕉雨生成间隔：一个 spinner 区间内约每 150ms 落下一颗 */
+const BANANA_INTERVAL = 150;
+const BANANA_COLOR = "#fde047";
+
 /** 水果颜色 */
 const FRUIT_COLORS = ["#f472b6", "#fbbf24", "#4ade80", "#38bdf8", "#a78bfa", "#fb7185"];
 const DROP_COLOR = "#38bdf8";
@@ -24,12 +32,20 @@ const DROP_COLOR = "#38bdf8";
 const FRUIT_SKINS = ["fruit-apple.png", "fruit-grapes.png", "fruit-orange.png", "fruit-pear.png"];
 
 interface CachedFruit {
+  /** banana 表示该物件是 spinner——本体不判定，命中交由香蕉雨处理 */
   type: "fruit" | "drop" | "banana";
   color: string;
   sides: number;
   rotationOffset: number;
   /** 皮肤纹理文件名（若存在） */
   skinName: string;
+}
+
+/** 香蕉雨中的一颗香蕉。nx 为归一化横向位置（0-1），窗口尺寸变化时无需重算 */
+interface Banana {
+  time: number;
+  nx: number;
+  judged: boolean;
 }
 
 export class CatchEngine extends GameEngine {
@@ -42,10 +58,15 @@ export class CatchEngine extends GameEngine {
   private lastTime = 0;
   private cached: CachedFruit[] = [];
   private lastFocusIndex = -1;
+  /** 香蕉雨（按时间升序） */
+  private bananas: Banana[] = [];
+  /** 香蕉雨遍历游标：跳过已处理完的前缀，避免每帧全量扫描 */
+  private bananaCursor = 0;
 
   constructor(opts: EngineOptions) {
     super(opts);
     this.precomputeFruits();
+    this.buildBananas();
     this.computeLayout();
   }
 
@@ -79,6 +100,29 @@ export class CatchEngine extends GameEngine {
     }
   }
 
+  /** 预生成香蕉雨：osu!catch 中每个 spinner 对应一串横向随机散落的香蕉。
+   *  横向位置用确定性伪随机，保证同一谱面每次进入的分布一致（回放可复现）。 */
+  private buildBananas(): void {
+    this.bananas = [];
+    this.bananaCursor = 0;
+    let seed = 20240918;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+    for (const obj of this.beatmap.hitObjects) {
+      if (obj.type !== "spinner") continue;
+      const end = obj.endTime ?? obj.time;
+      const dur = Math.max(0, end - obj.time);
+      const count = Math.max(1, Math.floor(dur / BANANA_INTERVAL));
+      for (let k = 1; k <= count; k++) {
+        // 均匀铺满 spinner 区间；区间退化时落在起始时刻
+        const t = dur > 0 ? obj.time + (dur * k) / (count + 1) : obj.time;
+        this.bananas.push({ time: t, nx: 0.1 + rand() * 0.8, judged: false });
+      }
+    }
+  }
+
   private computeLayout(): void {
     this.judgeY = this.ctx.height - 90;
     this.plateX = this.ctx.width / 2;
@@ -87,7 +131,12 @@ export class CatchEngine extends GameEngine {
 
   /** 水果 y 位置：从屏幕上方下落到判定线 */
   private fruitY(obj: HitObject, time: number): number {
-    const dt = obj.time - time;
+    return this.fruitYAt(obj.time, time);
+  }
+
+  /** 按物件时间求 y 位置（香蕉没有 HitObject，直接传时间） */
+  private fruitYAt(objTime: number, time: number): number {
+    const dt = objTime - time;
     const startY = -FRUIT_R;
     return this.judgeY - (dt / APPROACH_TIME) * (this.judgeY - startY);
   }
@@ -96,6 +145,18 @@ export class CatchEngine extends GameEngine {
   private fruitX(obj: HitObject): number {
     const pad = FRUIT_R + 8;
     return pad + (obj.x / 512) * (this.ctx.width - pad * 2);
+  }
+
+  /** 香蕉的屏幕 x（归一化位置 → 轨道内） */
+  private bananaX(b: Banana): number {
+    const pad = FRUIT_R + 8;
+    return pad + b.nx * (this.ctx.width - pad * 2);
+  }
+
+  /** 判定板当前是否覆盖某个横向位置 */
+  private plateCovers(x: number): boolean {
+    const reach = PLATE_W / 2 + FRUIT_R * 0.3;
+    return x >= this.plateX - reach && x <= this.plateX + reach;
   }
 
   protected update(time: number): void {
@@ -118,10 +179,15 @@ export class CatchEngine extends GameEngine {
     // 判定：遍历所有已到达判定线且未判定的水果
     const objs = this.beatmap.hitObjects;
     const len = objs.length;
-    const halfPlate = PLATE_W / 2;
     for (let i = this.activeIndex; i < len; i++) {
       const obj = objs[i];
       if (obj.judged) continue;
+      // spinner 本体不参与判定：命中由下方的香蕉雨独立处理。
+      // 标记为完成即可，否则会被当成普通水果漏接而误判 miss。
+      if (this.cached[i].type === "banana") {
+        obj.judged = true;
+        continue;
+      }
       const objDt = obj.time - time;
       // 超过判定窗口下方还没接住 → miss
       if (objDt < -this.windows["50"]) {
@@ -135,32 +201,78 @@ export class CatchEngine extends GameEngine {
       if (objDt > 0) break;
 
       const x = this.fruitX(obj);
-      const caught = x >= this.plateX - halfPlate - FRUIT_R * 0.3 && x <= this.plateX + halfPlate + FRUIT_R * 0.3;
-      if (caught) {
+      if (this.plateCovers(x)) {
         const j = this.judgeHit(obj, time, x, this.judgeY);
         this.spawnHitEffect(x, this.judgeY, j, time);
       }
     }
 
+    // 香蕉雨：接住加分，漏接静默消失（不计连击、不计准确率、不扣血）
+    this.updateBananas(time);
+
     this.pruneHitEffects(time);
+  }
+
+  /** 香蕉雨判定。香蕉是可选奖励物件，漏接没有任何惩罚——
+   *  原实现把 spinner 当普通水果处理，漏接会判 miss 断连击扣血，与官方不符。 */
+  private updateBananas(time: number): void {
+    // 游标只跳过「已处理完」的前缀；未判定的香蕉需要持续检查到过期为止
+    while (this.bananaCursor < this.bananas.length && this.bananas[this.bananaCursor].judged) {
+      this.bananaCursor++;
+    }
+    for (let i = this.bananaCursor; i < this.bananas.length; i++) {
+      const b = this.bananas[i];
+      const dtB = b.time - time;
+      if (dtB > 0) break; // 按时间升序，后面的都还没到判定线
+      if (b.judged) continue;
+      if (dtB < -this.windows["50"]) {
+        b.judged = true; // 漏接：静默消失，不判 miss
+        continue;
+      }
+      const bx = this.bananaX(b);
+      if (this.plateCovers(bx)) {
+        b.judged = true;
+        this.score = applyBonus(this.score, BANANA_SCORE, false);
+        this.spawnHitEffect(bx, this.judgeY, "300", time);
+      }
+    }
   }
 
   private autoPlay(time: number, dt: number): void {
     const objs = this.beatmap.hitObjects;
     const len = objs.length;
 
-    // 找到下一个需要接的未判定水果
-    let next: HitObject | null = null;
+    // 候选目标：下一个未判定的水果（spinner 已被标记完成，会自动跳过）
+    let nextObj: HitObject | null = null;
     for (let i = this.activeIndex; i < len; i++) {
       const obj = objs[i];
       if (obj.judged) continue;
-      next = obj;
+      nextObj = obj;
       break;
     }
-    if (!next) return;
+    // 候选目标：下一颗还没落下的香蕉（漏接不扣分，但 auto 应当拿满）
+    let nextBanana: Banana | null = null;
+    for (let i = this.bananaCursor; i < this.bananas.length; i++) {
+      const b = this.bananas[i];
+      if (b.judged) continue;
+      if (b.time - time > APPROACH_TIME) break;
+      nextBanana = b;
+      break;
+    }
+    if (!nextObj && !nextBanana) return;
 
-    const targetX = this.fruitX(next);
-    const timeUntilJudge = Math.max(0, next.time - time);
+    // 取时间最早者作为移动目标
+    let targetX: number;
+    let targetTime: number;
+    if (nextObj && (!nextBanana || nextObj.time <= nextBanana.time)) {
+      targetX = this.fruitX(nextObj);
+      targetTime = nextObj.time;
+    } else {
+      targetX = this.bananaX(nextBanana as Banana);
+      targetTime = (nextBanana as Banana).time;
+    }
+
+    const timeUntilJudge = Math.max(0, targetTime - time);
 
     if (timeUntilJudge <= 0) {
       // 已到判定线，直接对准
@@ -192,6 +304,8 @@ export class CatchEngine extends GameEngine {
     const objs = this.beatmap.hitObjects;
     for (let i = objs.length - 1; i >= this.activeIndex; i--) {
       const obj = objs[i];
+      // spinner 本体不渲染，其视觉表现是下方单独绘制的香蕉雨
+      if (this.cached[i].type === "banana") continue;
       if (obj.judged && obj.judgement !== "miss") continue;
       const dt = obj.time - time;
       if (dt > APPROACH_TIME) continue;
@@ -201,6 +315,7 @@ export class CatchEngine extends GameEngine {
       this.drawFruit(x, y, i, time);
     }
 
+    this.drawBananas(time);
     this.drawPlate();
     // 统一走基类前景层：命中特效 + 判定弹字 + BREAK 休息段 + Flashlight 遮罩。
     // 原先这里只手动调了前两项，导致 Flashlight 在 catch 下完全没有视觉表现。
@@ -271,6 +386,41 @@ export class CatchEngine extends GameEngine {
     }
 
     ctx.restore();
+  }
+
+  /** 绘制香蕉雨：与普通水果一样从上方落下，横向位置分散 */
+  private drawBananas(time: number): void {
+    const { ctx } = this.ctx;
+    for (let i = this.bananaCursor; i < this.bananas.length; i++) {
+      const b = this.bananas[i];
+      if (b.judged) continue;
+      const dt = b.time - time;
+      if (dt > APPROACH_TIME) break;
+      const y = this.fruitYAt(b.time, time);
+      if (y > this.ctx.height + FRUIT_R) continue;
+      const x = this.bananaX(b);
+
+      // Hidden Mod：接近判定板时淡出（与普通水果一致）
+      let alpha = 1;
+      if (this.modHidden) {
+        const fadeStart = this.ctx.height * 0.18;
+        alpha = clamp((this.judgeY - y) / fadeStart, 0, 1);
+      }
+      if (alpha <= 0.01) continue;
+
+      const tex = this.getSkinTexture("fruit-bananas.png");
+      ctx.save();
+      if (alpha < 1) ctx.globalAlpha = alpha;
+      if (tex) {
+        ctx.drawImage(tex, x - FRUIT_R, y - FRUIT_R, FRUIT_R * 2, FRUIT_R * 2);
+      } else {
+        ctx.translate(x, y);
+        ctx.rotate(Math.sin(time / 400) * 0.35);
+        ctx.fillStyle = BANANA_COLOR;
+        this.drawBanana(ctx);
+      }
+      ctx.restore();
+    }
   }
 
   private drawRegularFruit(ctx: CanvasRenderingContext2D, sides: number, rotationOffset: number, time: number): void {
@@ -373,6 +523,7 @@ export class CatchEngine extends GameEngine {
     this.lastTime = 0;
     this.lastFocusIndex = -1;
     this.precomputeFruits();
+    this.buildBananas();
     this.computeLayout();
   }
 }

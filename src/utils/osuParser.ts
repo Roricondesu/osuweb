@@ -950,7 +950,8 @@ export const parseOsu = (text: string): ParsedBeatmap => {
   if (result.ar === 0 && result.od) result.ar = result.od;
 
   if (comboColors.length > 0) result.comboColors = comboColors;
-  result.timingPoints = timingPoints;
+  // 时序点必须按时间升序，后续按「时间之前最后一个时序点」查找 BPM / SV 依赖有序性
+  result.timingPoints = timingPoints.sort((a, b) => a.time - b.time);
   result.hitObjects = hitObjects.sort((a, b) => a.time - b.time);
 
   // 解析 Storyboard

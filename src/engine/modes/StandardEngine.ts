@@ -94,6 +94,9 @@ export class StandardEngine extends GameEngine {
   }
 
   private precomputeObjects(): void {
+    // 时序点按时间升序：sliderDuration 依赖「给定时刻之前最后一个时序点」的查找，
+    // 乱序数据会算出错误的 BPM / SV。解析器已排序，这里再防御一次。
+    this.beatmap.timingPoints.sort((a, b) => a.time - b.time);
     const objs = this.beatmap.hitObjects;
     this.cached = new Array(objs.length);
     let ci = 0, cn = 1;
@@ -133,7 +136,26 @@ export class StandardEngine extends GameEngine {
     const sliderMultiplier = this.beatmap.sliderMultiplier || 1.4;
     if (pixelLength <= 0 || slides <= 0) return 0;
     const beatDuration = this.getBeatDurationAt(obj.time);
-    return (pixelLength * beatDuration * slides) / (100 * sliderMultiplier);
+    // 滑条速度倍率（绿线）：官方公式
+    //   时长 = 路径长度 / (sliderMultiplier × 100 × SV) × 拍长 × 重复次数
+    // 原先漏掉了 SV 因子，导致所有带绿线变速的滑条时长错误，
+    // 连带球的位置、跟随时长、滑条 tick 采样一起偏。
+    const sv = this.getSliderVelocityAt(obj.time);
+    return (pixelLength * beatDuration * slides) / (100 * sliderMultiplier * sv);
+  }
+
+  /** 当前时刻生效的滑条速度倍率（SV）。
+   *  非继承点（红线）把 SV 重置为 1；继承点（绿线）以负的 beatLength 表示倍率，
+   *  换算关系为 SV = -100 / beatLength（例如 beatLength = -50 → 2 倍速）。 */
+  private getSliderVelocityAt(time: number): number {
+    const tps = this.beatmap.timingPoints;
+    let sv = 1;
+    for (const tp of tps) {
+      if (tp.time > time) break;
+      if (tp.uninherited) sv = 1;
+      else if (tp.beatLength < 0) sv = -100 / tp.beatLength;
+    }
+    return Number.isFinite(sv) && sv > 0 ? sv : 1;
   }
 
   /** 滑条实际结束位置（考虑返程） */
@@ -253,7 +275,12 @@ export class StandardEngine extends GameEngine {
           this.submitJudgement("miss");
         }
       } else {
-        break; // 后面的物件时间更晚
+        // 滑条进行中（尚未到 endTime）不能中断扫描：其后的物件时间可能与滑条
+        // 重叠且已超出判定窗口。原实现在这里直接 break，这些漏判的 miss 会
+        // 堆积到滑条结束的那一帧集中爆发——玩家看到一串 miss 同时弹出、
+        // 连击瞬间清零、血量骤降，而实际漏判发生在几秒之前。
+        if (obj.type === "slider") continue;
+        break; // 其余物件时间更晚
       }
     }
     if (this.auto) this.autoPlay(time);
