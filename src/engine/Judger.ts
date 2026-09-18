@@ -71,6 +71,24 @@ export const createInitialScore = (): ScoreState => ({
   health: 100,
 });
 
+/** 只加分（可选加连击），不改动准确率 / 血量 / 判定计数。
+ *  用于 taiko 滚奏与连打的敲击奖励：官方这两者每次敲击额外给分、累加连击，
+ *  但不计入准确率、也不会因为没敲满而扣血。
+ */
+export const applyBonus = (
+  state: ScoreState,
+  points: number,
+  addCombo = false,
+): ScoreState => {
+  const next: ScoreState = { ...state };
+  next.score = state.score + points;
+  if (addCombo) {
+    next.combo = state.combo + 1;
+    next.maxCombo = Math.max(state.maxCombo, next.combo);
+  }
+  return next;
+};
+
 /** 应用一次判定到分数状态
  *  hp 参数（0-10）影响扣血/回血幅度，对应谱面 HPDrainRate
  */

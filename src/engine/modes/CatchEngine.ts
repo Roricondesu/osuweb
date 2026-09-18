@@ -231,12 +231,20 @@ export class CatchEngine extends GameEngine {
   private drawFruit(x: number, y: number, idx: number, time: number): void {
     const c = this.cached[idx];
     const { ctx } = this.ctx;
+    // Hidden Mod：水果接近判定板时逐渐淡出，靠记忆移动盘子（官方 catch 的 Hidden 行为）
+    let hiddenAlpha = 1;
+    if (this.modHidden) {
+      const fadeStart = this.ctx.height * 0.18;
+      hiddenAlpha = clamp((this.judgeY - y) / fadeStart, 0, 1);
+    }
+    if (hiddenAlpha <= 0.01) return;
     // 优先使用皮肤纹理（自定义皮肤 > 谱面皮肤）
     const tex = this.getSkinTexture(c.skinName);
     if (tex) {
       const r = c.type === "drop" ? DROP_R : FRUIT_R;
       const size = r * 2;
       ctx.save();
+      if (hiddenAlpha < 1) ctx.globalAlpha = hiddenAlpha;
       // 普通水果轻微旋转以保持视觉活力
       if (c.type === "fruit") {
         ctx.translate(x, y);
@@ -250,6 +258,7 @@ export class CatchEngine extends GameEngine {
     }
     // 无皮肤：Canvas 原语回退
     ctx.save();
+    if (hiddenAlpha < 1) ctx.globalAlpha = hiddenAlpha;
     ctx.translate(x, y);
     ctx.fillStyle = c.color;
 

@@ -94,6 +94,8 @@ export interface EngineOptions {
   sliderBorderWidth?: number;
   sliderBallScale?: number;
   hitCircleScale?: number;
+  /** 是否用 AudioContext 时钟并对音频输出延迟做补偿（默认开启） */
+  audioLatencyCorrection?: boolean;
 }
 
 export abstract class GameEngine {
@@ -102,6 +104,10 @@ export abstract class GameEngine {
   protected audio: HTMLAudioElement;
   protected beatmap: ParsedBeatmap;
   protected offset: number; // ms，玩家可调
+  /** 是否启用 AudioContext 时钟平滑与输出延迟补偿 */
+  protected audioLatencyCorrection = true;
+  /** 时钟锚点：记录某个 AudioContext 时刻对应的音频播放位置，用于帧间平滑推进 */
+  private clockAnchor: { ctxTime: number; audioPos: number } | null = null;
   protected windows: JudgementWindows;
 
   protected score: ScoreState = createInitialScore();
@@ -299,6 +305,7 @@ export abstract class GameEngine {
     this.audio = opts.audio;
     this.beatmap = opts.beatmap;
     this.offset = opts.offset || 0;
+    this.audioLatencyCorrection = opts.audioLatencyCorrection ?? true;
     this.mods = opts.mods ?? [];
     this.computeModEffects(opts.beatmap);
     this.windows = windowsForOD(this.effectiveOD);
@@ -901,15 +908,52 @@ export abstract class GameEngine {
     // 子类重写
   }
 
-  /** 当前游戏时间（毫秒，基于音频播放时间） */
+  /** 音频输出延迟（毫秒）：声音从音频管线送到扬声器的额外耗时。
+   *  判定应当以「玩家听到的时刻」为准，因此从时钟中扣掉这段延迟（限幅 250ms 防异常值）。 */
+  private outputLatencyMs(): number {
+    if (!this.audioLatencyCorrection) return 0;
+    const ctx = this.audioCtx;
+    if (!ctx) return 0;
+    const withOut = ctx as AudioContext & { outputLatency?: number };
+    const base = typeof ctx.baseLatency === "number" ? ctx.baseLatency : 0;
+    const out = typeof withOut.outputLatency === "number" ? withOut.outputLatency : 0;
+    return clamp((base + out) * 1000, 0, 250);
+  }
+
+  /** 当前游戏时间（毫秒，基于音频播放时间）
+   *  主时钟仍是音频元素的 currentTime（唯一权威的播放位置），
+   *  但用 AudioContext 时钟在帧间做平滑推进：部分浏览器会把 currentTime 量化成阶梯，
+   *  直接用它做判定会产生抖动。两者偏差过大（seek / 缓冲 / 时钟漂移）时立即重新锚定。
+   *  最后扣掉音频输出延迟，让判定对齐「玩家实际听到的时刻」。 */
   getCurrentTime(): number {
-    if (this.status === "playing") {
-      return this.audio.currentTime * 1000 + this.offset;
+    if (this.status !== "playing" && this.status !== "paused") return 0;
+    const rawMs = this.audio.currentTime * 1000;
+    const ctx = this.audioCtx;
+    let timeMs = rawMs;
+
+    if (ctx) {
+      const ctxNow = ctx.currentTime * 1000;
+      if (this.status !== "playing") {
+        // 暂停时 AudioContext 仍在前进，预测值会一路增长 → 锚点跟随真实位置
+        this.clockAnchor = { ctxTime: ctxNow, audioPos: rawMs };
+      } else {
+        const a = this.clockAnchor;
+        if (!a) {
+          this.clockAnchor = { ctxTime: ctxNow, audioPos: rawMs };
+        } else {
+          const predicted = a.audioPos + (ctxNow - a.ctxTime) * this.playbackRate;
+          if (Math.abs(predicted - rawMs) > 80) {
+            // 偏差过大：以真实播放位置重新锚定
+            this.clockAnchor = { ctxTime: ctxNow, audioPos: rawMs };
+          } else {
+            // 平滑取值：不低于真实位置（保证单调），也不过度超前
+            timeMs = Math.max(rawMs, Math.min(predicted, rawMs + 80));
+          }
+        }
+      }
     }
-    if (this.status === "paused") {
-      return this.audio.currentTime * 1000 + this.offset;
-    }
-    return 0;
+
+    return timeMs + this.offset - this.outputLatencyMs();
   }
 
   /** 同步背景视频到音频当前时间 */
@@ -2510,6 +2554,8 @@ export abstract class GameEngine {
     this.cursorLastTargetY = -100;
     this.lastLyricTime = -1;
     this.lyricSwitchStartTime = 0;
+    // 时钟锚点失效：下一帧会以新的播放位置重新建立（重开 / seek 后必须重锚）
+    this.clockAnchor = null;
   }
 
   /** 输入：设置光标位置（子类可重写） */

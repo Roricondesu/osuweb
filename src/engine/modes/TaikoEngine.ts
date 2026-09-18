@@ -5,9 +5,10 @@
  *  - 底部绘制虚拟太鼓作为操作区
  *  - 支持 Don（红/鼓面）与 Katsu（蓝/鼓边）
  */
-import type { HitObject } from "@/types";
+import type { HitObject, Judgement } from "@/types";
 import { GameEngine, type EngineOptions } from "../GameEngine";
 import { drawRect, drawRing, clamp } from "../renderer/Canvas2D";
+import { applyBonus } from "../Judger";
 
 const NOTE_R = 36;
 const APPROACH_TIME = 1500;
@@ -24,6 +25,17 @@ export class TaikoEngine extends GameEngine {
   private readonly HIT_COOLDOWN = 40;
   private lastHitTime: [number, number] = [-Infinity, -Infinity];
 
+  // === 滚奏（slider = drumroll）/ 连打（spinner = denden）===
+  /** 当前正在累计敲击的滚奏或连打对象 */
+  private rollTarget: HitObject | null = null;
+  /** 当前滚奏/连打已敲击次数 */
+  private rollHits = 0;
+  /** 单次滚奏敲击得分（官方 taiko 口径：每击固定加分，不计入准确率） */
+  private readonly ROLL_HIT_SCORE = 100;
+  /** Auto 模式下滚奏自动敲击的间隔（ms） */
+  private readonly AUTO_ROLL_INTERVAL = 60;
+  private lastAutoRollHit = -Infinity;
+
   constructor(opts: EngineOptions) {
     super(opts);
     this.computeLayout();
@@ -33,6 +45,9 @@ export class TaikoEngine extends GameEngine {
     super.resetState();
     this.computeLayout();
     this.lastHitTime = [-Infinity, -Infinity];
+    this.rollTarget = null;
+    this.rollHits = 0;
+    this.lastAutoRollHit = -Infinity;
   }
 
   protected onLayoutChange(): void { this.computeLayout(); }
@@ -69,6 +84,13 @@ export class TaikoEngine extends GameEngine {
     for (let i = this.activeIndex; i < len; i++) {
       const obj = objs[i];
       if (obj.judged) continue;
+      // 滚奏 / 连打是「一段时间」而不是一个打击点：整段期间都要能继续敲击，
+      // 因此不做单点窗口的 miss 判定，只在结束时间到达时统一结算。
+      if (this.isRoll(obj)) {
+        if (time < obj.time) break; // 还没开始，后面的物件只会更晚
+        if (time >= this.rollEnd(obj)) this.finishRoll(obj);
+        continue;
+      }
       if (time - obj.time > win50) {
         obj.judged = true;
         obj.judgement = "miss";
@@ -81,11 +103,103 @@ export class TaikoEngine extends GameEngine {
     this.pruneHitEffects(time);
   }
 
+  /** 该物件是否为滚奏（slider）或连打（spinner） */
+  private isRoll(obj: HitObject): boolean {
+    return obj.type === "slider" || obj.type === "spinner";
+  }
+
+  /** 滚奏 / 连打的结束时间 */
+  private rollEnd(obj: HitObject): number {
+    return obj.endTime ?? obj.time;
+  }
+
+  /** 连打的敲击次数要求：按持续时间估算（官方约每 100ms 一次），最少 3 次 */
+  private spinnerRequiredHits(obj: HitObject): number {
+    const duration = Math.max(0, this.rollEnd(obj) - obj.time);
+    return Math.max(3, Math.round(duration / 100));
+  }
+
+  /** 取得当前时间点正在进行、且尚未结算的滚奏 / 连打 */
+  private activeRoll(time: number): HitObject | null {
+    const objs = this.beatmap.hitObjects;
+    for (let i = this.activeIndex; i < objs.length; i++) {
+      const obj = objs[i];
+      if (obj.time > time) return null;
+      if (!this.isRoll(obj) || obj.judged) continue;
+      if (time >= obj.time && time < this.rollEnd(obj)) return obj;
+    }
+    return null;
+  }
+
+  /** 记录一次滚奏 / 连打敲击（切换目标时重新计数） */
+  private registerRollHit(obj: HitObject): number {
+    if (this.rollTarget !== obj) {
+      this.rollTarget = obj;
+      this.rollHits = 0;
+    }
+    this.rollHits++;
+    obj._rollHits = this.rollHits;
+    return this.rollHits;
+  }
+
+  /** 滚奏 / 连打敲击奖励：加分与连击，不改动准确率与血量 */
+  private rewardRollHit(time: number): void {
+    this.score = applyBonus(this.score, this.ROLL_HIT_SCORE, true);
+    this.spawnHitEffect(this.judgePos, this.crossPos, "300", time);
+  }
+
+  /** 结算滚奏 / 连打 */
+  private finishRoll(obj: HitObject): void {
+    if (obj.judged) return;
+    const hits = this.rollTarget === obj ? this.rollHits : 0;
+    obj.judged = true;
+    obj._rollHits = hits;
+
+    if (obj.type === "spinner") {
+      // 连打（denden）：按完成度给判定，未达标算 miss（与官方一致，会断连击）
+      const need = this.spinnerRequiredHits(obj);
+      const ratio = need > 0 ? hits / need : 1;
+      const j: Judgement = ratio >= 1 ? "300" : ratio >= 0.5 ? "100" : "miss";
+      obj.judgement = j;
+      this.submitJudgement(j);
+    } else {
+      // 滚奏（drumroll）：敲过即有判定，但官方不计入准确率，因此不提交判定，
+      // 只把结果写在物件上供回放 / 结算展示使用。
+      obj.judgement = hits > 0 ? "300" : "miss";
+    }
+
+    this.rollTarget = null;
+    this.rollHits = 0;
+  }
+
+  /** 时钟跳变跨过滚奏 / 连打时：按已敲击次数结算，不当作普通 miss */
+  protected settleSkippedObject(obj: HitObject, time: number): void {
+    if (this.isRoll(obj)) {
+      this.finishRoll(obj);
+      return;
+    }
+    super.settleSkippedObject(obj, time);
+  }
+
   private autoPlay(time: number): void {
+    // 滚奏 / 连打：Auto 模式下按固定间隔自动敲击（官方 Auto 也是连续敲满）
+    const roll = this.activeRoll(time);
+    if (roll) {
+      if (time - this.lastAutoRollHit >= this.AUTO_ROLL_INTERVAL) {
+        this.lastAutoRollHit = time;
+        const hits = this.registerRollHit(roll);
+        this.rewardRollHit(time);
+        this.playTaikoFeedback(hits % 2 === 1);
+      }
+      this.cursorTargetX = this.judgePos;
+      this.cursorTargetY = this.crossPos;
+      return;
+    }
+
     const win300 = this.windows["300"];
     const best = this.findHitTarget(
       time,
-      () => true,
+      (obj) => !this.isRoll(obj),
       (obj) => Math.abs(time - obj.time),
     );
     if (best && Math.abs(time - best.time) <= win300) {
@@ -112,6 +226,8 @@ export class TaikoEngine extends GameEngine {
     const objs = this.beatmap.hitObjects;
     for (let i = objs.length - 1; i >= this.activeIndex; i--) {
       const obj = objs[i];
+      // 滚奏 / 连打是「一段」而不是一个打击点，另有条状渲染，不走音符绘制
+      if (this.isRoll(obj)) continue;
       if (obj.judged && obj.judgement !== "miss") continue;
       const dt = obj.time - time;
       if (dt > APPROACH_TIME) continue;
@@ -121,6 +237,7 @@ export class TaikoEngine extends GameEngine {
       this.drawNote(x, y, obj, time);
     }
 
+    this.drawRolls(time);
     this.drawJudgeCircle();
     this.drawHitHint();
     // 统一走基类前景层：命中特效 + 判定弹字 + BREAK 休息段 + Flashlight 遮罩。
@@ -208,6 +325,74 @@ export class TaikoEngine extends GameEngine {
     ctx.restore();
   }
 
+  /** 滚奏（drumroll）与连打（denden）的条状渲染 */
+  private drawRolls(time: number): void {
+    const objs = this.beatmap.hitObjects;
+    for (let i = this.activeIndex; i < objs.length; i++) {
+      const obj = objs[i];
+      if (!this.isRoll(obj)) continue;
+      if (time - this.rollEnd(obj) > 220) continue;  // 结束太久，不再绘制
+      if (obj.time - time > APPROACH_TIME) break;    // 还没进场，后面的只会更晚
+      this.drawRoll(obj, time);
+    }
+  }
+
+  private drawRoll(obj: HitObject, time: number): void {
+    const { ctx, width } = this.ctx;
+    const end = this.rollEnd(obj);
+    const isSpinner = obj.type === "spinner";
+    const y = this.crossPos;
+    const x0 = this.judgePos;
+    const span = width + NOTE_R - this.judgePos;
+    const w = Math.max(28, clamp((end - time) / APPROACH_TIME, 0, 1) * span);
+    const h = isSpinner ? 30 : 20;
+    const started = time >= obj.time;
+    const done = time >= end;
+    const total = Math.max(1, end - obj.time);
+    const progress = clamp((time - obj.time) / total, 0, 1);
+    const hits = obj._rollHits ?? 0;
+
+    ctx.save();
+    ctx.globalAlpha = done ? clamp(1 - (time - end) / 220, 0, 1) : 0.92;
+
+    // 轨道底
+    drawRect(this.ctx, x0, y - h / 2, w, h, "rgba(255,255,255,0.14)", h / 2);
+    // 已进行的部分
+    if (started) {
+      drawRect(
+        this.ctx, x0, y - h / 2, w * progress, h,
+        isSpinner ? "rgba(255,208,61,0.55)" : "rgba(255,255,255,0.45)",
+        h / 2,
+      );
+    }
+    // 描边（圆角矩形）
+    ctx.strokeStyle = isSpinner ? COLOR_GOLD : "rgba(255,255,255,0.6)";
+    ctx.lineWidth = 2;
+    const r = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(x0 + r, y - r);
+    ctx.lineTo(x0 + w - r, y - r);
+    ctx.arcTo(x0 + w, y - r, x0 + w, y, r);
+    ctx.arcTo(x0 + w, y + r, x0 + w - r, y + r, r);
+    ctx.lineTo(x0 + r, y + r);
+    ctx.arcTo(x0, y + r, x0, y, r);
+    ctx.arcTo(x0, y - r, x0 + r, y - r, r);
+    ctx.closePath();
+    ctx.stroke();
+
+    // 敲击计数：连打显示「已敲 / 需要」
+    ctx.font = `700 13px ${this.fontStack}`;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#fff";
+    ctx.fillText(
+      isSpinner ? `${hits} / ${this.spinnerRequiredHits(obj)}` : `${hits}`,
+      x0 + w - 10,
+      y,
+    );
+    ctx.restore();
+  }
+
   /** 音符：优先使用皮肤纹理（taikohitcircle / taikobigcircle），无皮肤则 Canvas 原语 */
   private drawNote(x: number, y: number, obj: HitObject, time: number): void {
     const blue = this.isBlue(obj);
@@ -215,7 +400,13 @@ export class TaikoEngine extends GameEngine {
     const r = big ? NOTE_R * 1.32 : NOTE_R;
     const color = blue ? COLOR_BLUE : COLOR_RED;
     const dt = obj.time - time;
-    const alpha = clamp(1 - dt / APPROACH_TIME, 0.55, 1);
+    let alpha = clamp(1 - dt / APPROACH_TIME, 0.55, 1);
+    // Hidden Mod：音符越接近判定圈越淡，抵达判定圈前完全消失（官方 taiko 的 Hidden 行为）
+    if (this.modHidden) {
+      const approach = 1 - clamp(dt / APPROACH_TIME, 0, 1); // 0=刚进场，1=正好到判定圈
+      if (approach > 0.65) alpha *= clamp(1 - (approach - 0.65) / 0.35, 0, 1);
+    }
+    if (alpha <= 0.01) return;
     const { ctx } = this.ctx;
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -299,10 +490,19 @@ export class TaikoEngine extends GameEngine {
     // 2. 冷却：同侧在 40ms 内只能触发一次判定（防止键盘自动重复事件导致多次判定）
     if (time - this.lastHitTime[side] < this.HIT_COOLDOWN) return;
 
-    // 3. 命中目标：普通音符必须颜色匹配；大音符任意一侧都可命中
+    // 3. 滚奏 / 连打进行中：敲击计入滚奏，不消耗普通音符（官方 taiko 行为）
+    const roll = this.activeRoll(time);
+    if (roll) {
+      this.lastHitTime[side] = time;
+      this.registerRollHit(roll);
+      this.rewardRollHit(time);
+      return;
+    }
+
+    // 4. 命中目标：普通音符必须颜色匹配；大音符任意一侧都可命中
     const best = this.findHitTarget(
       time,
-      (obj) => !obj.judged && (this.isBig(obj) || this.isBlue(obj) === blue),
+      (obj) => !obj.judged && !this.isRoll(obj) && (this.isBig(obj) || this.isBlue(obj) === blue),
       (obj) => Math.abs(time - obj.time),
     );
     if (!best) return;

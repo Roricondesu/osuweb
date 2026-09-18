@@ -1184,6 +1184,19 @@ export default function Settings() {
                 </p>
                 <OffsetWizard onApply={(v) => updateSetting("offset", v)} />
 
+                <SettingRow>
+                  <SettingLabel
+                    title={t("audio.latencyCorrection")}
+                    desc={t("audio.latencyCorrectionDesc")}
+                  />
+                  <GlassSwitch
+                    checked={settings.audioLatencyCorrection}
+                    onCheckedChange={(c) => updateSetting("audioLatencyCorrection", c)}
+                    scheme={scheme}
+                    ariaLabel={t("audio.latencyCorrection")}
+                  />
+                </SettingRow>
+
                 <SubHeader>{t("audio.hitSamples")}</SubHeader>
                 <SettingRow>
                   <SettingLabel

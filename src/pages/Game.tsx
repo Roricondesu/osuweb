@@ -7,7 +7,7 @@ import { ModSelectOverlay } from "@/components/game/ModSelectOverlay";
 import { RotateCcw, ArrowLeft, Pause, Play, Menu, X, Maximize, Minimize, Eye, Home, Zap } from "lucide-react";
 import { OsuLogoIcon } from "@/components/common";
 import type { GameMode, Replay, ScoreRecord } from "@/types";
-import { MODE_LABEL } from "@/types";
+import { MODE_LABEL, filterSupportedMods } from "@/types";
 import { useOrientation } from "@/hooks/useOrientation";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import type { LyricLine } from "@/utils/lyricsProvider";
@@ -33,6 +33,7 @@ export default function Game() {
 
   const volume = useGameStore((s) => s.settings.volume);
   const offset = useGameStore((s) => s.settings.offset);
+  const audioLatencyCorrection = useGameStore((s) => s.settings.audioLatencyCorrection);
   const auto = useGameStore((s) => s.settings.auto);
   const showCursor = useGameStore((s) => s.settings.showCursor);
   const showStoryboard = useGameStore((s) => s.settings.showStoryboard);
@@ -156,6 +157,7 @@ export default function Game() {
           audio,
           beatmap: beatmap.parsed,
           offset,
+          audioLatencyCorrection,
           isLandscape,
           backgroundUrl: set.backgroundUrl || set.cover,
           assetUrls: set.assetUrls,
@@ -189,7 +191,8 @@ export default function Game() {
           hudScale,
           cursorSize,
           playbackRate,
-          mods,
+          // 引擎只接收当前模式下真正生效的 Mod（Relax / Autopilot 仅 osu!standard 有实现）
+          mods: filterSupportedMods(gameMode, mods),
           useBeatmapSkin,
           customSkinAssetUrls: useCustomSkin ? customSkinAssetUrls : undefined,
           customComboColors,
@@ -743,7 +746,7 @@ export default function Game() {
       )}
 
       {/* Mod 选择浮层 */}
-      <ModSelectOverlay open={modOverlayOpen} onClose={() => setModOverlayOpen(false)} />
+      <ModSelectOverlay open={modOverlayOpen} onClose={() => setModOverlayOpen(false)} mode={gameMode} />
 
       {/* 暂停页浮层 */}
       {phase === "paused" && (

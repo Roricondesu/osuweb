@@ -231,8 +231,27 @@ export class ManiaEngine extends GameEngine {
       const noteW = this.colWidth * 0.82;
       const noteH = 22;
 
+      // Hidden Mod：note 在接近判定线前淡出，靠记忆打击（官方 mania 的 Hidden 行为）。
+      // 正在按住的长条不隐藏，否则玩家看不到自己按住的东西。
+      let hiddenAlpha = 1;
+      if (this.modHidden) {
+        const isHoldingNow = obj.type === "hold" && !!obj.endTime && this.activeHolds.has(obj);
+        if (!isHoldingNow) {
+          const headScreenY =
+            obj.type === "hold" && obj.endTime
+              ? Math.min(this.noteY(obj.time, time), this.judgeY)
+              : y;
+          const dist = clamp(this.judgeY - headScreenY, 0, this.judgeY);
+          const fadeStart = this.judgeY * 0.45;
+          if (dist < fadeStart) hiddenAlpha = clamp(dist / fadeStart, 0, 1);
+        }
+      }
+      if (hiddenAlpha <= 0.01) continue;
+
       if (obj.type === "hold" && obj.endTime) {
         const isHeld = this.activeHolds.has(obj);
+        this.ctx.ctx.save();
+        this.ctx.ctx.globalAlpha = hiddenAlpha;
         // 头部位置：按住时贴在判定线，未按住时随时间下落（钳制不越过判定线）
         const headY = isHeld ? this.judgeY : Math.min(this.noteY(obj.time, time), this.judgeY);
         // 尾部位置：按住时钳制到判定线（hold 结束后 body 不延伸到判定线下方）
@@ -274,9 +293,10 @@ export class ManiaEngine extends GameEngine {
             drawRect(this.ctx, x - noteW / 2, tailY - 3, noteW, 6, "#ffffff", 2);
           }
         }
+        this.ctx.ctx.restore();
       } else {
         // 普通 note：优先皮肤纹理，无则简约圆角矩形 + 顶部高光
-        const alpha = clamp(1 - (this.judgeY - y) / (this.judgeY - 10), 0.5, 1);
+        const alpha = clamp(1 - (this.judgeY - y) / (this.judgeY - 10), 0.5, 1) * hiddenAlpha;
         const noteTex = this.noteTexture(col, "");
         this.ctx.ctx.save();
         this.ctx.ctx.globalAlpha = alpha;

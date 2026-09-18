@@ -31,6 +31,26 @@ export const MOD_COLOR: Record<ModType, string> = {
   autopilot: "#66cc44",
 };
 
+/** 各模式实际支持的 Mod。
+ *  必须与引擎实现保持一致：taiko / catch / mania 没有 Relax 与 Autopilot 所需的
+ *  自动接球 / 自动打击逻辑（官方这四个模式里也只有 osu!standard 有这两个 Mod）。
+ *  此前 Mod 面板不做模式过滤，导致在这三个模式里选上它们只是「表面已启用」。
+ */
+export const MOD_SUPPORT: Record<GameMode, readonly ModType[]> = {
+  standard: ["easy", "notail", "halfTime", "hardRock", "suddenDeath", "doubleTime", "hidden", "flashlight", "relax", "autopilot"],
+  taiko: ["easy", "notail", "halfTime", "hardRock", "suddenDeath", "doubleTime", "hidden", "flashlight"],
+  catch: ["easy", "notail", "halfTime", "hardRock", "suddenDeath", "doubleTime", "hidden", "flashlight"],
+  mania: ["easy", "notail", "halfTime", "hardRock", "suddenDeath", "doubleTime", "hidden", "flashlight"],
+};
+
+/** 该 Mod 在指定模式下是否可用 */
+export const isModSupported = (mode: GameMode, mod: ModType): boolean =>
+  MOD_SUPPORT[mode].includes(mod);
+
+/** 过滤掉指定模式下不可用的 Mod：进游戏前兜底，保证引擎只收到真正生效的 Mod */
+export const filterSupportedMods = (mode: GameMode, mods: ModType[]): ModType[] =>
+  mods.filter((m) => isModSupported(mode, m));
+
 /** osu! 数字模式 ID → 字符串模式 */
 export const MODE_FROM_ID: Record<number, GameMode> = {
   0: "standard",
@@ -306,6 +326,8 @@ export interface HitObject {
   _hitTime?: number;
   /** 判为 miss 的时刻，用于 miss 后的灰化 / 淡出动画（不能立刻消失） */
   _missTime?: number;
+  /** taiko 滚奏 / 连打累计的敲击次数（结算后保留，供淡出期间显示） */
+  _rollHits?: number;
   // 扩展字段
   _comboIndex?: number;
   _comboNumber?: number;
@@ -472,6 +494,8 @@ export interface Settings {
   accent: string;
   volume: number; // 0-1
   offset: number; // ms，判定时间偏移
+  /** 自动补偿音频输出延迟：用 AudioContext 时钟校正判定时刻（可关） */
+  audioLatencyCorrection: boolean;
   auto: boolean; // 自动模式
   showCursor: boolean; // 显示光标
 
@@ -548,6 +572,7 @@ export const DEFAULT_SETTINGS: Settings = {
   accent: "#8866ff",
   volume: 0.7,
   offset: 0,
+  audioLatencyCorrection: true,
   auto: false,
   showCursor: false,
   searchSource: "all",

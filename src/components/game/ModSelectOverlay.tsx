@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useGameStore } from "@/store/useGameStore";
 import { X, Zap } from "lucide-react";
-import type { ModType } from "@/types";
-import { MOD_LABEL, MOD_COLOR } from "@/types";
+import type { GameMode, ModType } from "@/types";
+import { MOD_LABEL, MOD_COLOR, isModSupported, filterSupportedMods } from "@/types";
 
 interface ModSelectOverlayProps {
   open: boolean;
   onClose: () => void;
+  /** 当前游戏模式：用于禁用该模式下不生效的 Mod */
+  mode?: GameMode;
 }
 
 /** Mod 分类 */
@@ -17,17 +19,33 @@ const MOD_SECTIONS: { title: string; mods: ModType[] }[] = [
   { title: "辅助", mods: ["relax", "autopilot"] },
 ];
 
+const MODE_NAME: Record<GameMode, string> = {
+  standard: "osu!",
+  taiko: "osu!taiko",
+  catch: "osu!catch",
+  mania: "osu!mania",
+};
+
 /** lazer 风格 Mod 选择浮层 */
-export const ModSelectOverlay: React.FC<ModSelectOverlayProps> = ({ open, onClose }) => {
+export const ModSelectOverlay: React.FC<ModSelectOverlayProps> = ({ open, onClose, mode = "standard" }) => {
   const mods = useGameStore((s) => s.settings.mods);
   const updateSetting = useGameStore((s) => s.updateSetting);
 
   const toggleMod = (mod: ModType) => {
+    if (!isModSupported(mode, mod)) return;
     const next = mods.includes(mod)
       ? mods.filter((m) => m !== mod)
       : [...mods, mod];
     updateSetting("mods", next);
   };
+
+  // 打开面板时清掉当前模式下不生效的已选 Mod，
+  // 避免出现「已启用 3 个」里混着两个点了没反应的项
+  useEffect(() => {
+    if (!open) return;
+    const kept = filterSupportedMods(mode, mods);
+    if (kept.length !== mods.length) updateSetting("mods", kept);
+  }, [open, mode, mods, updateSetting]);
 
   // ESC 关闭
   useEffect(() => {
@@ -40,6 +58,8 @@ export const ModSelectOverlay: React.FC<ModSelectOverlayProps> = ({ open, onClos
   }, [open, onClose]);
 
   if (!open) return null;
+
+  const hasUnsupported = MOD_SECTIONS.some((s) => s.mods.some((m) => !isModSupported(mode, m)));
 
   return (
     <div
@@ -115,17 +135,23 @@ export const ModSelectOverlay: React.FC<ModSelectOverlayProps> = ({ open, onClos
                 {section.mods.map((mod) => {
                   const active = mods.includes(mod);
                   const color = MOD_COLOR[mod];
+                  const supported = isModSupported(mode, mod);
                   return (
                     <button
                       key={mod}
                       onClick={() => toggleMod(mod)}
+                      disabled={!supported}
+                      aria-disabled={!supported}
+                      title={supported ? undefined : `${MOD_LABEL[mod]} 在 ${mode} 模式下不可用`}
                       style={{
                         position: "relative",
                         padding: "12px 8px",
                         borderRadius: 14,
                         border: `1.5px solid ${active ? color : "var(--glass-border)"}`,
                         background: active ? `${color}22` : "var(--glass-bg)",
-                        cursor: "pointer",
+                        cursor: supported ? "pointer" : "not-allowed",
+                        opacity: supported ? 1 : 0.32,
+                        filter: supported ? "none" : "grayscale(1)",
                         transition: "all 0.2s cubic-bezier(0.22, 1, 0.36, 1)",
                         overflow: "hidden",
                       }}
@@ -152,6 +178,12 @@ export const ModSelectOverlay: React.FC<ModSelectOverlayProps> = ({ open, onClos
             </div>
           ))}
         </div>
+
+        {hasUnsupported && (
+          <div style={{ marginTop: 14, fontSize: 11, lineHeight: 1.6, color: "var(--text-secondary)", opacity: 0.75 }}>
+            灰色 Mod 在 {MODE_NAME[mode]} 下不可用：Relax / Autopilot 依赖 osu!standard 的自动瞄准逻辑，官方也只在该模式提供。
+          </div>
+        )}
 
         {/* 底部操作 */}
         {mods.length > 0 && (
